@@ -1,0 +1,25 @@
+line-length = 120
+target-version = "py311"
+
+[lint]
+preview = true
+select = [
+    "E",  # pycodestyle errors
+    "F",  # pyflakes
+    "I",  # isort
+    "W",  # pycodestyle warnings
+    "B",  # flake8-bugbear
+    "UP", # pyupgrade
+]
+
+[lint.per-file-ignores]
+"__init__.py" = ["F401"]  # Unused imports
+"tests/**/*.py" = ["F811", "F401", "B017"]  # Redefinition in test files
+
+[lint.isort]
+known-first-party = ["a2c_smcp"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

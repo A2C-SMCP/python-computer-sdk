@@ -11,7 +11,7 @@ from io import StringIO
 import pytest
 
 # 待测试模块名
-MODULE_NAME = 'a2c_smcp.utils.logger'
+MODULE_NAME = "a2c_smcp.utils.logger"
 
 
 @pytest.fixture(autouse=True)
@@ -36,7 +36,7 @@ def reload_module(monkeypatch, env_vars=None):
 
     # 捕获标准输出以验证日志
     captured_output = StringIO()
-    monkeypatch.setattr(sys, 'stdout', captured_output)
+    monkeypatch.setattr(sys, "stdout", captured_output)
 
     # 重新加载模块
     module = importlib.import_module(MODULE_NAME)
@@ -62,9 +62,7 @@ def test_default_config(monkeypatch):
 
 def test_silent_mode(monkeypatch):
     """测试静默模式"""
-    module, captured_output = reload_module(monkeypatch, {
-        'A2C_SMCP_LOG_SILENT': 'true'
-    })
+    module, captured_output = reload_module(monkeypatch, {"A2C_SMCP_LOG_SILENT": "true"})
 
     # 验证日志被禁用
     assert module.logger.disabled
@@ -145,10 +143,7 @@ def test_log_output_to_file(monkeypatch, tmp_path):
     """测试文件日志输出"""
     log_file = tmp_path / "test.log"
 
-    module, captured_output = reload_module(monkeypatch, {
-        'A2C_SMCP_LOG_FILE': str(log_file),
-        'A2C_SMCP_LOG_LEVEL': 'debug'
-    })
+    module, captured_output = reload_module(monkeypatch, {"A2C_SMCP_LOG_FILE": str(log_file), "A2C_SMCP_LOG_LEVEL": "debug"})
 
     # 验证日志文件创建
     assert log_file.exists()
@@ -173,9 +168,7 @@ def test_log_output_to_file_directory_creation(monkeypatch, tmp_path):
     log_file = tmp_path / "non_existent_dir" / "test.log"
     assert not log_file.parent.exists()  # 确保目录不存在
 
-    module, _ = reload_module(monkeypatch, {
-        'A2C_SMCP_LOG_FILE': str(log_file)
-    })
+    module, _ = reload_module(monkeypatch, {"A2C_SMCP_LOG_FILE": str(log_file)})
 
     # 验证目录被创建
     assert log_file.parent.exists()
@@ -192,9 +185,7 @@ def test_log_output_to_file_directory_creation(monkeypatch, tmp_path):
 def test_logger_independence(monkeypatch):
     """验证我们配置的logger不影响其他logger"""
     # 配置我们的logger为静默
-    module, _ = reload_module(monkeypatch, {
-        'A2C_SMCP_LOG_SILENT': '1'
-    })
+    module, _ = reload_module(monkeypatch, {"A2C_SMCP_LOG_SILENT": "1"})
 
     # 创建另一个独立的logger
     other_logger = logging.getLogger("other_logger")
@@ -230,6 +221,7 @@ def test_log_format_customization(monkeypatch):
 
     # 验证时间戳格式
     from datetime import datetime
+
     timestamp = output.split(" - ")[0]
     print(datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S,%f"))
 
@@ -238,10 +230,7 @@ def test_multiple_handlers(monkeypatch, tmp_path):
     """测试同时输出到控制台和文件"""
     log_file = tmp_path / "combined.log"
 
-    module, captured_output = reload_module(monkeypatch, {
-        'A2C_SMCP_LOG_FILE': str(log_file),
-        'A2C_SMCP_LOG_LEVEL': 'debug'
-    })
+    module, captured_output = reload_module(monkeypatch, {"A2C_SMCP_LOG_FILE": str(log_file), "A2C_SMCP_LOG_LEVEL": "debug"})
 
     # 验证有两个handler
     assert len(module.logger.handlers) == 2
@@ -263,10 +252,7 @@ def test_silent_mode_with_file(monkeypatch, tmp_path):
     """测试静默模式下不输出到文件"""
     log_file = tmp_path / "silent.log"
 
-    module, captured_output = reload_module(monkeypatch, {
-        'A2C_SMCP_LOG_SILENT': 'yes',
-        'A2C_SMCP_LOG_FILE': str(log_file)
-    })
+    module, captured_output = reload_module(monkeypatch, {"A2C_SMCP_LOG_SILENT": "yes", "A2C_SMCP_LOG_FILE": str(log_file)})
 
     # 验证日志被禁用
     assert module.logger.disabled

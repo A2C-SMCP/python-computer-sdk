@@ -59,9 +59,8 @@ if not SILENT_MODE:
         except Exception as e:
             logger.error(f"创建日志文件失败: {str(e)}. 回退到仅控制台输出")
 
-    logger.info("日志系统已初始化 - 级别: %s, 文件: %s",
-                LOG_LEVEL.upper(),
-                LOG_FILE if LOG_FILE else "N/A")
+    logger.info("日志系统已初始化 - 级别: %s, 文件: %s", LOG_LEVEL.upper(), LOG_FILE if LOG_FILE else "N/A")
+
 else:
     # 静默模式：禁用日志
     logger.disabled = True

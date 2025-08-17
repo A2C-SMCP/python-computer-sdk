@@ -3,181 +3,279 @@
 # @Author  : JQQ
 # @Email   : jqq1716@gmail.com
 # @Software: PyCharm
-import io
+import importlib
 import logging
-import os
 import sys
-import threading
+from io import StringIO
 
 import pytest
 
-from a2c_smcp.utils.logger import Logger
+# 待测试模块名
+MODULE_NAME = 'a2c_smcp.utils.logger'
 
 
 @pytest.fixture(autouse=True)
-def clear_env():
-    """
-    中文：自动清除和恢复相关环境变量
-    English: Automatically clear and restore related environment variables
-    """
-    # 备份环境变量
-    log_level_backup = os.environ.get("A2C_SMCP_LOG_LEVEL")
-    log_silent_backup = os.environ.get("A2C_SMCP_LOG_SILENT")
-
-    # 清除当前环境变量
-    os.environ.pop("A2C_SMCP_LOG_LEVEL", None)
-    os.environ.pop("A2C_SMCP_LOG_SILENT", None)
-
-    yield  # 执行测试函数
-
-    # 测试结束后恢复环境变量
-    if log_level_backup is not None:
-        os.environ["A2C_SMCP_LOG_LEVEL"] = log_level_backup
-
-    if log_silent_backup is not None:
-        os.environ["A2C_SMCP_LOG_SILENT"] = log_silent_backup
+def reset_logging():
+    """每个测试后重置 logging 状态"""
+    yield
+    # 重置 logging 模块
+    logging.root.handlers = []
+    logging.root.setLevel(logging.NOTSET)
+    logging.Logger.manager.loggerDict.clear()
 
 
-def test_get_logger_basic() -> None:
-    """
-    中文：基础 logger 获取
-    English: Basic logger retrieval
-    """
-    logger1 = Logger.get_logger()
-    logger2 = Logger.get_logger("a2c_smcp.test")
-    assert isinstance(logger1, logging.Logger)
-    assert isinstance(logger2, logging.Logger)
-    assert logger1 is Logger.get_logger()  # 单例
-    assert logger2 is Logger.get_logger("a2c_smcp.test")
+def reload_module(monkeypatch, env_vars=None):
+    """重新加载指定模块，设置环境变量"""
+    if env_vars:
+        for key, value in env_vars.items():
+            monkeypatch.setenv(key, value)
+
+    # 移除模块缓存以便重新加载
+    if MODULE_NAME in sys.modules:
+        del sys.modules[MODULE_NAME]
+
+    # 捕获标准输出以验证日志
+    captured_output = StringIO()
+    monkeypatch.setattr(sys, 'stdout', captured_output)
+
+    # 重新加载模块
+    module = importlib.import_module(MODULE_NAME)
+    return module, captured_output
 
 
-def test_log_level_env(monkeypatch) -> None:
-    """
-    中文：环境变量控制日志等级
-    English: Log level controlled by environment variable
-    """
-    monkeypatch.setenv("A2C_SMCP_LOG_LEVEL", "error")
-    Logger.configure()
-    logger = Logger.get_logger()
-    assert logger.level == logging.ERROR
+def test_default_config(monkeypatch):
+    """测试默认配置"""
+    module, captured_output = reload_module(monkeypatch)
+
+    # 验证日志级别为 INFO
+    assert module.logger.level == logging.INFO
+
+    # 验证日志输出
+    module.logger.info("Test info message")
+    module.logger.debug("Test debug message (should not appear)")
+
+    output = captured_output.getvalue()
+    assert "Test info message" in output
+    assert "Test debug message (should not appear)" not in output
+    assert "日志系统已初始化" in output
 
 
-def test_log_silent_env(monkeypatch) -> None:
-    """
-    中文：环境变量控制静默模式
-    English: Silent mode by environment variable
-    """
-    monkeypatch.setenv("A2C_SMCP_LOG_SILENT", "1")
-    Logger.configure()
-    logger = Logger.get_logger()
-    assert logger.disabled
+def test_silent_mode(monkeypatch):
+    """测试静默模式"""
+    module, captured_output = reload_module(monkeypatch, {
+        'A2C_SMCP_LOG_SILENT': 'true'
+    })
+
+    # 验证日志被禁用
+    assert module.logger.disabled
+
+    # 验证日志输出被禁用
+    module.logger.info("This should not appear")
+    module.logger.error("This should not appear either")
+
+    output = captured_output.getvalue()
+    assert "This should not appear" not in output
+    assert output == ""  # 确保静默模式完全没有输出
 
 
-def test_log_to_file_and_console(tmp_path) -> None:
-    """
-    中文：日志输出到文件和控制台
-    English: Log output to file and console
-    """
+def test_log_levels(monkeypatch):
+    """测试所有日志级别"""
+    test_cases = [
+        ("debug", logging.DEBUG),
+        ("info", logging.INFO),
+        ("warning", logging.WARNING),
+        ("error", logging.ERROR),
+        ("critical", logging.CRITICAL),
+        ("invalid", logging.INFO),  # 测试无效值默认为 INFO
+    ]
+
+    for level_str, expected_level in test_cases:
+        module, captured_output = reload_module(monkeypatch, {"A2C_SMCP_LOG_LEVEL": level_str})
+        logger = module.logger
+
+        # 清除输出缓冲区
+        captured_output.truncate(0)
+        captured_output.seek(0)
+
+        # 发送不同级别的测试日志
+        logger.debug(f"{level_str} debug test")
+        logger.info(f"{level_str} info test")
+        logger.warning(f"{level_str} warning test")
+        logger.error(f"{level_str} error test")
+        logger.critical(f"{level_str} critical test")
+
+        output = captured_output.getvalue()
+
+        # 验证低于当前级别的日志不会被输出
+        if expected_level > logging.DEBUG:
+            assert f"{level_str} debug test" not in output
+        if expected_level > logging.INFO:
+            assert f"{level_str} info test" not in output
+        if expected_level > logging.WARNING:
+            assert f"{level_str} warning test" not in output
+        if expected_level > logging.ERROR:
+            assert f"{level_str} error test" not in output
+
+        # 验证等于或高于当前级别的日志会被输出
+        if expected_level <= logging.DEBUG:
+            assert f"{level_str} debug test" in output
+        if expected_level <= logging.INFO:
+            assert f"{level_str} info test" in output
+        if expected_level <= logging.WARNING:
+            assert f"{level_str} warning test" in output
+        if expected_level <= logging.ERROR:
+            assert f"{level_str} error test" in output
+        if expected_level <= logging.CRITICAL:
+            assert f"{level_str} critical test" in output
+
+
+def test_log_output_to_console(monkeypatch):
+    """测试控制台日志输出"""
+    module, captured_output = reload_module(monkeypatch)
+
+    # 验证日志消息格式
+    module.logger.warning("Test warning message")
+    output = captured_output.getvalue()
+    assert "WARNING" in output
+    assert "Test warning message" in output
+    assert "- a2c_smcp - WARNING - Test warning message" in output
+
+
+def test_log_output_to_file(monkeypatch, tmp_path):
+    """测试文件日志输出"""
     log_file = tmp_path / "test.log"
-    Logger.configure(level="debug", log_to_console=False, log_to_file=str(log_file))
-    logger = Logger.get_logger()
-    logger.debug("file debug message")
-    logger.error("file error message")
-    with open(log_file, encoding="utf-8") as f:
-        content = f.read()
-    assert "file debug message" in content
-    assert "file error message" in content
 
+    module, captured_output = reload_module(monkeypatch, {
+        'A2C_SMCP_LOG_FILE': str(log_file),
+        'A2C_SMCP_LOG_LEVEL': 'debug'
+    })
 
-def test_log_to_console_capture(monkeypatch) -> None:
-    """
-    中文：日志输出到控制台捕获
-    English: Capture log output to console
-    """
-    stream = io.StringIO()
-    monkeypatch.setattr(sys, "stdout", stream)
-    Logger.configure(level="info", log_to_console=True, log_to_file=None)
-    logger = Logger.get_logger()
-    logger.info("console info message")
-    sys.stdout = sys.__stdout__  # 恢复
-    assert "console info message" in stream.getvalue()
-
-
-def test_set_silent_and_set_log_level() -> None:
-    """
-    中文：set_silent 和 set_log_level 的边界测试
-    English: set_silent and set_log_level edge test
-    """
-    Logger.configure(level="debug")
-    logger = Logger.get_logger()
-    Logger.set_silent(True)
-    assert logger.disabled
-    Logger.set_silent(False)
-    assert not logger.disabled
-    Logger.set_log_level("warning")
-    assert logger.level == logging.WARNING
-    Logger.set_log_level("invalid")
-    assert logger.level == logging.INFO  # fallback
-
-
-def test_invalid_log_level(monkeypatch) -> None:
-    """
-    中文：无效日志等级回退
-    English: Invalid log level fallback
-    """
-    monkeypatch.setenv("A2C_SMCP_LOG_LEVEL", "notalevel")
-    Logger.configure()
-    logger = Logger.get_logger()
-    assert logger.level == logging.INFO
-
-
-def test_multiple_configure(tmp_path) -> None:
-    """
-    中文：多次 configure 不应报错且可切换输出
-    English: Multiple configure calls should not error and can switch outputs
-    """
-    log_file1 = tmp_path / "a.log"
-    log_file2 = tmp_path / "b.log"
-    Logger.configure(level="debug", log_to_console=False, log_to_file=str(log_file1))
-    logger = Logger.get_logger()
-    logger.info("msg1")
-    Logger.configure(level="debug", log_to_console=False, log_to_file=str(log_file2))
-    logger.info("msg2")
-    with open(log_file1, encoding="utf-8") as f1:
-        assert "msg1" in f1.read()
-    with open(log_file2, encoding="utf-8") as f2:
-        assert "msg2" in f2.read()
-
-
-def test_log_file_dir_creation(tmp_path) -> None:
-    """
-    中文：日志文件目录自动创建
-    English: Log file directory auto-creation
-    """
-    sub_dir = tmp_path / "subdir"
-    log_file = sub_dir / "log.txt"
-    Logger.configure(level="info", log_to_console=False, log_to_file=str(log_file))
-    logger = Logger.get_logger()
-    logger.info("auto create dir message")
+    # 验证日志文件创建
     assert log_file.exists()
-    with open(log_file, encoding="utf-8") as f:
-        assert "auto create dir message" in f.read()
+
+    # 写入日志
+    test_message = "File output test message"
+    module.logger.info(test_message)
+    module.logger.debug("Debug message")
+
+    # 验证文件内容
+    file_content = log_file.read_text()
+    assert test_message in file_content
+    assert "Debug message" in file_content
+
+    # 验证控制台仍有输出
+    output = captured_output.getvalue()
+    assert test_message in output
 
 
-def test_thread_safety() -> None:
-    """
-    中文：多线程下 logger 获取和配置
-    English: Logger get/configure in multithreaded environment
-    """
-    results = []
+def test_log_output_to_file_directory_creation(monkeypatch, tmp_path):
+    """测试日志文件目录自动创建"""
+    log_file = tmp_path / "non_existent_dir" / "test.log"
+    assert not log_file.parent.exists()  # 确保目录不存在
 
-    def worker(idx):
-        Logger.configure(level="debug")
-        logger = Logger.get_logger(f"thread{idx}")
-        results.append(logger.name)
-    threads = [threading.Thread(target=worker, args=(i,)) for i in range(5)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-    assert len(set(results)) == 5
+    module, _ = reload_module(monkeypatch, {
+        'A2C_SMCP_LOG_FILE': str(log_file)
+    })
+
+    # 验证目录被创建
+    assert log_file.parent.exists()
+
+    # 写入日志
+    test_message = "Directory creation test"
+    module.logger.info(test_message)
+
+    # 验证日志文件创建成功
+    assert log_file.exists()
+    assert test_message in log_file.read_text()
+
+
+def test_logger_independence(monkeypatch):
+    """验证我们配置的logger不影响其他logger"""
+    # 配置我们的logger为静默
+    module, _ = reload_module(monkeypatch, {
+        'A2C_SMCP_LOG_SILENT': '1'
+    })
+
+    # 创建另一个独立的logger
+    other_logger = logging.getLogger("other_logger")
+    other_logger.setLevel(logging.INFO)
+
+    # 捕获其他logger的输出
+    captured_output = StringIO()
+    handler = logging.StreamHandler(captured_output)
+    other_logger.addHandler(handler)
+
+    # 记录消息
+    other_logger.info("Independent logger test")
+
+    # 验证我们的logger处于静默状态
+    module.logger.info("This should be silent")
+    assert captured_output.getvalue() == "Independent logger test\n"
+
+    # 验证我们logger的静默设置不影响其他logger
+    assert "Independent logger test" in captured_output.getvalue()
+    assert "This should be silent" not in captured_output.getvalue()
+
+
+def test_log_format_customization(monkeypatch):
+    """测试日志格式（虽然我们不能通过env改变格式，但检查默认格式）"""
+    module, captured_output = reload_module(monkeypatch)
+
+    module.logger.info("Format test")
+    output = captured_output.getvalue()
+
+    # 验证日志格式组件
+    assert " - a2c_smcp - " in output
+    assert " - Format test" in output
+
+    # 验证时间戳格式
+    from datetime import datetime
+    timestamp = output.split(" - ")[0]
+    print(datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S,%f"))
+
+
+def test_multiple_handlers(monkeypatch, tmp_path):
+    """测试同时输出到控制台和文件"""
+    log_file = tmp_path / "combined.log"
+
+    module, captured_output = reload_module(monkeypatch, {
+        'A2C_SMCP_LOG_FILE': str(log_file),
+        'A2C_SMCP_LOG_LEVEL': 'debug'
+    })
+
+    # 验证有两个handler
+    assert len(module.logger.handlers) == 2
+
+    # 写入日志
+    test_message = "Multiple handlers test"
+    module.logger.info(test_message)
+
+    # 验证控制台输出
+    output = captured_output.getvalue()
+    assert test_message in output
+
+    # 验证文件输出
+    file_content = log_file.read_text()
+    assert test_message in file_content
+
+
+def test_silent_mode_with_file(monkeypatch, tmp_path):
+    """测试静默模式下不输出到文件"""
+    log_file = tmp_path / "silent.log"
+
+    module, captured_output = reload_module(monkeypatch, {
+        'A2C_SMCP_LOG_SILENT': 'yes',
+        'A2C_SMCP_LOG_FILE': str(log_file)
+    })
+
+    # 验证日志被禁用
+    assert module.logger.disabled
+
+    # 尝试写入日志
+    module.logger.info("Should not appear")
+
+    # 验证控制台无输出
+    assert captured_output.getvalue() == ""
+
+    # 验证无日志文件创建
+    assert not log_file.exists()

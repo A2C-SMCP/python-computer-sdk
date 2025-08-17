@@ -10,7 +10,8 @@ readme = "README.md"
 requires-python = "^3.11"
 dependencies = [
     "mcp (>=1.13.0,<2.0.0)",
-    "pydantic (>=2.11.7,<3.0.0)"
+    "pydantic (>=2.11.7,<3.0.0)",
+    "transitions (>=0.9.3,<0.10.0)"
 ]
 
 [tool.poetry]

@@ -4,150 +4,65 @@
 # @Email   : jqq1716@gmail.com
 # @Software: PyCharm
 """
-日志模块用于 a2c_smcp 项目。
-Logger module for a2c_smcp project.
+a2c_sMCP 日志模块
+Logger module for a2c_sMCP project.
 
-本模块提供集中式日志配置，支持通过环境变量 A2C_SMCP_LOG_LEVEL 控制日志等级（字符串），
-并可通过环境变量 A2C_SMCP_LOG_SILENT 控制是否全局禁用日志输出（静默模式）。
-This module provides centralized logging configuration for the a2c_smcp project, supporting log level
-control via the A2C_SMCP_LOG_LEVEL environment variable (string), and global log disabling (silent mode)
-via A2C_SMCP_LOG_SILENT.
+通过环境变量控制日志：
+- A2C_SMCP_LOG_LEVEL: 控制日志等级（debug, info, warning, error, critical）
+- A2C_SMCP_LOG_SILENT: 设为 1/true/yes 时禁用所有日志输出
+- A2C_SMCP_LOG_FILE: 设置日志文件路径，启用文件输出
 """
 
 import logging
 import os
 import sys
+from pathlib import Path
 
+# 直接从环境变量获取配置
+LOG_LEVEL = os.environ.get("A2C_SMCP_LOG_LEVEL", "info").lower()
+SILENT_MODE = os.environ.get("A2C_SMCP_LOG_SILENT", "0").lower() in ("1", "true", "yes")
+LOG_FILE = os.environ.get("A2C_SMCP_LOG_FILE")
 
-class Logger:
-    """
-    a2c_smcp 日志集中管理类。
-    Centralized logger for a2c_smcp.
+# 创建全局 logger 实例
+logger = logging.getLogger("a2c_smcp")
+logger.propagate = False  # 防止日志向上传播到根logger
 
-    支持通过环境变量控制日志等级和静默状态。
-    Supports log level and silent mode control via environment variables.
-    """
-    DEFAULT_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    _loggers = {}
-    _silent = False
+if not SILENT_MODE:
+    # 配置日志级别
+    level_map = {
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "warning": logging.WARNING,
+        "error": logging.ERROR,
+        "critical": logging.CRITICAL,
+    }
+    logger.setLevel(level_map.get(LOG_LEVEL, logging.INFO))
 
-    @classmethod
-    def _get_env_log_level(cls) -> str:
-        """
-        获取环境变量中的日志等级（字符串）。
-        Get log level from environment variable (string).
-        """
-        return os.environ.get("A2C_SMCP_LOG_LEVEL", "info").lower()
+    # 创建通用日志格式
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
-    @classmethod
-    def _is_silent(cls) -> bool:
-        """
-        检查是否处于静默模式（环境变量A2C_SMCP_LOG_SILENT为1或true时）。
-        Check if silent mode is enabled (A2C_SMCP_LOG_SILENT is '1' or 'true').
-        """
-        val = os.environ.get("A2C_SMCP_LOG_SILENT", "0").lower()
-        return val in ("1", "true", "yes")
+    # 配置控制台输出
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
 
-    @classmethod
-    def get_logger(cls, name: str = "a2c_smcp") -> logging.Logger:
-        """
-        获取指定名称的 logger 实例。
-        Get a logger instance for the specified name.
-        """
-        if name in cls._loggers:
-            return cls._loggers[name]
-        log = logging.getLogger(name)
-        cls._loggers[name] = log
-        return log
+    # 配置文件输出（如果指定了日志文件）
+    if LOG_FILE:
+        try:
+            # 确保日志目录存在
+            log_path = Path(LOG_FILE)
+            log_path.parent.mkdir(parents=True, exist_ok=True)
 
-    @classmethod
-    def configure(
-        cls,
-        level: str | None = None,
-        format_str: str | None = None,
-        log_to_console: bool = True,
-        log_to_file: str | None = None,
-    ) -> None:
-        """
-        配置日志系统。
-        Configure the root logger.
-
-        Args:
-            level: 日志等级（字符串），如 'debug', 'info', 'warning', 'error', 'critical'。
-                   Log level as string, e.g., 'debug', 'info', 'warning', 'error', 'critical'.
-            format_str: 日志格式字符串。Log format string.
-            log_to_console: 是否输出到控制台。Whether to log to console.
-            log_to_file: 日志文件路径。Path to log file.
-        """
-        root_logger = cls.get_logger()
-
-        # 判断静默模式
-        cls._silent = cls._is_silent()
-        if cls._silent:
-            root_logger.disabled = True
-            return
-        else:
-            root_logger.disabled = False
-
-        # 解析日志等级
-        log_level = (level or cls._get_env_log_level()).lower()
-        level_map = {
-            "debug": logging.DEBUG,
-            "info": logging.INFO,
-            "warning": logging.WARNING,
-            "error": logging.ERROR,
-            "critical": logging.CRITICAL,
-        }
-        py_level = level_map.get(log_level, logging.INFO)
-        root_logger.setLevel(py_level)
-
-        # 清理已有 handler
-        for handler in root_logger.handlers[:]:
-            root_logger.removeHandler(handler)
-
-        formatter = logging.Formatter(format_str or cls.DEFAULT_FORMAT)
-
-        if log_to_console:
-            console_handler = logging.StreamHandler(sys.stdout)
-            console_handler.setFormatter(formatter)
-            root_logger.addHandler(console_handler)
-
-        if log_to_file:
-            log_dir = os.path.dirname(log_to_file)
-            if log_dir and not os.path.exists(log_dir):
-                os.makedirs(log_dir)
-            file_handler = logging.FileHandler(log_to_file)
+            file_handler = logging.FileHandler(LOG_FILE)
             file_handler.setFormatter(formatter)
-            root_logger.addHandler(file_handler)
+            logger.addHandler(file_handler)
+        except Exception as e:
+            logger.error(f"创建日志文件失败: {str(e)}. 回退到仅控制台输出")
 
-    @classmethod
-    def set_silent(cls, silent: bool = True) -> None:
-        """
-        设置静默模式，禁用或启用日志。
-        Set silent mode, disable or enable logging.
-        """
-        cls._silent = silent
-        log = cls.get_logger()
-        log.disabled = silent
-
-    @classmethod
-    def set_log_level(cls, level: str) -> None:
-        """
-        设置日志等级。
-        Set log level.
-        """
-        log = cls.get_logger()
-        level_map = {
-            "debug": logging.DEBUG,
-            "info": logging.INFO,
-            "warning": logging.WARNING,
-            "error": logging.ERROR,
-            "critical": logging.CRITICAL,
-        }
-        py_level = level_map.get(level.lower(), logging.INFO)
-        log.setLevel(py_level)
-
-
-# 初始化配置
-Logger.configure()
-logger = Logger.get_logger()
+    logger.info("日志系统已初始化 - 级别: %s, 文件: %s",
+                LOG_LEVEL.upper(),
+                LOG_FILE if LOG_FILE else "N/A")
+else:
+    # 静默模式：禁用日志
+    logger.disabled = True
+    logger.addHandler(logging.NullHandler())  # 防止无handler的警告

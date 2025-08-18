@@ -11,8 +11,8 @@ from typing import Any
 
 from mcp.types import CallToolResult, Tool
 
-from a2c_smcp_cc.mcp_clients.clients import BaseMCPClient, client_factory
-from a2c_smcp_cc.mcp_clients.model import A2C_TOOL_META, SERVER_NAME, TOOL_NAME, MCPServerConfig
+from a2c_smcp_cc.mcp_clients.clients import client_factory
+from a2c_smcp_cc.mcp_clients.model import A2C_TOOL_META, SERVER_NAME, TOOL_NAME, MCPClientProtocol, MCPServerConfig
 from a2c_smcp_cc.utils.logger import logger
 
 
@@ -26,7 +26,7 @@ class MCPServerManager:
         # 存储所有服务器配置
         self.servers_config: dict[SERVER_NAME, MCPServerConfig] = {}
         # 存储活动客户端 {server_name: client}
-        self.active_clients: dict[SERVER_NAME, BaseMCPClient] = {}
+        self.active_clients: dict[SERVER_NAME, MCPClientProtocol] = {}
         # 工具到服务器的映射 {tool_name: server_name}
         self.tool_mapping: dict[TOOL_NAME, SERVER_NAME] = {}
         # 工具的alias到server+original_name的映射 {alias: (server_name, original_name)}
@@ -38,7 +38,7 @@ class MCPServerManager:
         # 内部锁防止并发修改
         self._lock = asyncio.Lock()
 
-    async def initialize(self, servers: list[MCPServerConfig]) -> None:
+    async def ainitialize(self, servers: list[MCPServerConfig]) -> None:
         """
         初始化管理器并添加服务器配置
 
@@ -48,16 +48,16 @@ class MCPServerManager:
         async with self._lock:
             # 清理旧设置与配置
             # 1. 停止所有活动客户端
-            await self._stop_all()
+            await self._astop_all()
             # 2. 清空所有状态存储
             self._clear_all()
             # 3. 添加新配置
             for server in servers:
                 self._add_server_config(server)
             try:
-                await self._refresh_tool_mapping()
+                await self._arefresh_tool_mapping()
             except ToolNameDuplicatedError as e:
-                await self._stop_all()
+                await self._astop_all()
                 self._clear_all()
                 raise e
 
@@ -76,13 +76,13 @@ class MCPServerManager:
             if config.name in self.active_clients:
                 if self.auto_reconnect:
                     self.servers_config[config.name] = config
-                    asyncio.create_task(self._restart_server(config.name))
+                    asyncio.create_task(self._arestart_server(config.name))
                 else:
                     raise RuntimeError(f"Server {config.name} is active. Stop it before updating config")
         else:
             self.servers_config[config.name] = config
 
-    async def add_or_update_server(self, config: MCPServerConfig) -> None:
+    async def aadd_or_aupdate_server(self, config: MCPServerConfig) -> None:
         """
         添加或更新服务器配置
 
@@ -93,20 +93,20 @@ class MCPServerManager:
             backup_config = copy.deepcopy(self.servers_config)
             try:
                 self._add_server_config(config)
-                await self._refresh_tool_mapping()
+                await self._arefresh_tool_mapping()
             except ToolNameDuplicatedError as e:
                 self.servers_config = backup_config
                 raise e
 
-    async def remove_server(self, server_name: str) -> None:
+    async def aremove_server(self, server_name: str) -> None:
         """移除服务器配置"""
         async with self._lock:
             if server_name in self.active_clients:
-                await self.stop_client(server_name)
+                await self.astop_client(server_name)
             del self.servers_config[server_name]
-            await self._refresh_tool_mapping()
+            await self._arefresh_tool_mapping()
 
-    async def _restart_server(self, server_name: str) -> None:
+    async def _arestart_server(self, server_name: str) -> None:
         """
         重启服务器客户端
 
@@ -120,20 +120,20 @@ class MCPServerManager:
 
         # 确保使用最新配置重启
         if server_name in self.active_clients:
-            await self.stop_client(server_name)
+            await self.astop_client(server_name)
 
         # 只有启用的配置才能重启
         if not config.disabled:
-            await self.start_client(server_name)
+            await self.astart_client(server_name)
 
-    async def start_all(self) -> None:
+    async def astart_all(self) -> None:
         """启动所有启用的服务器"""
         async with self._lock:
             for server_name in self.servers_config:
                 if not self.servers_config[server_name].disabled:
-                    await self.start_client(server_name)
+                    await self.astart_client(server_name)
 
-    async def start_client(self, server_name: str) -> None:
+    async def astart_client(self, server_name: str) -> None:
         """启动单个服务器客户端"""
         config = self.servers_config.get(server_name)
         if not config:
@@ -150,28 +150,28 @@ class MCPServerManager:
         await client.connect()
         self.active_clients[server_name] = client
         try:
-            await self._refresh_tool_mapping()
+            await self._arefresh_tool_mapping()
         except ToolNameDuplicatedError as e:
             await client.disconnect()
             del self.active_clients[server_name]
             raise e
 
-    async def stop_client(self, server_name: str) -> None:
+    async def astop_client(self, server_name: str) -> None:
         """停止单个服务器客户端"""
         client = self.active_clients.pop(server_name, None)
         if client:
             await client.disconnect()
-            await self._refresh_tool_mapping()
+            await self._arefresh_tool_mapping()
 
-    async def _stop_all(self) -> None:
+    async def _astop_all(self) -> None:
         """停止所有客户端"""
-        tasks = [self.stop_client(name) for name in list(self.active_clients.keys())]
+        tasks = [self.astop_client(name) for name in list(self.active_clients.keys())]
         await asyncio.gather(*tasks)
 
-    async def stop_all(self) -> None:
+    async def astop_all(self) -> None:
         """停止所有客户端"""
         async with self._lock:
-            await self._stop_all()
+            await self._astop_all()
 
     def _clear_all(self) -> None:
         """清空所有连接（别名）"""
@@ -181,14 +181,14 @@ class MCPServerManager:
         self.alias_mapping.clear()
         self.disabled_tools.clear()
 
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         """关闭所有连接（别名）"""
-        await self.stop_all()
+        await self.astop_all()
 
         # 2. 清空所有状态存储
         self._clear_all()
 
-    async def _refresh_tool_mapping(self) -> None:
+    async def _arefresh_tool_mapping(self) -> None:
         """刷新工具映射和禁用状态"""
         # 清空现有映射
         self.tool_mapping.clear()
@@ -235,7 +235,7 @@ class MCPServerManager:
                 raise ToolNameDuplicatedError(f"Tool '{tool}' exists in multiple servers: {sources}\n{suggestion}")
             self.tool_mapping[tool] = sources[0]
 
-    async def execute_tool(self, tool_name: str, parameters: dict, timeout: float | None = None) -> CallToolResult:
+    async def aexecute_tool(self, tool_name: str, parameters: dict, timeout: float | None = None) -> CallToolResult:
         """执行指定工具"""
         # 检查工具是否可用
         if tool_name in self.disabled_tools:
@@ -282,7 +282,7 @@ class MCPServerManager:
         """获取服务器状态列表"""
         return [(server_name, server_name in self.active_clients) for server_name in self.servers_config]
 
-    async def get_available_tools(self) -> AsyncGenerator[Tool, Any]:
+    async def aget_available_tools(self) -> AsyncGenerator[Tool, Any]:
         """获取可用工具及其元数据"""
         async with self._lock:
             servers_cached_tools = defaultdict(list)

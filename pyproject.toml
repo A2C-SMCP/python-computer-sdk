@@ -26,6 +26,7 @@ ruff = "^0.12.9"
 polyfactory = "^2.22.2"
 pytest-asyncio = "^1.1.0"
 pytest-cov = "^6.2.1"
+pytest-mock = "^3.14.1"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

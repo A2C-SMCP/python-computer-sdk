@@ -3,10 +3,11 @@
 # @Author  : JQQ
 # @Email   : jiaqia@qknode.com
 # @Software: PyCharm
-from typing import ClassVar, TypeAlias
+from typing import ClassVar, Protocol, TypeAlias
 
-from mcp import StdioServerParameters
+from mcp import StdioServerParameters, Tool
 from mcp.client.session_group import SseServerParameters, StreamableHttpParameters
+from mcp.types import CallToolResult
 from pydantic import BaseModel, ConfigDict, Field
 
 TOOL_NAME: TypeAlias = str
@@ -50,3 +51,21 @@ class StreamableHttpServerConfig(BaseMCPServerConfig):
 
 
 MCPServerConfig: TypeAlias = StdioServerConfig | SseServerConfig | StreamableHttpServerConfig
+
+
+class MCPClientProtocol(Protocol):
+    async def connect(self) -> None:
+        """连接MCP Server"""
+        ...
+
+    async def disconnect(self) -> None:
+        """断开连接"""
+        ...
+
+    async def list_tools(self) -> list[Tool]:
+        """获取可用工具列表"""
+        return []
+
+    async def call_tool(self, tool_name: str, params: dict) -> CallToolResult:
+        """运行指定工具"""
+        pass

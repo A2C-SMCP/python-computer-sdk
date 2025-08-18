@@ -10,11 +10,13 @@ select = [
     "W",  # pycodestyle warnings
     "B",  # flake8-bugbear
     "UP", # pyupgrade
+    "ANN", # flake8-annotations
 ]
+extend-ignore = ["UP009"]  # 忽略 UP009
 
 [lint.per-file-ignores]
 "__init__.py" = ["F401"]  # Unused imports
-"tests/**/*.py" = ["F811", "F401", "B017"]  # Redefinition in test files
+"tests/**/*.py" = ["F811", "F401", "B017", "ANN"]  # Redefinition in test files
 
 [lint.isort]
 known-first-party = ["a2c_smcp"]

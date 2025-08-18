@@ -3,3 +3,6 @@
 # @Author  : JQQ
 # @Email   : jiaqia@qknode.com
 # @Software: PyCharm
+
+d: dict[str, tuple[str, str]] = {}
+d["a"] = "test"

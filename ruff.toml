@@ -12,7 +12,7 @@ select = [
     "UP", # pyupgrade
     "ANN", # flake8-annotations
 ]
-extend-ignore = ["UP009"]  # 忽略 UP009
+extend-ignore = ["UP009", "ANN401"]  # 忽略 UP009 ANN401(Any)
 
 [lint.per-file-ignores]
 "__init__.py" = ["F401"]  # Unused imports

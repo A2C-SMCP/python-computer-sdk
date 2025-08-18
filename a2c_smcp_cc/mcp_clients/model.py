@@ -15,11 +15,15 @@ A2C_TOOL_META: str = "a2c_tool_meta"
 
 
 class ToolMeta(BaseModel):
-    auto_apply: bool | None
-    alias: str | None
+    auto_apply: bool | None = Field(default=None, title="是否自动使用", description="如果设置为False，则调用工具前会触发回调，请求用例批准")
+    alias: str | None = Field(
+        default=None, title="工具别名", description="如果不同MCP Server中存在同名工具，允许通过此别名修改，从而解决名称冲突"
+    )
     # 不同MCP工具返回值并不统一，虽然其满足MCP标准的返回格式，但具体的原始内容命名仍然无法避免出现不一致的情况。通过object_mapper可以方便
     # 前端对其进行转换，以使用标准组件渲染解析。
-    ret_object_mapper: dict | None
+    ret_object_mapper: dict | None = Field(
+        default=None, title="字段转换映射", description="允许定义一个映射表完成MCPTool工具返回结构映射到自定义结构"
+    )
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", arbitrary_types_allowed=False)
 

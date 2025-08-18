@@ -21,6 +21,12 @@ dependencies = [
 pytest = "^8.4.1"
 ruff = "^0.12.9"
 
+
+[tool.poetry.group.test.dependencies]
+polyfactory = "^2.22.2"
+pytest-asyncio = "^1.1.0"
+pytest-cov = "^6.2.1"
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"

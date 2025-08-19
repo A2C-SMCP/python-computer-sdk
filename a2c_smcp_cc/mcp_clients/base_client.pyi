@@ -28,19 +28,15 @@ from a2c_smcp_cc.mcp_clients.model import StreamableHttpServerConfig as Streamab
 from a2c_smcp_cc.utils.async_property import async_property as async_property
 from a2c_smcp_cc.utils.logger import logger as logger
 
-
 class STATES(StrEnum):
     initialized = "initialized"
     connected = "connected"
     disconnected = "disconnected"
     error = "error"
 
-
 TRANSITIONS: list[AsyncTransitionConfigDict]
 
-
 class A2CAsyncMachine(AsyncMachine): ...
-
 
 class BaseMCPClient(MCPClientProtocol):
     params: BaseModel

@@ -20,6 +20,8 @@ dependencies = [
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.1"
 ruff = "^0.12.9"
+mypy = "^1.17.1"
+poethepoet = "^0.37.0"
 
 
 [tool.poetry.group.test.dependencies]
@@ -31,3 +33,9 @@ pytest-mock = "^3.14.1"
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poe.tasks]
+test = "pytest tests"
+test-cov = "pytest tests --cov a2c_smcp_cc"
+lint = "ruff check --fix."
+format = "ruff format ."

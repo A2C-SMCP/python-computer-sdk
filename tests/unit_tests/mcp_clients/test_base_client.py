@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# filename: test_clients.py
+# filename: test_base_client.py
 # @Time    : 2025/8/18 19:26
 # @Author  : JQQ
 # @Email   : jqq1716@gmail.com
@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from mcp.types import ListToolsResult
 
-from a2c_smcp_cc.mcp_clients.clients import STATES, BaseMCPClient
+from a2c_smcp_cc.mcp_clients.base_client import STATES, BaseMCPClient
 
 
 # 创建测试用的具体客户端实现

@@ -54,6 +54,8 @@ MCPServerConfig: TypeAlias = StdioServerConfig | SseServerConfig | StreamableHtt
 
 
 class MCPClientProtocol(Protocol):
+    state: str
+
     async def connect(self) -> None:
         """连接MCP Server"""
         ...

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# filename: clients.py
+# filename: base_client.py
 # @Time    : 2025/8/18 10:57
 # @Author  : JQQ
 # @Email   : jqq1716@gmail.com
@@ -9,14 +9,13 @@ from contextlib import AsyncExitStack
 from enum import StrEnum
 from typing import cast
 
-from mcp import ClientSession, StdioServerParameters, Tool
-from mcp.client.session_group import SseServerParameters, StreamableHttpParameters
+from mcp import ClientSession, Tool
 from mcp.types import CallToolResult
 from pydantic import BaseModel
 from transitions.core import EventData
 from transitions.extensions import AsyncMachine
 
-from a2c_smcp_cc.mcp_clients.model import MCPClientProtocol, MCPServerConfig, SseServerConfig, StdioServerConfig, StreamableHttpServerConfig
+from a2c_smcp_cc.mcp_clients.model import MCPClientProtocol
 from a2c_smcp_cc.utils.async_property import async_property
 from a2c_smcp_cc.utils.logger import logger
 
@@ -68,8 +67,29 @@ TRANSITIONS = [
 ]
 
 
+class A2CAsyncMachine(AsyncMachine):
+    @staticmethod
+    async def await_all(callables: list[Callable]) -> list:
+        """
+        Executes callables without parameters in parallel and collects their results.
+
+        A2C协议中，需要在状态机的状态变化函数之间管理异步上下文，但由于原生实现 await_all 方法使用 asyncio.gather会导致上下文打开与关闭处于
+            不同的async task中进而导致关闭异常。因此重写此实现，将await_all方法变为同步执行。以此实现上下文打开与关闭处于同一个async task中
+
+        Args:
+            callables (list): A list of callable functions
+
+        Returns:
+            list: A list of results. Using asyncio the list will be in the same order as the passed callables.
+        """
+        ret = []
+        for c in callables:
+            ret.append(await c())
+        return ret
+
+
 class BaseMCPClient(MCPClientProtocol):
-    def __init__(self, params: BaseModel, state_change_callback: Callable[[str, str], None | Awaitable[None]] = None) -> None:
+    def __init__(self, params: BaseModel, state_change_callback: Callable[[str, str], None | Awaitable[None]] | None = None) -> None:
         """
         基类初始化
 
@@ -83,14 +103,14 @@ class BaseMCPClient(MCPClientProtocol):
         self._async_session: ClientSession | None = None
 
         # 初始化异步状态机
-        self.machine = AsyncMachine(
+        self.machine = A2CAsyncMachine(
             model=self,
             states=STATES,
             transitions=TRANSITIONS,
             initial=STATES.initialized,
             send_event=True,  # 传递事件对象给回调
             auto_transitions=False,  # 禁用自动生成的状态转移
-            ignore_invalid_triggers=True,  # 忽略无效触发器
+            ignore_invalid_triggers=False,  # 忽略无效触发器
         )
 
     async def _trigger_state_change(self, event: EventData) -> None:
@@ -158,6 +178,7 @@ class BaseMCPClient(MCPClientProtocol):
 
     async def on_enter_disconnected(self, event: EventData) -> None:
         """状态机进入断开状态时的回调（可重写）"""
+        logger.debug(f"Entering disconnected state with event: {event}\n\nserver params: {self.params}")
         # 关闭异步会话，保证资源的正常释放
         await self.aexit_stack.aclose()
         self._async_session = None
@@ -206,6 +227,7 @@ class BaseMCPClient(MCPClientProtocol):
 
     async def on_enter_initialized(self, event: EventData) -> None:
         """状态机进入初始化状态时的回调（可重写）"""
+        logger.debug(f"Entered initialized state with event: {event}\n\nserver params: {self.params}")
         # 关闭异步会话，保证资源的正常释放
         await self.aexit_stack.aclose()
         self._async_session = None
@@ -249,33 +271,3 @@ class BaseMCPClient(MCPClientProtocol):
         if self.state != STATES.connected:
             raise ConnectionError("Not connected to server")
         return await (await self.async_session).call_tool(tool_name, params)
-
-
-class StdioMCPClient(BaseMCPClient):
-    def __init__(self, params: StdioServerParameters, state_change_callback: Callable[[str, str], None] = None) -> None:
-        super().__init__(params, state_change_callback)
-
-
-class SseMCPClient(BaseMCPClient):
-    def __init__(self, params: SseServerParameters, state_change_callback: Callable[[str, str], None] = None) -> None:
-        super().__init__(params, state_change_callback)
-
-
-class HttpMCPClient(BaseMCPClient):
-    def __init__(self, params: StreamableHttpParameters, state_change_callback: Callable[[str, str], None] = None) -> None:
-        super().__init__(params, state_change_callback)
-
-
-def client_factory(config: MCPServerConfig) -> BaseMCPClient:
-    """根据配置创建客户端（伪代码实现）/Create client based on config (pseudo code implementation)"""
-    # 根据实际配置创建不同类型的客户端/Create different types of clients based on the actual configuration
-    match config:
-        case StdioServerConfig():
-            client = StdioMCPClient(config.server_parameters)
-        case SseServerConfig():
-            client = SseMCPClient(config.server_parameters)
-        case StreamableHttpServerConfig():
-            client = HttpMCPClient(config.server_parameters)
-        case _:
-            raise ValueError(f"Unsupported config type: {type(config)}")
-    return client

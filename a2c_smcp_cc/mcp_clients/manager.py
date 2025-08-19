@@ -11,8 +11,8 @@ from typing import Any
 
 from mcp.types import CallToolResult, Tool
 
-from a2c_smcp_cc.mcp_clients.clients import client_factory
 from a2c_smcp_cc.mcp_clients.model import A2C_TOOL_META, SERVER_NAME, TOOL_NAME, MCPClientProtocol, MCPServerConfig
+from a2c_smcp_cc.mcp_clients.utils import client_factory
 from a2c_smcp_cc.utils.logger import logger
 
 
@@ -278,9 +278,16 @@ class MCPServerManager:
         except Exception as e:
             raise RuntimeError(f"Tool execution failed: {e}") from e
 
-    def get_server_status(self) -> list[tuple[str, bool]]:
+    def get_server_status(self) -> list[tuple[str, bool, str]]:
         """获取服务器状态列表"""
-        return [(server_name, server_name in self.active_clients) for server_name in self.servers_config]
+        return [
+            (
+                server_name,
+                server_name in self.active_clients,
+                "pending" if server_name not in self.active_clients else self.active_clients[server_name].state,
+            )
+            for server_name in self.servers_config
+        ]
 
     async def aget_available_tools(self) -> AsyncGenerator[Tool, Any]:
         """获取可用工具及其元数据"""

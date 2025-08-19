@@ -31,6 +31,7 @@ class MockMCPClient:
         call_ret.result = None
         call_ret.meta = None
         self.call_tool = AsyncMock(return_value=call_ret)
+        self.state = "connected"
 
 
 def create_mock_tool(name: str, meta: dict | None = None) -> Tool:
@@ -124,9 +125,9 @@ async def test_initialize_with_servers(manager):
 
     # 验证状态检查
     statuses = manager.get_server_status()
-    assert ("server1", True) in statuses
-    assert ("server2", False) in statuses
-    assert ("sse_server", True) in statuses
+    assert ("server1", True, "connected") in statuses
+    assert ("server2", False, "pending") in statuses
+    assert ("sse_server", True, "connected") in statuses
 
 
 @pytest.mark.asyncio

@@ -92,7 +92,7 @@ async def test_multi_async_exit_stacks():
     async def client1():
         stack = AsyncExitStack()
         async with stack:
-            state = await stack.enter_async_context(counting_ctx("Client1-CTX"))
+            await stack.enter_async_context(counting_ctx("Client1-CTX"))
             results.append("Client1-enter")
             # 模拟资源操作
             await asyncio.sleep(0.05)
@@ -102,7 +102,7 @@ async def test_multi_async_exit_stacks():
     async def client2():
         stack = AsyncExitStack()
         async with stack:
-            state = await stack.enter_async_context(counting_ctx("Client2-CTX"))
+            await stack.enter_async_context(counting_ctx("Client2-CTX"))
             results.append("Client2-enter")
             # 模拟资源操作（比client1稍长）
             await asyncio.sleep(0.1)

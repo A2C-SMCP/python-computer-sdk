@@ -154,7 +154,7 @@ async def test_tool_execution(manager):
     client = manager._active_clients["server1"]
     client.call_tool.assert_awaited_once_with("tool1", params)
 
-    with pytest.raises(Exception) as e:
+    with pytest.raises(Exception):
         await manager.aexecute_tool("tool5", params)
 
 

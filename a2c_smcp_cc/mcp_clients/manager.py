@@ -299,8 +299,7 @@ class MCPServerManager:
             # 如果有自定义元数据，则利用MCP协议返回Result中的meta元数据携带能力透传。
             if tool_meta:
                 if result.meta:
-                    result.meta[A2C_TOOL_META] = result.meta.get(A2C_TOOL_META, {})
-                    result.meta[A2C_TOOL_META].update(tool_meta)
+                    result.meta.setdefault(A2C_TOOL_META, {}).update(tool_meta)
                 else:
                     result.meta = {A2C_TOOL_META: tool_meta}
             return result

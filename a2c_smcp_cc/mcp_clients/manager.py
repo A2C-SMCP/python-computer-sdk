@@ -145,6 +145,7 @@ class MCPServerManager:
     async def astart_all(self) -> None:
         """启动所有启用的服务器"""
         async with self._lock:
+            logger.debug(f"Manager Start all async task: {asyncio.current_task().get_name()}")
             for server_name in self._servers_config:
                 if not self._servers_config[server_name].disabled:
                     await self._astart_client(server_name)
@@ -171,12 +172,12 @@ class MCPServerManager:
 
         # 伪代码：根据配置类型创建客户端
         client = client_factory(config)
-        await client.connect()
+        await client.aconnect()
         self._active_clients[server_name] = client
         try:
             await self._arefresh_tool_mapping()
         except ToolNameDuplicatedError as e:
-            await client.disconnect()
+            await client.adisconnect()
             del self._active_clients[server_name]
             raise e
 
@@ -189,17 +190,18 @@ class MCPServerManager:
         """停止单个服务器客户端"""
         client = self._active_clients.pop(server_name, None)
         if client:
-            await client.disconnect()
+            await client.adisconnect()
             await self._arefresh_tool_mapping()
 
     async def _astop_all(self) -> None:
         """停止所有客户端"""
-        tasks = [self._astop_client(name) for name in list(self._active_clients.keys())]
-        await asyncio.gather(*tasks)
+        for name in list(self._active_clients.keys()):
+            await self._astop_client(name)
 
     async def astop_all(self) -> None:
         """停止所有客户端"""
         async with self._lock:
+            logger.debug(f"Manager Stop all async task: {asyncio.current_task().get_name()}")
             await self._astop_all()
 
     def _clear_all(self) -> None:
@@ -318,7 +320,7 @@ class MCPServerManager:
             for server_name in self._servers_config
         ]
 
-    async def aget_available_tools(self) -> AsyncGenerator[Tool, Any]:
+    async def available_tools(self) -> AsyncGenerator[Tool, Any]:
         """获取可用工具及其元数据"""
         async with self._lock:
             servers_cached_tools = defaultdict(list)

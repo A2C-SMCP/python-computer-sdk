@@ -4,6 +4,7 @@
 # @Author  : JQQ
 # @Email   : jqq1716@gmail.com
 # @Software: PyCharm
+import asyncio
 from collections.abc import Awaitable, Callable
 
 from mcp import ClientSession, StdioServerParameters, stdio_client
@@ -27,6 +28,7 @@ class StdioMCPClient(BaseMCPClient):
         Args:
             event (EventData): Transitions事件
         """
+        logger.debug(f"Before connection async task: {asyncio.current_task().get_name()}")
         logger.debug(f"Before connection actions with event: {event}\n\nserver params: {self.params}")
         stdout, stdin = await self.aexit_stack.enter_async_context(stdio_client(self.params))
         client_session = await self.aexit_stack.enter_async_context(ClientSession(stdout, stdin))

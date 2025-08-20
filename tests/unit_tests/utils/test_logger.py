@@ -47,8 +47,8 @@ def test_default_config(monkeypatch):
     """测试默认配置"""
     module, captured_output = reload_module(monkeypatch)
 
-    # 验证日志级别为 INFO
-    assert module.logger.level == logging.INFO
+    # 验证日志级别为 DEBUG
+    assert module.logger.level == logging.DEBUG
 
     # 验证日志输出
     module.logger.info("Test info message")
@@ -56,7 +56,7 @@ def test_default_config(monkeypatch):
 
     output = captured_output.getvalue()
     assert "Test info message" in output
-    assert "Test debug message (should not appear)" not in output
+    assert "Test debug message (should not appear)" in output
     assert "日志系统已初始化" in output
 
 

@@ -4,6 +4,7 @@
 # @Author  : JQQ
 # @Email   : jqq1716@gmail.com
 # @Software: PyCharm
+import asyncio
 from collections.abc import Callable
 
 from mcp import ClientSession
@@ -27,6 +28,7 @@ class SseMCPClient(BaseMCPClient):
         Args:
             event (EventData): Transitions事件
         """
+        logger.debug(f"Before connection async task: {asyncio.current_task().get_name()}")
         logger.debug(f"Before connection actions with event: {event}\n\nserver params: {self.params}")
         aread_stream, awrite_stream = await self.aexit_stack.enter_async_context(sse_client(**self.params.model_dump(mode="python")))
         client_session = await self.aexit_stack.enter_async_context(ClientSession(aread_stream, awrite_stream))

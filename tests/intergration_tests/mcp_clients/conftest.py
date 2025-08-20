@@ -6,14 +6,16 @@
 # @Software: PyCharm
 import multiprocessing
 import socket
+import sys
 import time
 from collections.abc import Callable, Generator
 from datetime import timedelta
+from pathlib import Path
 
 import anyio
 import pytest
 import uvicorn
-from mcp import ErrorData, McpError, Tool
+from mcp import ErrorData, McpError, StdioServerParameters, Tool
 from mcp import types as types
 from mcp.client.session_group import SseServerParameters, StreamableHttpParameters
 from mcp.server import Server
@@ -532,7 +534,7 @@ def run_sse_server(server_port: int) -> None:
 
 
 @pytest.fixture()
-def server(server_port: int) -> Generator[None, None, None]:
+def sse_server(server_port: int) -> Generator[None, None, None]:
     proc: multiprocessing.Process = multiprocessing.Process(target=run_sse_server, kwargs={"server_port": server_port}, daemon=True)
     print("starting process")
     proc.start()
@@ -583,3 +585,13 @@ def track_state() -> tuple[Callable[[str, str], None], list[tuple[str, str]]]:
         state_history.append((from_state, to_state))
 
     return callback, state_history
+
+
+TEST_DIR: Path = Path(__file__).parent.parent
+MCP_SERVER_SCRIPT: Path = TEST_DIR / "mcp_servers" / "direct_execution.py"
+
+
+@pytest.fixture
+def stdio_params() -> StdioServerParameters:
+    """提供 StdioServerParameters 配置 Provide StdioServerParameters config"""
+    return StdioServerParameters(command=sys.executable, args=[str(MCP_SERVER_SCRIPT)])

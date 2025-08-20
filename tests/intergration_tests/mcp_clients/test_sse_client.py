@@ -17,7 +17,7 @@ from a2c_smcp_cc.mcp_clients.sse_client import SseMCPClient
 
 @pytest.mark.asyncio
 async def test_state_transitions(
-    server: Generator[None, None, None],
+    sse_server,
     sse_params: SseServerParameters,
     track_state: tuple[Callable[[str, str], None], list[tuple[str, str]]],
 ) -> None:
@@ -40,7 +40,7 @@ async def test_state_transitions(
 
 
 @pytest.mark.asyncio
-async def test_list_tools(server: Generator[None, None, None], sse_params: SseServerParameters) -> None:
+async def test_list_tools(sse_server, sse_params: SseServerParameters) -> None:
     """
     测试获取工具列表功能
     Test list_tools functionality
@@ -55,7 +55,7 @@ async def test_list_tools(server: Generator[None, None, None], sse_params: SseSe
 
 
 @pytest.mark.asyncio
-async def test_call_tool_success(server: Generator[None, None, None], sse_params: SseServerParameters) -> None:
+async def test_call_tool_success(sse_server, sse_params: SseServerParameters) -> None:
     """
     测试成功调用工具
     Test successful tool call
@@ -70,7 +70,7 @@ async def test_call_tool_success(server: Generator[None, None, None], sse_params
 
 
 @pytest.mark.asyncio
-async def test_call_tool_failure(server: Generator[None, None, None], sse_params: SseServerParameters) -> None:
+async def test_call_tool_failure(sse_server, sse_params: SseServerParameters) -> None:
     """
     测试工具调用失败场景
     Test tool call failure
@@ -86,7 +86,7 @@ async def test_call_tool_failure(server: Generator[None, None, None], sse_params
 
 
 @pytest.mark.asyncio
-async def test_async_session_property(server: Generator[None, None, None], sse_params: SseServerParameters) -> None:
+async def test_async_session_property(sse_server, sse_params: SseServerParameters) -> None:
     """
     测试 async_session 属性
     Test async_session property
@@ -104,7 +104,7 @@ async def test_async_session_property(server: Generator[None, None, None], sse_p
 
 @pytest.mark.asyncio
 async def test_error_recovery(
-    server: Generator[None, None, None],
+    sse_server,
     sse_params: SseServerParameters,
     track_state: tuple[Callable[[str, str], None], list[tuple[str, str]]],
 ) -> None:
@@ -134,7 +134,7 @@ async def test_error_recovery(
 
 
 @pytest.mark.asyncio
-async def test_invalid_state_operations(server: Generator[None, None, None], sse_params: SseServerParameters) -> None:
+async def test_invalid_state_operations(sse_server, sse_params: SseServerParameters) -> None:
     """
     测试在无效状态下执行操作
     Test invalid state operations

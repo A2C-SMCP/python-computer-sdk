@@ -5,39 +5,15 @@
 # @Email   : jqq1716@gmail.com
 # @Software: PyCharm
 # filename: test_std_mcp_client.py
-import sys
 from collections.abc import Callable
-from pathlib import Path
 
 import pytest
+from intergration_tests.mcp_clients.conftest import stdio_params
 from mcp import StdioServerParameters
 from mcp.types import CallToolResult
 from transitions import MachineError
 
 from a2c_smcp_cc.mcp_clients.stdio_client import StdioMCPClient
-
-# 获取当前脚本目录作为工作目录
-TEST_DIR: Path = Path(__file__).parent.parent
-
-# 定义示例 MCP Server 的路径
-MCP_SERVER_SCRIPT: Path = TEST_DIR / "mcp_servers" / "direct_execution.py"
-
-
-@pytest.fixture
-def stdio_params() -> StdioServerParameters:
-    """提供 StdioServerParameters 配置 Provide StdioServerParameters config"""
-    return StdioServerParameters(command=sys.executable, args=[str(MCP_SERVER_SCRIPT)])
-
-
-@pytest.fixture
-def track_state() -> tuple[Callable[[str, str], None], list[tuple[str, str]]]:
-    """跟踪状态变化的辅助函数 Helper function to track state changes"""
-    state_history: list[tuple[str, str]] = []
-
-    def callback(from_state: str, to_state: str) -> None:
-        state_history.append((from_state, to_state))
-
-    return callback, state_history
 
 
 @pytest.mark.asyncio

@@ -4,14 +4,17 @@
 # @Author  : JQQ
 # @Email   : jqq1716@gmail.com
 # @Software: PyCharm
+from collections.abc import Generator
+
 import pytest
 from intergration_tests.mcp_clients.conftest import http_client, http_params
+from mcp.client.session_group import StreamableHttpParameters
 
 from a2c_smcp_cc.mcp_clients.http_client import HttpMCPClient
 
 
 @pytest.mark.anyio
-async def test_state_transitions_basic(basic_server, http_client):
+async def test_state_transitions_basic(basic_server: Generator[None, None, None], http_client: HttpMCPClient) -> None:
     """
     # 测试HttpMCPClient状态转移
     # Test HttpMCPClient state transitions
@@ -26,7 +29,7 @@ async def test_state_transitions_basic(basic_server, http_client):
 
 
 @pytest.mark.anyio
-async def test_list_tools_basic(basic_server, http_client):
+async def test_list_tools_basic(basic_server: Generator[None, None, None], http_client: HttpMCPClient) -> None:
     """
     # 测试获取工具列表功能
     # Test list_tools functionality
@@ -39,7 +42,7 @@ async def test_list_tools_basic(basic_server, http_client):
 
 
 @pytest.mark.anyio
-async def test_call_tool_success_basic(basic_server, http_client):
+async def test_call_tool_success_basic(basic_server: Generator[None, None, None], http_client: HttpMCPClient) -> None:
     """
     # 测试成功调用工具
     # Test successful tool call
@@ -52,7 +55,7 @@ async def test_call_tool_success_basic(basic_server, http_client):
 
 
 @pytest.mark.anyio
-async def test_call_tool_failure_basic(basic_server, http_client):
+async def test_call_tool_failure_basic(basic_server: Generator[None, None, None], http_client: HttpMCPClient) -> None:
     """
     # 测试调用不存在的工具失败
     # Test tool call failure for non-existent tool
@@ -64,7 +67,7 @@ async def test_call_tool_failure_basic(basic_server, http_client):
 
 
 @pytest.mark.anyio
-async def test_async_session_property_basic(basic_server, http_client):
+async def test_async_session_property_basic(basic_server: Generator[None, None, None], http_client: HttpMCPClient) -> None:
     """
     # 测试 async_session 属性行为
     # Test async_session property
@@ -76,7 +79,7 @@ async def test_async_session_property_basic(basic_server, http_client):
 
 
 @pytest.mark.anyio
-async def test_invalid_state_operations_basic(basic_server, http_params):
+async def test_invalid_state_operations_basic(basic_server: Generator[None, None, None], http_params: StreamableHttpParameters) -> None:
     """
     # 测试无效状态下的操作
     # Test operations in invalid state

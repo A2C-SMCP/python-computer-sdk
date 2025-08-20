@@ -3,7 +3,7 @@
 # @Author  : JQQ
 # @Email   : jiaqia@qknode.com
 # @Software: PyCharm
-from typing import ClassVar, Protocol, TypeAlias
+from typing import ClassVar, Protocol, TypeAlias, runtime_checkable
 
 from mcp import StdioServerParameters, Tool
 from mcp.client.session_group import SseServerParameters, StreamableHttpParameters
@@ -33,9 +33,11 @@ class BaseMCPServerConfig(BaseModel):
     """MCP服务器配置基类"""
 
     name: SERVER_NAME  # MCP Server的名称
-    disabled: bool
-    forbidden_tools: list[TOOL_NAME]  # 禁用的工具列表，因为一个mcp可能有非常多工具，有些工具用户需要禁用。
-    tool_meta: dict[TOOL_NAME, ToolMeta]
+    disabled: bool = Field(default=False, title="是否禁用", description="是否禁用MCP Server")
+    forbidden_tools: list[TOOL_NAME] = Field(
+        default_factory=list, title="禁用工具列表", description="禁用的工具列表，因为一个mcp可能有非常多工具，有些工具用户需要禁用。"
+    )
+    tool_meta: dict[TOOL_NAME, ToolMeta] = Field(default_factory=dict, title="工具元数据", description="工具元数据，用于描述工具的基本信息")
 
 
 class StdioServerConfig(BaseMCPServerConfig):
@@ -53,14 +55,15 @@ class StreamableHttpServerConfig(BaseMCPServerConfig):
 MCPServerConfig: TypeAlias = StdioServerConfig | SseServerConfig | StreamableHttpServerConfig
 
 
+@runtime_checkable
 class MCPClientProtocol(Protocol):
     state: str
 
-    async def connect(self) -> None:
+    async def aconnect(self) -> None:
         """连接MCP Server"""
         ...
 
-    async def disconnect(self) -> None:
+    async def adisconnect(self) -> None:
         """断开连接"""
         ...
 

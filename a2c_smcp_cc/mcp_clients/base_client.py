@@ -4,6 +4,7 @@
 # @Author  : JQQ
 # @Email   : jqq1716@gmail.com
 # @Software: PyCharm
+import asyncio
 from collections.abc import Awaitable, Callable
 from contextlib import AsyncExitStack
 from enum import StrEnum
@@ -15,7 +16,6 @@ from pydantic import BaseModel
 from transitions.core import EventData
 from transitions.extensions import AsyncMachine
 
-from a2c_smcp_cc.mcp_clients.model import MCPClientProtocol
 from a2c_smcp_cc.utils.async_property import async_property
 from a2c_smcp_cc.utils.logger import logger
 
@@ -88,7 +88,7 @@ class A2CAsyncMachine(AsyncMachine):
         return ret
 
 
-class BaseMCPClient(MCPClientProtocol):
+class BaseMCPClient:
     def __init__(self, params: BaseModel, state_change_callback: Callable[[str, str], None | Awaitable[None]] | None = None) -> None:
         """
         基类初始化
@@ -180,6 +180,7 @@ class BaseMCPClient(MCPClientProtocol):
         """状态机进入断开状态时的回调（可重写）"""
         logger.debug(f"Entering disconnected state with event: {event}\n\nserver params: {self.params}")
         # 关闭异步会话，保证资源的正常释放
+        logger.debug(f"Enter disconnected state async task: {asyncio.current_task().get_name()}")
         await self.aexit_stack.aclose()
         self._async_session = None
 

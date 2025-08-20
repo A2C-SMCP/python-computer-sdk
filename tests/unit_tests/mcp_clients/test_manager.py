@@ -32,8 +32,8 @@ SERVER_NAME = str
 class MockMCPClient:
     def __init__(self, tools: list[Tool] = None, ret_meta: dict | None = None):
         self.tools = tools or []
-        self.connect = AsyncMock()
-        self.disconnect = AsyncMock()
+        self.aconnect = AsyncMock()
+        self.adisconnect = AsyncMock()
         self.list_tools = AsyncMock(return_value=tools)
         call_ret = MagicMock(spec=CallToolResult)
         call_ret.result = None
@@ -254,7 +254,7 @@ async def test_dynamic_server_management(manager):
     await manager.aadd_or_aupdate_server(updated_server)
     await asyncio.sleep(0.1)  # 等待自动重连 需要释放一次协程才能触发协程任务的执行与调用。
 
-    old_client.disconnect.assert_awaited()
+    old_client.adisconnect.assert_awaited()
 
     # 验证更新应用
     assert "tool1" in manager._disabled_tools
@@ -291,7 +291,7 @@ async def test_get_available_tools(manager):
 
     # 获取工具
     tools = []
-    async for tool in manager.aget_available_tools():
+    async for tool in manager.available_tools():
         tools.append(tool)
 
     assert len(tools) == 2
@@ -546,7 +546,7 @@ async def test_aadd_or_aupdate_server_with_duplicate_tool(manager, monkeypatch):
 
     # 验证服务器仍然保持原状
     assert manager._active_clients["server1"].list_tools.return_value[0].name == "tool1"
-    tools_list = [tool async for tool in manager.aget_available_tools()]
+    tools_list = [tool async for tool in manager.available_tools()]
     assert any(tool.name == "tool1" and tool.meta["a2c_tool_meta"].alias == "new_alias" for tool in tools_list) and any(
         tool.name == "tool1" and not tool.meta for tool in tools_list
     )

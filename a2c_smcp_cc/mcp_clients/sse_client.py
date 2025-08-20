@@ -28,7 +28,7 @@ class SseMCPClient(BaseMCPClient):
             event (EventData): Transitions事件
         """
         logger.debug(f"Before connection actions with event: {event}\n\nserver params: {self.params}")
-        aread_stream, awrite_stream = await self.aexit_stack.enter_async_context(sse_client(**self.params.model_dump(mode="json")))
+        aread_stream, awrite_stream = await self.aexit_stack.enter_async_context(sse_client(**self.params.model_dump(mode="python")))
         client_session = await self.aexit_stack.enter_async_context(ClientSession(aread_stream, awrite_stream))
         # 将新建的ClientSession寄存在 event.kwargs 中
         event.kwargs["client_session"] = client_session

@@ -28,8 +28,11 @@ class HttpMCPClient(BaseMCPClient):
             event (EventData): Transitions事件
         """
         logger.debug(f"Before connection actions with event: {event}\n\nserver params: {self.params}")
-        aread_stream, awrite_stream = await self.aexit_stack.enter_async_context(
-            streamablehttp_client(**self.params.model_dump(mode="json"))
+        # 目前忽略了 GetSessionIdCallback。只有在手动管理Session才有必要，在封装内全部使用自动管理。
+        # 需要注意 self.params.model_dump() 的 mode 参数使用默认python，不可以使用json，因为当前Params中有 timedelta，如果使用json会序列化
+        # 为str，导致连接报错。
+        aread_stream, awrite_stream, _ = await self.aexit_stack.enter_async_context(
+            streamablehttp_client(**self.params.model_dump(mode="python"))
         )
         client_session = await self.aexit_stack.enter_async_context(ClientSession(aread_stream, awrite_stream))
         # 将新建的ClientSession寄存在 event.kwargs 中

@@ -1,0 +1,4 @@
+[run]
+omit = 
+    a2c_smcp_cc/utils/async_property/*
+    tests/*

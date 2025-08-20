@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from mcp.types import ListToolsResult
+from transitions.core import MachineError
 
 from a2c_smcp_cc.mcp_clients.base_client import STATES, BaseMCPClient
 
@@ -136,6 +137,16 @@ async def test_disconnection_flow(connected_client):
     # 验证断开时的资源清理
     assert client_instance._async_session is None
     assert client_instance.on_enter_called
+
+
+@pytest.mark.asyncio
+async def test_disconnect_from_disconnected_state(connected_client):
+    """测试从断开状态断开连接"""
+    client_instance, _ = connected_client
+    await client_instance.adisconnect()
+    assert client_instance.state == STATES.disconnected
+    with pytest.raises(MachineError):
+        await client_instance.adisconnect()
 
 
 @pytest.mark.asyncio

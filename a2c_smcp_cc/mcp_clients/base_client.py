@@ -5,6 +5,7 @@
 # @Email   : jqq1716@gmail.com
 # @Software: PyCharm
 import asyncio
+from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from contextlib import AsyncExitStack
 from enum import StrEnum
@@ -88,7 +89,7 @@ class A2CAsyncMachine(AsyncMachine):
         return ret
 
 
-class BaseMCPClient:
+class BaseMCPClient(ABC):
     def __init__(self, params: BaseModel, state_change_callback: Callable[[str, str], None | Awaitable[None]] | None = None) -> None:
         """
         基类初始化
@@ -99,8 +100,12 @@ class BaseMCPClient:
         """
         self.params = params
         self._state_change_callback = state_change_callback
-        self.aexit_stack = AsyncExitStack()
+        self._aexit_stack = AsyncExitStack()
         self._async_session: ClientSession | None = None
+        self._session_keep_alive_task: asyncio.Task | None = None
+        self._create_session_success_event = asyncio.Event()
+        self._create_session_failure_event = asyncio.Event()
+        self._async_session_closed_event = asyncio.Event()
 
         # 初始化异步状态机
         self.machine = A2CAsyncMachine(
@@ -140,6 +145,57 @@ class BaseMCPClient:
             await self.aconnect()
         return cast(ClientSession, self._async_session)
 
+    @abstractmethod
+    async def _create_async_session(self) -> ClientSession:
+        """
+        创建异步会话对象。一般在此方法内对需要保持的上下文压栈管理
+
+        Returns:
+            ClientSession: MCP 官方异步会话，用于触发 MCP Server 指令
+        """
+        raise NotImplementedError
+
+    async def _keep_alive_task(self) -> None:
+        """
+        async_session 保活，进而保证其它连接可以正常使用它。
+
+        在MCP源码设计中，xxx_client与ClientSession均使用了anyio的task_group来管理子任务。但这带来一个维护问题，在Manager中需要管理多个Client，如果
+          Client的AsyncSession是基于anyio.task_group打开，那么在关闭时，必须严格按照打开顺序关闭，否则会导致anyio报错。基于这个anyio特性，因为我需要让
+          ClientSession在一个独立的Asyncio Task中运行，如此可以保证这个上下文的打开关联在这个内部Task中，从而可以实现自由关闭。在Manager中可
+          以独立启停Client
+
+        在这个实现中主要完成以下几个工作：
+
+        1. 完成 self._async_session的创建
+        2. 将需要持续保证的上下文压栈 self._aexit_stack
+        3. 通过 asyncio.Event().wait() 来保证上下文的持续，同时通过响应 self._session_keep_alive_task.done() 来完成上下文的关闭
+        4. 得到关闭信号后，对 self._aexit_stack 里的上下文进行关闭
+        """
+        logger.debug(f"Session keep-alive task: {asyncio.current_task().get_name()}")
+        try:
+            # 创建异步会话，同时完成上下文的压栈
+            self._async_session = await self._create_async_session()
+            # 通知创建成功
+            self._create_session_success_event.set()
+            # 持续等待关闭信息
+            try:
+                # 等待任务的cancel
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                # 任务被取消，完成上下文
+                logger.debug(f"Session keep-alive task cancelled: {asyncio.current_task().get_name()}")
+        except Exception as e:
+            logger.error(f"Session keep-alive task error: {asyncio.current_task().get_name()}: {e}")
+            self._create_session_failure_event.set()
+            await self.aerror()
+
+        finally:
+            # 关闭上下文
+            await self._aexit_stack.aclose()
+            # 清理session
+            self._async_session = None
+            self._async_session_closed_event.set()
+
     # region 状态转换回调函数基类实现
     async def aprepare_connect(self, event: EventData) -> None:
         """连接准备操作（可重写）"""
@@ -157,6 +213,11 @@ class BaseMCPClient:
     async def on_enter_connected(self, event: EventData) -> None:
         """进入已连接状态（可重写）"""
         logger.debug(f"Entering connected state with event: {event}\n\nserver params: {self.params}")
+        self._session_keep_alive_task = asyncio.create_task(self._keep_alive_task())
+        # 等待会话创建成功
+        await self._create_session_success_event.wait()
+        # 初始化client_session
+        await (await self.async_session).initialize()
 
     async def aafter_connect(self, event: EventData) -> None:
         """连接后操作（可重写）"""
@@ -181,8 +242,9 @@ class BaseMCPClient:
         logger.debug(f"Entering disconnected state with event: {event}\n\nserver params: {self.params}")
         # 关闭异步会话，保证资源的正常释放
         logger.debug(f"Enter disconnected state async task: {asyncio.current_task().get_name()}")
-        await self.aexit_stack.aclose()
-        self._async_session = None
+        await self._close_task()
+        # 等待会话关闭
+        await self._async_session_closed_event.wait()
 
     async def aafter_disconnect(self, event: EventData) -> None:
         """断开后操作（可重写）"""
@@ -205,8 +267,8 @@ class BaseMCPClient:
     async def on_enter_error(self, event: EventData) -> None:
         """状态机进入错误状态时的回调（可重写）"""
         logger.debug(f"Entered error state with event: {event}\n\nserver params: {self.params}")
-        # 关闭异步会话，保证资源的正常释放
-        await self.aexit_stack.aclose()
+        # 将所有异步Event全部clear
+        await self._close_task()
 
     async def aafter_error(self, event: EventData) -> None:
         """错误后操作（可重写）"""
@@ -229,9 +291,11 @@ class BaseMCPClient:
     async def on_enter_initialized(self, event: EventData) -> None:
         """状态机进入初始化状态时的回调（可重写）"""
         logger.debug(f"Entered initialized state with event: {event}\n\nserver params: {self.params}")
-        # 关闭异步会话，保证资源的正常释放
-        await self.aexit_stack.aclose()
-        self._async_session = None
+        # 将所有异步Event全部clear
+        self._create_session_success_event.clear()
+        self._create_session_failure_event.clear()
+        self._async_session_closed_event.clear()
+        await self._close_task()
 
     async def aafter_initialize(self, event: EventData) -> None:
         """初始化后操作（可重写）"""
@@ -272,3 +336,19 @@ class BaseMCPClient:
         if self.state != STATES.connected:
             raise ConnectionError("Not connected to server")
         return await (await self.async_session).call_tool(tool_name, params)
+
+    async def _close_task(self) -> None:
+        """
+        关闭异步任务
+        """
+        # 将所有异步Event全部clear
+        if self._session_keep_alive_task and not self._session_keep_alive_task.done():
+            self._session_keep_alive_task.cancel()
+
+            # 等待_session_keep_alive_task结束
+            try:
+                await self._session_keep_alive_task
+            except asyncio.CancelledError:
+                logger.debug("Session keep-alive task was cancelled")
+            except Exception as e:
+                logger.error(f"Session keep-alive task failed: {e}")

@@ -36,8 +36,8 @@ async def test_abefore_connect_and_on_enter_connected():
         # 构造 client 和 event
         client = StdioMCPClient(params=mock_params)
         assert client._async_session is None
-        client.aexit_stack = AsyncMock()  # 避免真实上下文
-        client.aexit_stack.enter_async_context = AsyncMock(side_effect=[(mock_stdout, mock_stdin), mock_session])
+        client._aexit_stack = AsyncMock()  # 避免真实上下文
+        client._aexit_stack.enter_async_context = AsyncMock(side_effect=[(mock_stdout, mock_stdin), mock_session])
         # 调用 abefore_connect
         await client.aconnect()
         # 断言 ClientSession 被正确初始化

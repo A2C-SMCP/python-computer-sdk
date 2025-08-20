@@ -4,6 +4,8 @@
 # @Author  : JQQ
 # @Email   : jqq1716@gmail.com
 # @Software: PyCharm
+import asyncio
+from abc import ABC, abstractmethod
 from collections.abc import Awaitable
 from collections.abc import Callable as Callable
 from contextlib import AsyncExitStack
@@ -20,13 +22,9 @@ from pydantic import BaseModel as BaseModel
 from transitions.core import EventData
 from transitions.extensions.asyncio import AsyncMachine, AsyncTransitionConfigDict
 
-from a2c_smcp_cc.mcp_clients.model import MCPClientProtocol as MCPClientProtocol
-from a2c_smcp_cc.mcp_clients.model import MCPServerConfig as MCPServerConfig
-from a2c_smcp_cc.mcp_clients.model import SseServerConfig as SseServerConfig
-from a2c_smcp_cc.mcp_clients.model import StdioServerConfig as StdioServerConfig
-from a2c_smcp_cc.mcp_clients.model import StreamableHttpServerConfig as StreamableHttpServerConfig
-from a2c_smcp_cc.utils.async_property import async_property as async_property
+from a2c_smcp_cc.utils.async_property import async_property
 from a2c_smcp_cc.utils.logger import logger as logger
+
 
 class STATES(StrEnum):
     initialized = "initialized"
@@ -34,22 +32,31 @@ class STATES(StrEnum):
     disconnected = "disconnected"
     error = "error"
 
+
 TRANSITIONS: list[AsyncTransitionConfigDict]
+
 
 class A2CAsyncMachine(AsyncMachine): ...
 
-class BaseMCPClient(MCPClientProtocol):
+
+class BaseMCPClient(ABC):
     params: BaseModel
-    aexit_stack: AsyncExitStack
+    _aexit_stack: AsyncExitStack
     machine: A2CAsyncMachine
     _async_session: ClientSession | None
     _state_change_callback: Callable[[str, str], None | Awaitable[None]] | None
+    _session_keep_alive_task: asyncio.Task | None
+    _create_session_success_event: asyncio.Event
+    _create_session_failure_event: asyncio.Event
+    _async_session_closed_event: asyncio.Event
     state: STATES
 
     def __init__(self, params: BaseModel, state_change_callback: Callable[[str, str], None | Awaitable[None]] = None) -> None: ...
     async def _trigger_state_change(self, event: EventData) -> None: ...
     @async_property
     async def async_session(self) -> ClientSession: ...
+    @abstractmethod
+    async def _create_async_session(self) -> ClientSession: ...
     async def aconnect(self, *args: Any, **kwargs: Any) -> None: ...
     async def aprepare_connect(self, event: EventData) -> None: ...
     async def acan_connect(self, event: EventData) -> bool: ...
@@ -76,3 +83,5 @@ class BaseMCPClient(MCPClientProtocol):
     async def aafter_initialize(self, event: EventData) -> None: ...
     async def list_tools(self) -> list[Tool]: ...
     async def call_tool(self, tool_name: str, params: dict) -> CallToolResult: ...
+    async def _keep_alive_task(self) -> None: ...
+    async def _close_task(self) -> None: ...

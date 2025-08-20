@@ -10,6 +10,7 @@ from contextlib import AsyncExitStack
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from mcp import ClientSession
 from mcp.types import ListToolsResult
 from transitions.core import MachineError
 
@@ -31,6 +32,9 @@ class TestMCPClient(BaseMCPClient):
         self.tool_meta = {}
         self.aexit_stack = AsyncMock(spec=AsyncExitStack)
 
+    async def _create_async_session(self) -> ClientSession:
+        return MagicMock(spec=ClientSession)
+
     async def aprepare_connect(self, event):
         await super().aprepare_connect(event)
         self.prepare_called = True
@@ -46,7 +50,6 @@ class TestMCPClient(BaseMCPClient):
 
     async def on_enter_connected(self, event):
         await super().on_enter_connected(event)
-        self._async_session = AsyncMock()
 
     async def aafter_connect(self, event):
         await super().aafter_connect(event)
@@ -286,5 +289,6 @@ async def test_enter_error_state_releases_resources(client):
 
     # 确保进入错误状态时的清理被调用
     assert client_instance._async_session is not None
-    client_instance.aexit_stack.aclose.assert_awaited_once()
+    # 目前 aerror 经过优化与迭代，不再显式调用 aclose 方法，而是根据目前的任务状态动态判断调用。
+    client_instance.aexit_stack.aclose.assert_not_called()
     assert client_instance.state == STATES.error

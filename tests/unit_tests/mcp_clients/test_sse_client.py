@@ -36,19 +36,12 @@ async def test_abefore_connect_and_on_enter_connected():
         # 构造 client 和 event
         client = SseMCPClient(params=mock_params)
         assert client._async_session is None
-        client.aexit_stack = AsyncMock()  # 避免真实上下文
-        client.aexit_stack.enter_async_context = AsyncMock(side_effect=[(mock_aread_stream, mock_awrite_stream), mock_session])
-        # 构造 event
-        mock_event = MagicMock()
-        mock_event.kwargs = {}
+        client._aexit_stack = AsyncMock()  # 避免真实上下文
+        client._aexit_stack.enter_async_context = AsyncMock(side_effect=[(mock_aread_stream, mock_awrite_stream), mock_session])
         # 调用 abefore_connect
-        await client.abefore_connect(mock_event)
+        await client.aconnect()
         # 断言 ClientSession 被正确初始化
         mock_cs.assert_called_once_with(mock_aread_stream, mock_awrite_stream)
-        # 断言 client_session 被正确设置
-        assert mock_event.kwargs["client_session"] is mock_session
-        # 调用 on_enter_connected
-        await client.on_enter_connected(mock_event)
         # 断言 initialize 被调用
         mock_initialize.assert_awaited()
         # 断言 client._async_session 设置正确

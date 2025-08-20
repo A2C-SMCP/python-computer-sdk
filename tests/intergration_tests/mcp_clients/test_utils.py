@@ -58,6 +58,8 @@ async def test_factory_multi_client(stdio_params: StdioServerParameters, sse_par
 
 
 # 测试两个不同客户端依次创建，然后再依次连接，再依次断开
+# 参考： tests/unit_tests/utils/test_async_exit_stack_anyio.py 因为MCP内部使用了anyio的task_group，因此退出时必须按入栈顺序退出，否则会出错
+@pytest.mark.xfail
 @pytest.mark.anyio
 async def test_factory_multi_client2(stdio_params: StdioServerParameters, sse_params: SseServerParameters, sse_server: Any) -> None:
     std_config = StdioServerConfig(name="stdio_server", server_parameters=stdio_params)

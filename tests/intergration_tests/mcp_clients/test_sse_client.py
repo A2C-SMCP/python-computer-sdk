@@ -4,10 +4,9 @@
 # @Author  : JQQ
 # @Email   : jqq1716@gmail.com
 # @Software: PyCharm
-from collections.abc import Callable, Generator
+from collections.abc import Callable
 
 import pytest
-from intergration_tests.mcp_clients.conftest import sse_params, track_state
 from mcp.client.session_group import SseServerParameters
 from mcp.types import CallToolResult, Tool
 from transitions import MachineError

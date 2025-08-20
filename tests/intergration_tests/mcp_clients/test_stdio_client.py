@@ -8,7 +8,6 @@
 from collections.abc import Callable
 
 import pytest
-from intergration_tests.mcp_clients.conftest import stdio_params
 from mcp import StdioServerParameters
 from mcp.types import CallToolResult
 from transitions import MachineError

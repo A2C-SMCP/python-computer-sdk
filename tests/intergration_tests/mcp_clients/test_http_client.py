@@ -7,7 +7,6 @@
 from collections.abc import Generator
 
 import pytest
-from intergration_tests.mcp_clients.conftest import http_client, http_params
 from mcp.client.session_group import StreamableHttpParameters
 
 from a2c_smcp_cc.mcp_clients.http_client import HttpMCPClient

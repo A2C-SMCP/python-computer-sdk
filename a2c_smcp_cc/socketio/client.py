@@ -10,7 +10,6 @@ from socketio import AsyncClient
 
 from a2c_smcp_cc.computer import Computer
 from a2c_smcp_cc.socketio.smcp import (
-    GET_MCP_CONFIG_EVENT,
     GET_TOOLS_EVENT,
     JOIN_OFFICE_EVENT,
     LEAVE_OFFICE_EVENT,
@@ -18,8 +17,6 @@ from a2c_smcp_cc.socketio.smcp import (
     TOOL_CALL_EVENT,
     UPDATE_MCP_CONFIG_EVENT,
     EnterOfficeReq,
-    GetMCPConfigReq,
-    GetMCPConfigRet,
     GetToolsReq,
     GetToolsRet,
     LeaveOfficeReq,
@@ -38,7 +35,6 @@ class SMCPComputerClient(AsyncClient):
         super().__init__(*args, **kwargs)
         self.computer = computer
         self.on(TOOL_CALL_EVENT, self.on_tool_call, namespace=SMCP_NAMESPACE)
-        self.on(GET_MCP_CONFIG_EVENT, self.on_get_mcp_config, namespace=SMCP_NAMESPACE)
         self.on(GET_TOOLS_EVENT, self.on_get_tools, namespace=SMCP_NAMESPACE)
         self.office_id: str | None = None
 
@@ -109,17 +105,6 @@ class SMCPComputerClient(AsyncClient):
             )
         except Exception as e:
             return CallToolResult(isError=True, structuredContent={"error": str(e), "error_type": type(e).__name__}, content=[])
-
-    async def on_get_mcp_config(self, data: GetMCPConfigReq) -> GetMCPConfigRet:
-        """
-        信令服务器通知计算机端，有工具调用请求
-
-        Args:
-            data (GetMCPConfigReq): 请求数据
-        """
-        assert self.office_id == data["robot_id"], "房间名称与Agent信息名称不匹配"
-        assert self.sid == data["computer"], "计算机标识不匹配"
-        ...
 
     async def on_get_tools(self, data: GetToolsReq) -> GetToolsRet:
         """

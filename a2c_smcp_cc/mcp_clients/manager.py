@@ -6,7 +6,7 @@
 import asyncio
 import copy
 from collections import defaultdict
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Iterable
 from typing import Any
 
 from mcp.types import CallToolResult, Tool
@@ -66,7 +66,7 @@ class MCPServerManager:
         async with self._lock:
             self._auto_reconnect = False
 
-    async def ainitialize(self, servers: list[MCPServerConfig]) -> None:
+    async def ainitialize(self, servers: Iterable[MCPServerConfig]) -> None:
         """
         初始化管理器并添加服务器配置
 

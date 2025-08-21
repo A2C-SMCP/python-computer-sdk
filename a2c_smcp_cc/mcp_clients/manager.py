@@ -26,6 +26,8 @@ class MCPServerManager:
     MCP Server管理器
 
     所有以下划线开头的私有方法是非协程安全的。如果外部调用，需要使用普通方法。
+
+    # TODO call_tool的时候需要启动子任务对call_tool进行包装，以便进行超时控制与动态取消。实现超时控制与动态取消后，才可以响应服务端取消任务
     """
 
     def __init__(self, auto_connect: bool = False, auto_reconnect: bool = True) -> None:

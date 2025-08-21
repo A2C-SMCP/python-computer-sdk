@@ -38,7 +38,7 @@ class SMCPComputerClient(AsyncClient):
         self.on(GET_TOOLS_EVENT, self.on_get_tools, namespace=SMCP_NAMESPACE)
         self.office_id: str | None = None
 
-    async def emit(self, event: str, data: Any = None, namespace: str | None = None, callback: Any = None) -> None:
+    async def emit(self, event: str, data: Any = None, namespace: str | None = SMCP_NAMESPACE, callback: Any = None) -> None:
         """
         相较于父类方法，提供一个event校验能力，在A2C-smcp协议内，Computer客户端不允许发起 notify:* 事件与 client:* 事件
 
@@ -55,9 +55,9 @@ class SMCPComputerClient(AsyncClient):
             callback (Any): 回调
         """
         if event.startswith("notify:"):
-            raise ValueError("ComputerClient不允许使用notify:*事件")
+            raise ValueError("ComputerClient不允许使用notify:*事件")  # pragma: no cover
         if event.startswith("client:"):
-            raise ValueError("ComputerClient不允许发起client:*事件")
+            raise ValueError("ComputerClient不允许发起client:*事件")  # pragma: no cover
         await super().emit(event, data, namespace, callback)
 
     async def join_office(self, office_id: str, computer_name: str) -> None:
@@ -82,13 +82,22 @@ class SMCPComputerClient(AsyncClient):
         await self.emit(LEAVE_OFFICE_EVENT, LeaveOfficeReq(office_id=office_id))
         self.office_id = None
 
+    async def emit_update_mcp_config(self) -> None:
+        """
+        当前MCP配置更新时需要触发此事件向信令服务器推送，进而触发Agent端的配置更新
+
+        不需要传递当前的配置参数，因为Agnet会通过其它接口进行刷新
+        """
+        if self.office_id:
+            await self.emit(UPDATE_MCP_CONFIG_EVENT, UpdateMCPConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
+
     async def update_mcp_config(self) -> None:
         """
         当前MCP配置更新时需要触发此事件向信令服务器推送，进而触发Agent端的配置更新
 
         不需要传递当前的配置参数，因为Agnet会通过其它接口进行刷新
         """
-        await self.emit(UPDATE_MCP_CONFIG_EVENT, UpdateMCPConfigReq(computer=self.sid))
+        await self.emit(UPDATE_MCP_CONFIG_EVENT, UpdateMCPConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
 
     async def on_tool_call(self, data: ToolCallReq) -> CallToolResult:
         """
@@ -98,11 +107,12 @@ class SMCPComputerClient(AsyncClient):
             data (ToolCallReq): 请求数据
         """
         assert self.office_id == data["robot_id"], "房间名称与Agent信息名称不匹配"
-        assert self.sid == data["computer"], "计算机标识不匹配"
+        assert self.namespaces[SMCP_NAMESPACE] == data["computer"], "计算机标识不匹配"
         try:
-            return await self.computer.mcp_manager.aexecute_tool(
+            ret = await self.computer.mcp_manager.aexecute_tool(
                 tool_name=data["tool_name"], parameters=data["params"], timeout=data["timeout"]
             )
+            return ret
         except Exception as e:
             return CallToolResult(isError=True, structuredContent={"error": str(e), "error_type": type(e).__name__}, content=[])
 
@@ -114,7 +124,7 @@ class SMCPComputerClient(AsyncClient):
             data (GetToolsReq): 请求数据
         """
         assert self.office_id == data["robot_id"], "房间名称与Agent信息名称不匹配"
-        assert self.sid == data["computer"], "计算机标识不匹配"
+        assert self.namespaces[SMCP_NAMESPACE] == data["computer"], "计算机标识不匹配"
 
         mcp_tools = await self.computer.aget_available_tools()
 

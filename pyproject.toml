@@ -31,6 +31,7 @@ pytest-cov = "^6.2.1"
 pytest-mock = "^3.14.1"
 inline-snapshot = "^0.27.2"
 pytest-dotenv = "^0.5.2"
+aiohttp = "^3.12.15"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

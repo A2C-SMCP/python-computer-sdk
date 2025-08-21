@@ -47,6 +47,14 @@ class Computer:
         初始化 Computer 实例
         Initialize Computer instance
 
+        MCP Server使用宝典的形式进行配置是为了帮助使用者减少重复配置的可能性，建议字典的key使用MCP Server的名称。以此避免重复配置。当然，
+            如果有特殊的设计需要保持名称的重复。可以自定义字典值以避开这个限制
+
+        The MCP Server configuration is in the form of a dictionary to help users reduce the possibility of duplicate
+        configuration, and it is recommended to use the name of the MCP Server as the key to avoid duplicate
+        configuration. Of course, if there is a special design that requires the name to be repeated, you can
+        customize the dictionary value to avoid this limitation
+
         Args:
             mcp_servers (dict[str, MCPServerConfig] | None): MCP服务器配置字典。MCP server config dict.
             auto_connect (bool): 是否自动连接。Whether to auto connect.

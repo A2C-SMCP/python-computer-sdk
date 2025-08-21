@@ -100,9 +100,9 @@ def create_server_config(name: str, disabled: bool = False, forbidden_tools: lis
 
 
 @pytest.fixture
-def manager() -> MCPServerManager:
+async def manager() -> MCPServerManager:
     manager = MCPServerManager()
-    manager.auto_reconnect = True  # 启用自动重连便于测试
+    await manager.enable_auto_reconnect()  # 启用自动重连便于测试
     return manager
 
 
@@ -268,7 +268,7 @@ async def test_dynamic_server_management(manager):
 @pytest.mark.asyncio
 async def test_auto_reconnect_disabled(manager):
     """测试禁用自动重连时更新配置"""
-    manager.auto_reconnect = False
+    await manager.disable_auto_reconnect()
 
     servers = [create_server_config("server1")]
     await manager.ainitialize(servers)
@@ -350,7 +350,7 @@ async def test_update_active_server_without_reconnect(manager):
     Test: Raise RuntimeError when updating active config with auto_reconnect=False.
     """
     config = create_server_config("server1")
-    manager.auto_reconnect = False
+    await manager.disable_auto_reconnect()
     manager._servers_config[config.name] = config
     manager._active_clients[config.name] = cast(MCPClientProtocol, MagicMock(spec=MCPClientProtocol))
     with pytest.raises(RuntimeError):
@@ -516,7 +516,7 @@ async def test_aadd_or_aupdate_server_with_duplicate_tool(manager, monkeypatch):
     Test: Raise ToolNameDuplicatedError when adding/updating server with duplicate tool name
     """
     # 初始配置
-    manager.auto_connect = True
+    await manager.enable_auto_connect()
     config1 = create_server_config("server1")
     await manager.ainitialize([config1])
     await manager.astart_all()

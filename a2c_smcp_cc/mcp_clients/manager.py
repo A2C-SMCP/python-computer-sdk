@@ -40,11 +40,31 @@ class MCPServerManager:
         # 禁用工具集合
         self._disabled_tools: set[TOOL_NAME] = set()
         # 自动重连标志
-        self.auto_reconnect: bool = auto_reconnect
+        self._auto_reconnect: bool = auto_reconnect
         # 自动连接标志
-        self.auto_connect: bool = auto_connect
+        self._auto_connect: bool = auto_connect
         # 内部锁防止并发修改
         self._lock = asyncio.Lock()
+
+    async def enable_auto_connect(self) -> None:
+        """启用自动连接"""
+        async with self._lock:
+            self._auto_connect = True
+
+    async def disable_auto_connect(self) -> None:
+        """禁用自动连接"""
+        async with self._lock:
+            self._auto_connect = False
+
+    async def enable_auto_reconnect(self) -> None:
+        """启用自动重连"""
+        async with self._lock:
+            self._auto_reconnect = True
+
+    async def disable_auto_reconnect(self) -> None:
+        """禁用自动重连"""
+        async with self._lock:
+            self._auto_reconnect = False
 
     async def ainitialize(self, servers: list[MCPServerConfig]) -> None:
         """
@@ -85,14 +105,14 @@ class MCPServerManager:
         if config.name in self._servers_config:
             # 配置更新时检查是否激活
             if config.name in self._active_clients:
-                if self.auto_reconnect:
+                if self._auto_reconnect:
                     self._servers_config[config.name] = config
                     await self._arestart_server(config.name)
                 else:
                     raise RuntimeError(f"Server {config.name} is active. Stop it before updating config")
         else:
             self._servers_config[config.name] = config
-            if self.auto_connect:
+            if self._auto_connect:
                 await self._astart_client(config.name)
 
     async def aadd_or_aupdate_server(self, config: MCPServerConfig) -> None:

@@ -4,7 +4,7 @@
 # @Author  : JQQ
 # @Email   : jqq1716@gmail.com
 # @Software: PyCharm
-from typing import Any, Literal, NotRequired, TypeAlias
+from typing import Literal, NotRequired
 
 from typing_extensions import TypedDict
 
@@ -80,147 +80,8 @@ class UpdateMCPConfigReq(TypedDict):
     computer: str  # 机器人计算机sid
 
 
-# --- MCPServer 配置，参考借鉴： ---
-# VSCode: https://code.visualstudio.com/docs/copilot/chat/mcp-servers#_configuration-format
-# AWS Q Developer: https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/mcp-ide.html
-
-
-class MCPServerInputBase(TypedDict):
-    """MCP服务器输入配置基类"""
-
-    id: str
-    description: str
-
-
-class MCPServerPromptStringInput(MCPServerInputBase):
-    """字符串输入类型"""
-
-    type: Literal["promptString"]
-    default: NotRequired[str]
-    password: NotRequired[bool]
-
-
-class MCPServerPickStringInput(MCPServerInputBase):
-    """选择输入类型"""
-
-    type: Literal["pickString"]
-    options: list[str]
-    default: NotRequired[str]
-
-
-class MCPServerCommandInput(MCPServerInputBase):
-    """命令输入类型"""
-
-    type: Literal["command"]
-    command: str
-    args: NotRequired[dict[str, str]]
-
-
-MCPServerInput = MCPServerPromptStringInput | MCPServerPickStringInput | MCPServerCommandInput
-
-TOOL_NAME: TypeAlias = str
-
-
-class ToolMeta(TypedDict, total=False):
-    auto_apply: NotRequired[bool]
-    # 不同MCP工具返回值并不统一，虽然其满足MCP标准的返回格式，但具体的原始内容命名仍然无法避免出现不一致的情况。通过object_mapper
-    # 可以方便前端对其进行转换，以使用标准组件渲染解析。
-    ret_object_mapper: NotRequired[dict]
-
-
-class BaseMCPServerConfig(TypedDict):
-    """MCP服务器配置基类"""
-
-    disabled: bool
-    forbidden_tools: list[str]  # 禁用的工具列表，因为一个mcp可能有非常多工具，有些工具用户需要禁用。
-    tool_meta: dict[TOOL_NAME, ToolMeta]
-
-
-class MCPServerStdioParameters(TypedDict):
-    command: str
-    """The executable to run to start the server."""
-    args: list[str]
-    """Command line arguments to pass to the executable."""
-    env: dict[str, str] | None
-    """
-    The environment to use when spawning the process.
-
-    If not specified, the result of get_default_environment() will be used.
-    """
-    cwd: str | None
-    """The working directory to use when spawning the process."""
-    encoding: str
-    """
-    The text encoding used when sending/receiving messages to the server
-
-    defaults to utf-8
-    """
-    encoding_error_handler: Literal["strict", "ignore", "replace"]
-    """
-    The text encoding error handler.
-
-    See https://docs.python.org/3/library/codecs.html#codec-base-classes for
-    explanations of possible values
-    """
-
-
-class MCPServerStdioConfig(BaseMCPServerConfig):
-    """标准输入输出模式的MCP服务器配置"""
-
-    type: Literal["stdio"]
-    server_parameters: MCPServerStdioParameters
-
-
-class MCPServerStreamableHttpParameters(TypedDict):
-    # The endpoint URL.
-    url: str
-    # Optional headers to include in requests.
-    headers: dict[str, Any] | None
-    # HTTP timeout for regular operations.
-    timeout: float
-    # Timeout for SSE read operations.
-    sse_read_timeout: float
-    # Close the client session when the transport closes.
-    terminate_on_close: bool
-
-
-class MCPServerStreamableHttpConfig(BaseMCPServerConfig):
-    """StreamableHttpHTTP模式的MCP服务器配置"""
-
-    type: Literal["streamable_http"]
-    server_parameters: MCPServerStreamableHttpParameters
-
-
-class MCPSSEParameters(TypedDict):
-    # The endpoint URL.
-    url: str
-    # Optional headers to include in requests.
-    headers: dict[str, Any] | None
-    # HTTP timeout for regular operations.
-    timeout: float
-    # Timeout for SSE read operations.
-    sse_read_timeout: float
-
-
-class MCPSSEConfig(BaseMCPServerConfig):
-    """SSE模式的MCP服务器配置"""
-
-    type: Literal["sse"]
-    server_parameters: MCPSSEParameters
-
-
-MCPServerConfig = MCPServerStdioConfig | MCPServerStreamableHttpConfig | MCPSSEConfig
-
-
 class GetMCPConfigReq(AgentCallData):
     computer: str
-
-
-class GetMCPConfigRet(TypedDict):
-    """完整的MCP配置文件类型"""
-
-    inputs: NotRequired[list[MCPServerInput]]
-    servers: dict[str, MCPServerConfig]
 
 
 class LeaveOfficeNotification(TypedDict, total=False):

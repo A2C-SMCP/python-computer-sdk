@@ -8,7 +8,7 @@ from typing import Any
 from mcp.types import CallToolResult
 from socketio import AsyncClient
 
-from a2c_smcp_cc.mcp_clients.manager import MCPServerManager
+from a2c_smcp_cc.computer import Computer
 from a2c_smcp_cc.socketio.smcp import (
     GET_MCP_CONFIG_EVENT,
     GET_TOOLS_EVENT,
@@ -34,9 +34,9 @@ class SMCPComputerClient(AsyncClient):
     如果在使用Socket.IO过程中，需要实现SMCP协议，则需要使用此客户端，不能仅仅使用原生AsyncClient
     """
 
-    def __init__(self, *args: Any, mcp_manager: MCPServerManager, **kwargs: Any) -> None:  # noqa: E112
+    def __init__(self, *args: Any, computer: Computer, **kwargs: Any) -> None:  # noqa: E112
         super().__init__(*args, **kwargs)
-        self.mcp_manager = mcp_manager
+        self.computer = computer
         self.on(TOOL_CALL_EVENT, self.on_tool_call, namespace=SMCP_NAMESPACE)
         self.on(GET_MCP_CONFIG_EVENT, self.on_get_mcp_config, namespace=SMCP_NAMESPACE)
         self.on(GET_TOOLS_EVENT, self.on_get_tools, namespace=SMCP_NAMESPACE)
@@ -104,7 +104,9 @@ class SMCPComputerClient(AsyncClient):
         assert self.office_id == data["robot_id"], "房间名称与Agent信息名称不匹配"
         assert self.sid == data["computer"], "计算机标识不匹配"
         try:
-            return await self.mcp_manager.aexecute_tool(tool_name=data["tool_name"], parameters=data["params"], timeout=data["timeout"])
+            return await self.computer.mcp_manager.aexecute_tool(
+                tool_name=data["tool_name"], parameters=data["params"], timeout=data["timeout"]
+            )
         except Exception as e:
             return CallToolResult(isError=True, structuredContent={"error": str(e), "error_type": type(e).__name__}, content=[])
 
@@ -115,6 +117,8 @@ class SMCPComputerClient(AsyncClient):
         Args:
             data (GetMCPConfigReq): 请求数据
         """
+        assert self.office_id == data["robot_id"], "房间名称与Agent信息名称不匹配"
+        assert self.sid == data["computer"], "计算机标识不匹配"
         ...
 
     async def on_get_tools(self, data: GetToolsReq) -> GetToolsRet:
@@ -124,4 +128,9 @@ class SMCPComputerClient(AsyncClient):
         Args:
             data (GetToolsReq): 请求数据
         """
-        ...
+        assert self.office_id == data["robot_id"], "房间名称与Agent信息名称不匹配"
+        assert self.sid == data["computer"], "计算机标识不匹配"
+
+        mcp_tools = await self.computer.aget_available_tools()
+
+        return GetToolsRet(tools=mcp_tools, req_id=data["req_id"])

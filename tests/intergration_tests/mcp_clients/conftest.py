@@ -453,14 +453,14 @@ def http_client(http_params: StreamableHttpParameters) -> HttpMCPClient:
 SSE_SERVER_NAME = "test_server_for_SSE"
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def server_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def server_url(server_port: int) -> str:
     return f"http://127.0.0.1:{server_port}"
 
@@ -533,7 +533,7 @@ def run_sse_server(server_port: int) -> None:
         time.sleep(0.5)
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def sse_server(server_port: int) -> Generator[None, None, None]:
     proc: multiprocessing.Process = multiprocessing.Process(target=run_sse_server, kwargs={"server_port": server_port}, daemon=True)
     print("starting process")

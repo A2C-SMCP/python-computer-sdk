@@ -42,6 +42,10 @@ class BaseMCPServerConfig(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", arbitrary_types_allowed=False, frozen=True)
     """配置字段在初始化完成后不允许修改"""
 
+    def __hash__(self) -> int:
+        """对于MCP Server配置，以name作为唯一标识凭证，如果name相同则表示完全相同"""
+        return hash(self.name)
+
 
 class StdioServerConfig(BaseMCPServerConfig):
     server_parameters: StdioServerParameters = Field(title="MCP Server启动参数", description="引用自MCP Python SDK官方配置")

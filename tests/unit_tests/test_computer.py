@@ -6,7 +6,6 @@
 # @Software: PyCharm
 # 测试aget_available_tools方法，Mock工具数据和Manager
 # Test aget_available_tools, mock tool data and manager
-from types import MappingProxyType
 from unittest.mock import MagicMock
 
 import pytest
@@ -107,19 +106,19 @@ def test_mcp_servers_readonly(monkeypatch):
     mock_manager = MagicMock(spec=MCPServerManager)
     monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
     config = StdioServerConfig(server_parameters=StdioServerParameters(command="echo"), name="test")
-    computer = Computer(mcp_servers={"test": config})
+    computer = Computer(mcp_servers={config})
     servers = computer.mcp_servers
     # 检查类型/Check type
-    assert isinstance(servers, MappingProxyType)
+    assert isinstance(servers, tuple)
     # 尝试修改属性/Attempt to modify property
     with pytest.raises(AttributeError):
-        computer.mcp_servers = {}  # noqa
+        computer.mcp_servers = set()  # noqa
     # 尝试修改元组内容/Attempt to modify tuple content
     with pytest.raises(TypeError):
-        servers["test"] = None  # noqa
+        servers[0] = None  # noqa
     # 尝试修改frozen model属性/Attempt to modify frozen model attribute
     with pytest.raises(ValidationError):
-        servers["test"].name = "illegal"  # noqa
+        servers[0].name = "illegal"  # noqa
 
 
 @pytest.mark.asyncio

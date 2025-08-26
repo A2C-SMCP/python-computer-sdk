@@ -4,3 +4,7 @@
 # @Author  : JQQ
 # @Email   : jqq1716@gmail.com
 # @Software: PyCharm
+from a2c_smcp_cc.computer import Computer
+from a2c_smcp_cc.socketio.client import SMCPComputerClient
+
+__all__ = ["Computer", "SMCPComputerClient"]

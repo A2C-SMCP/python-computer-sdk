@@ -48,6 +48,10 @@ class MCPServerManager:
         # 内部锁防止并发修改
         self._lock = asyncio.Lock()
 
+    def get_server_config(self, server_name: SERVER_NAME) -> MCPServerConfig:
+        """通过名称获取服务配置"""
+        return self._servers_config[server_name]
+
     async def enable_auto_connect(self) -> None:
         """启用自动连接"""
         async with self._lock:
@@ -288,8 +292,19 @@ class MCPServerManager:
                 raise ToolNameDuplicatedError(f"Tool '{tool}' exists in multiple servers: {sources}\n{suggestion}")
             self._tool_mapping[tool] = sources[0]
 
-    async def aexecute_tool(self, tool_name: str, parameters: dict, timeout: float | None = None) -> CallToolResult:
-        """执行指定工具"""
+    async def avalidate_tool_call(self, tool_name: TOOL_NAME, parameters: dict) -> tuple[SERVER_NAME, TOOL_NAME]:
+        """
+        判断工具调用的合法性，如果合法，返回对应的服务名称与原始工具名称
+
+        Args:
+            tool_name (str): 被调用的工具名称，可能是alias
+            parameters (dict): 工具调用的参数
+
+        Returns:
+            tuple[SERVER_NAME, TOOL_NAME]: 经过校验后的合法服务名与工具名
+        """
+        # 标记当前parameters尚未被使用
+        logger.debug(f"{parameters}未被检查。当前版本不支持Schema校验。")
         # 检查工具是否可用
         if tool_name in self._disabled_tools:
             raise PermissionError(f"Tool '{tool_name}' is disabled by configuration")
@@ -298,14 +313,31 @@ class MCPServerManager:
         if not server_name:
             raise ValueError(f"Tool '{tool_name}' not found in any active server")
 
-        client = self._active_clients.get(server_name)
-        if not client:
-            raise RuntimeError(f"Server '{server_name}' for tool '{tool_name}' is not active")
-
         # 如果tool_name是一个别名，则使用别名映射到原始名称
         if tool_name in self._alias_mapping:
             original_server_name, tool_name = self._alias_mapping[tool_name]
             assert original_server_name == server_name, "Alias mapping should map to the same server"
+        return server_name, tool_name
+
+    async def acall_tool(
+        self, server_name: SERVER_NAME, tool_name: TOOL_NAME, parameters: dict, timeout: float | None = None
+    ) -> CallToolResult:
+        """
+        触发MCP工具的调用
+
+        Args:
+            server_name (str): 服务名称
+            tool_name (str): 工具名称
+            parameters (dict): 工具调用参数
+            timeout (float | None): 超时时间
+
+        Returns:
+            CallToolResult: MCP 标准返回格式
+        """
+        # 获取MCP服务客户端连接
+        client = self._active_clients.get(server_name)
+        if not client:
+            raise RuntimeError(f"Server '{server_name}' for tool '{tool_name}' is not active")
 
         # 获取工具元数据
         config = self._servers_config[server_name]
@@ -329,6 +361,11 @@ class MCPServerManager:
             raise TimeoutError(f"Tool '{tool_name}' execution timed out") from None
         except Exception as e:
             raise RuntimeError(f"Tool execution failed: {e}") from e
+
+    async def aexecute_tool(self, tool_name: TOOL_NAME, parameters: dict, timeout: float | None = None) -> CallToolResult:
+        """执行指定工具"""
+        server_name, tool_name = await self.avalidate_tool_call(tool_name, parameters)
+        return await self.acall_tool(server_name, tool_name, parameters, timeout)
 
     def get_server_status(self) -> list[tuple[str, bool, str]]:
         """获取服务器状态列表"""

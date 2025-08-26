@@ -109,8 +109,8 @@ class SMCPComputerClient(AsyncClient):
         assert self.office_id == data["robot_id"], "房间名称与Agent信息名称不匹配"
         assert self.namespaces[SMCP_NAMESPACE] == data["computer"], "计算机标识不匹配"
         try:
-            ret = await self.computer.mcp_manager.aexecute_tool(
-                tool_name=data["tool_name"], parameters=data["params"], timeout=data["timeout"]
+            ret = await self.computer.aexecute_tool(
+                req_id=data["req_id"], tool_name=data["tool_name"], parameters=data["params"], timeout=data["timeout"]
             )
             return ret
         except Exception as e:

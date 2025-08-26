@@ -4,9 +4,7 @@
 # @Author  : JQQ
 # @Email   : jqq1716@gmail.com
 # @Software: PyCharm
-# 测试aget_available_tools方法，Mock工具数据和Manager
-# Test aget_available_tools, mock tool data and manager
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from mcp import Tool
@@ -177,3 +175,131 @@ async def test_aexit(monkeypatch):
         ...
     mock_manager.aclose.assert_called_once()
     assert computer.mcp_manager is None
+
+
+@pytest.mark.asyncio
+async def test_aexecute_tool_auto_apply(monkeypatch):
+    """
+    测试aexecute_tool自动通过分支
+    Test aexecute_tool auto_apply branch
+    """
+    # 构造mock manager/Build mock manager
+    mock_manager = MagicMock(spec=MCPServerManager)
+    # avalidate_tool_call返回(server, tool)
+    mock_manager.avalidate_tool_call = AsyncMock(return_value=("server", "tool"))
+    # get_server_config返回有auto_apply的config
+    mock_server_config = MagicMock()
+    mock_server_config.tool_meta = {"tool": MagicMock(auto_apply=True)}
+    mock_manager.get_server_config = MagicMock(return_value=mock_server_config)
+    # acall_tool直接返回result
+    mock_result = MagicMock()
+    mock_manager.acall_tool = AsyncMock(return_value=mock_result)
+    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+    computer = Computer()
+    await computer.boot_up()
+    result = await computer.aexecute_tool("reqid", "tool", {"a": 1})
+    assert result == mock_result
+
+
+@pytest.mark.asyncio
+async def test_aexecute_tool_confirm_callback_apply(monkeypatch):
+    """
+    测试aexecute_tool confirm_callback为True分支
+    Test aexecute_tool confirm_callback True branch
+    """
+    mock_manager = MagicMock(spec=MCPServerManager)
+    mock_manager.avalidate_tool_call = AsyncMock(return_value=("server", "tool"))
+    mock_server_config = MagicMock()
+    mock_server_config.tool_meta = {"tool": MagicMock(auto_apply=False)}
+    mock_manager.get_server_config = MagicMock(return_value=mock_server_config)
+    mock_result = MagicMock()
+    mock_manager.acall_tool = AsyncMock(return_value=mock_result)
+    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+    # confirm_callback返回True
+    computer = Computer(confirm_callback=lambda *_: True)
+    await computer.boot_up()
+    result = await computer.aexecute_tool("reqid", "tool", {"a": 1})
+    assert result == mock_result
+
+
+@pytest.mark.asyncio
+async def test_aexecute_tool_confirm_callback_reject(monkeypatch):
+    """
+    测试aexecute_tool confirm_callback为False分支
+    Test aexecute_tool confirm_callback False branch
+    """
+    mock_manager = MagicMock(spec=MCPServerManager)
+    mock_manager.avalidate_tool_call = AsyncMock(return_value=("server", "tool"))
+    mock_server_config = MagicMock()
+    mock_server_config.tool_meta = {"tool": MagicMock(auto_apply=False)}
+    mock_manager.get_server_config = MagicMock(return_value=mock_server_config)
+    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+    computer = Computer(confirm_callback=lambda *_: False)
+    await computer.boot_up()
+    result = await computer.aexecute_tool("reqid", "tool", {"a": 1})
+    assert result.content[0].text == "工具调用二次确认被拒绝，请稍后再试"
+
+
+@pytest.mark.asyncio
+async def test_aexecute_tool_confirm_callback_timeout(monkeypatch):
+    """
+    测试aexecute_tool confirm_callback抛出TimeoutError
+    Test aexecute_tool confirm_callback raises TimeoutError
+    """
+    mock_manager = MagicMock(spec=MCPServerManager)
+    mock_manager.avalidate_tool_call = AsyncMock(return_value=("server", "tool"))
+    mock_server_config = MagicMock()
+    mock_server_config.tool_meta = {"tool": MagicMock(auto_apply=False)}
+    mock_manager.get_server_config = MagicMock(return_value=mock_server_config)
+    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+
+    def raise_timeout(*_):
+        raise TimeoutError()
+
+    computer = Computer(confirm_callback=raise_timeout)
+    await computer.boot_up()
+    result = await computer.aexecute_tool("reqid", "tool", {"a": 1})
+    assert result.isError is True
+    assert "确认超时" in result.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_aexecute_tool_confirm_callback_exception(monkeypatch):
+    """
+    测试aexecute_tool confirm_callback抛出其他异常
+    Test aexecute_tool confirm_callback raises Exception
+    """
+    mock_manager = MagicMock(spec=MCPServerManager)
+    mock_manager.avalidate_tool_call = AsyncMock(return_value=("server", "tool"))
+    mock_server_config = MagicMock()
+    mock_server_config.tool_meta = {"tool": MagicMock(auto_apply=False)}
+    mock_manager.get_server_config = MagicMock(return_value=mock_server_config)
+    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+
+    def raise_exc(*_):
+        raise RuntimeError("fail")
+
+    computer = Computer(confirm_callback=raise_exc)
+    await computer.boot_up()
+    result = await computer.aexecute_tool("reqid", "tool", {"a": 1})
+    assert result.isError is True
+    assert "二次确认时发生异常" in result.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_aexecute_tool_no_confirm_callback(monkeypatch):
+    """
+    测试aexecute_tool无confirm_callback分支
+    Test aexecute_tool no confirm_callback branch
+    """
+    mock_manager = MagicMock(spec=MCPServerManager)
+    mock_manager.avalidate_tool_call = AsyncMock(return_value=("server", "tool"))
+    mock_server_config = MagicMock()
+    mock_server_config.tool_meta = {"tool": MagicMock(auto_apply=False)}
+    mock_manager.get_server_config = MagicMock(return_value=mock_server_config)
+    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+    computer = Computer()
+    await computer.boot_up()
+    result = await computer.aexecute_tool("reqid", "tool", {"a": 1})
+    assert result.isError is True
+    assert "没有实现二次确认回调方法" in result.content[0].text

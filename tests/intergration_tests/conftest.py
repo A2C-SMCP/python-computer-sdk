@@ -588,7 +588,7 @@ def track_state() -> tuple[Callable[[str, str], None], list[tuple[str, str]]]:
 
 
 TEST_DIR: Path = Path(__file__).parent.parent
-MCP_SERVER_SCRIPT: Path = TEST_DIR / "mcp_servers" / "direct_execution.py"
+MCP_SERVER_SCRIPT: Path = TEST_DIR / "intergration_tests" / "mcp_servers" / "direct_execution.py"
 
 
 @pytest.fixture

@@ -77,7 +77,7 @@ class Computer:
         Boot up the computer and initialize the MCP server manager.
         """
         self.mcp_manager = MCPServerManager(auto_connect=self._auto_connect, auto_reconnect=self._auto_reconnect)
-        await self.mcp_manager.ainitialize(self._mcp_servers.values())
+        await self.mcp_manager.ainitialize(self._mcp_servers)
 
     async def shutdown(self) -> None:
         """

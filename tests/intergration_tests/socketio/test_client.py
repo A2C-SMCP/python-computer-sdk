@@ -18,7 +18,7 @@ from socketio import ASGIApp
 from a2c_smcp_cc.computer import Computer
 from a2c_smcp_cc.mcp_clients.manager import MCPServerManager
 from a2c_smcp_cc.socketio.client import SMCPComputerClient
-from a2c_smcp_cc.socketio.smcp import GET_TOOLS_EVENT, SMCP_NAMESPACE, TOOL_CALL_EVENT, UPDATE_MCP_CONFIG_EVENT
+from a2c_smcp_cc.socketio.smcp import GET_TOOLS_EVENT, SMCP_NAMESPACE, TOOL_CALL_EVENT
 from a2c_smcp_cc.utils.logger import logger
 from tests.intergration_tests.socketio.mock_socketio_server import MockComputerServerNamespace, create_computer_test_socketio
 from tests.intergration_tests.socketio.mock_uv_server import UvicornTestServer
@@ -143,8 +143,8 @@ async def test_computer_receives_tool_call(computer, computer_server, basic_serv
     await asyncio.sleep(0.1)
 
     # 验证工具调用被正确处理
-    assert computer.mcp_manager.aexecute_tool.called
-    computer.mcp_manager.aexecute_tool.assert_called_with(tool_name="test_tool", parameters={"param1": "value1"}, timeout=10)
+    assert computer.aexecute_tool.called
+    computer.aexecute_tool.assert_called_with(req_id="test_req_id", tool_name="test_tool", parameters={"param1": "value1"}, timeout=10)
 
     # 取消客户端任务
     run_client_task.cancel()
@@ -242,6 +242,6 @@ async def test_computer_handles_tool_call_timeout(computer, computer_server, bas
     await asyncio.sleep(0.1)
 
     # 验证返回了超时结果
-    computer.mcp_manager.aexecute_tool.assert_called()
+    computer.aexecute_tool.assert_called()
 
     await client.disconnect()

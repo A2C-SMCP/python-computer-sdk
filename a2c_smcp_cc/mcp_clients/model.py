@@ -48,14 +48,17 @@ class BaseMCPServerConfig(BaseModel):
 
 
 class StdioServerConfig(BaseMCPServerConfig):
+    type: Literal["stdio"] = "stdio"
     server_parameters: StdioServerParameters = Field(title="MCP Server启动参数", description="引用自MCP Python SDK官方配置")
 
 
 class SseServerConfig(BaseMCPServerConfig):
+    type: Literal["sse"] = "sse"
     server_parameters: SseServerParameters = Field(title="MCP SSE Server连接参数", description="引用自MCP Python SDK 官方配置")
 
 
 class StreamableHttpServerConfig(BaseMCPServerConfig):
+    type: Literal["streamable"] = "streamable"
     server_parameters: StreamableHttpParameters = Field(title="MCP HTTP Server连接参数", description="引用自MCP Python SDK 官方配置")
 
 

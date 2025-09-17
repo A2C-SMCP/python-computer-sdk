@@ -12,13 +12,16 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from mcp import StdioServerParameters
+from mcp.client.session_group import SseServerParameters, StreamableHttpParameters
 from mcp.types import CallToolResult, TextContent
 from socketio import ASGIApp
 
 from a2c_smcp_cc.computer import Computer
 from a2c_smcp_cc.mcp_clients.manager import MCPServerManager
+from a2c_smcp_cc.mcp_clients.model import SseServerConfig, StdioServerConfig, StreamableHttpServerConfig, ToolMeta
 from a2c_smcp_cc.socketio.client import SMCPComputerClient
-from a2c_smcp_cc.socketio.smcp import GET_TOOLS_EVENT, SMCP_NAMESPACE, TOOL_CALL_EVENT
+from a2c_smcp_cc.socketio.smcp import GET_MCP_CONFIG_EVENT, GET_TOOLS_EVENT, SMCP_NAMESPACE, TOOL_CALL_EVENT
 from a2c_smcp_cc.utils.logger import logger
 from tests.intergration_tests.socketio.mock_socketio_server import MockComputerServerNamespace, create_computer_test_socketio
 from tests.intergration_tests.socketio.mock_uv_server import UvicornTestServer
@@ -243,5 +246,82 @@ async def test_computer_handles_tool_call_timeout(computer, computer_server, bas
 
     # 验证返回了超时结果
     computer.aexecute_tool.assert_called()
+
+    await client.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_computer_handles_get_mcp_config(computer_server: MockComputerServerNamespace, basic_server_port: int):
+    """测试处理获取MCP配置请求 / Handle GET_MCP_CONFIG_EVENT and validate response"""
+    # 构造具备 mcp_servers 属性的 Computer 替身 / Fake Computer with mcp_servers
+    stdio_cfg = StdioServerConfig(
+        name="stdio-srv",
+        server_parameters=StdioServerParameters(command="bash", args=["-lc", "echo hi"], env={}),
+        forbidden_tools=["ban1"],
+        tool_meta={"toolA": ToolMeta(auto_apply=True)},
+    )
+    sse_cfg = SseServerConfig(
+        name="sse-srv",
+        server_parameters=SseServerParameters(url="http://localhost:18080/sse"),
+        forbidden_tools=[],
+        tool_meta={},
+    )
+    http_cfg = StreamableHttpServerConfig(
+        name="http-srv",
+        server_parameters=StreamableHttpParameters(url="http://localhost:18081"),
+        forbidden_tools=[],
+        tool_meta={},
+    )
+
+    class _FakeComputer:
+        @property
+        def mcp_servers(self):
+            # 返回不可变元组 / immutable tuple
+            return (stdio_cfg, sse_cfg, http_cfg)
+
+        @property
+        def inputs(self) -> list:
+            return []
+
+        # 兼容其他测试中会用到的方法（此测试用例中不会调用）/ compatibility no-op
+        aget_available_tools = AsyncMock(return_value=[])
+        mcp_manager = MagicMock()
+
+    client = SMCPComputerClient(computer=_FakeComputer())
+
+    await client.connect(
+        f"http://localhost:{basic_server_port}",
+        socketio_path="/socket.io",
+        headers={"mock_header": "mock_value"},
+        auth={"mock_header": "mock_value"},
+        namespaces=[SMCP_NAMESPACE],
+    )
+    await client.join_office("test_office", "test_computer")
+
+    # 通过服务端命名空间的 call，向客户端发起 GET_MCP_CONFIG_EVENT 并等待回调返回
+    # Use server-side namespace.call to request and await client's callback response
+    req = {"computer": client.namespaces[SMCP_NAMESPACE], "robot_id": "test_office"}
+    resp = await computer_server.call(
+        GET_MCP_CONFIG_EVENT,
+        req,
+        to=client.namespaces[SMCP_NAMESPACE],
+        namespace=SMCP_NAMESPACE,
+    )
+
+    # 校验返回结构 / Validate response structure
+    assert "servers" in resp
+    servers = resp["servers"]
+    assert set(servers.keys()) == {"stdio-srv", "sse-srv", "http-srv"}
+
+    assert servers["stdio-srv"]["type"] == "stdio"
+    assert servers["sse-srv"]["type"] == "sse"
+    assert servers["http-srv"]["type"] == "streamable"
+
+    assert servers["stdio-srv"]["forbidden_tools"] == ["ban1"]
+    assert "toolA" in servers["stdio-srv"]["tool_meta"]
+
+    assert isinstance(servers["stdio-srv"]["server_parameters"], dict)
+    assert isinstance(servers["sse-srv"]["server_parameters"], dict)
+    assert isinstance(servers["http-srv"]["server_parameters"], dict)
 
     await client.disconnect()

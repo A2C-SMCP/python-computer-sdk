@@ -59,7 +59,7 @@ class SMCPTool(TypedDict):
     description: str
     params_schema: dict
     return_schema: dict | None
-    meta: NotRequired[types.Attributes]
+    meta: NotRequired[types.Attributes | None]
 
 
 class GetToolsRet(TypedDict):
@@ -86,13 +86,13 @@ class GetMCPConfigReq(AgentCallData):
 
 
 class ToolMeta(TypedDict, total=False):
-    auto_apply: NotRequired[bool]
+    auto_apply: NotRequired[bool | None]
     # 不同MCP工具返回值并不统一，虽然其满足MCP标准的返回格式，但具体的原始内容命名仍然无法避免出现不一致的情况。通过object_mapper可以方便
     # 前端对其进行转换，以使用标准组件渲染解析。
-    ret_object_mapper: NotRequired[dict]
+    ret_object_mapper: NotRequired[dict | None]
     # 工具别名，与 model.ToolMeta.alias 对齐，用于解决不同 Server 下工具重名冲突
     # Tool alias, align with model.ToolMeta.alias, used to resolve name conflicts across servers
-    alias: NotRequired[str]
+    alias: NotRequired[str | None]
 
 
 class BaseMCPServerConfig(TypedDict):
@@ -120,8 +120,8 @@ class MCPServerPromptStringInput(MCPServerInputBase):
     """字符串输入类型，参考：https://code.visualstudio.com/docs/reference/variables-reference#_input-variables"""
 
     type: Literal["promptString"]
-    default: NotRequired[str]
-    password: NotRequired[bool]
+    default: NotRequired[str | None]
+    password: NotRequired[bool | None]
 
 
 class MCPServerPickStringInput(MCPServerInputBase):
@@ -129,7 +129,7 @@ class MCPServerPickStringInput(MCPServerInputBase):
 
     type: Literal["pickString"]
     options: list[str]
-    default: NotRequired[str]
+    default: NotRequired[str | None]
 
 
 class MCPServerCommandInput(MCPServerInputBase):
@@ -137,7 +137,7 @@ class MCPServerCommandInput(MCPServerInputBase):
 
     type: Literal["command"]
     command: str
-    args: NotRequired[dict[str, str]]
+    args: NotRequired[dict[str, str] | None]
 
 
 MCPServerInput = MCPServerPromptStringInput | MCPServerPickStringInput | MCPServerCommandInput
@@ -178,15 +178,20 @@ class MCPServerStdioConfig(BaseMCPServerConfig):
     server_parameters: MCPServerStdioParameters
 
 
+# !!! 注意在 MCP 官方 python-client 中有一个奇怪的问题 StreamableServerParams中 timeout 与 sse_read_timeout 是使用 timedelta 定义的，这个
+# 定义会在序列化时自动转义为字符串（基于 ISO 8601）但是SSEServerParams，它直接使用float定义，因此这里需要适配一下。导致了两个定义名称一致，
+# 但数据结构不一致。
+
+
 class MCPServerStreamableHttpParameters(TypedDict):
     # The endpoint URL.
     url: str
     # Optional headers to include in requests.
     headers: dict[str, Any] | None
     # HTTP timeout for regular operations.
-    timeout: float
+    timeout: str
     # Timeout for SSE read operations.
-    sse_read_timeout: float
+    sse_read_timeout: str
     # Close the client session when the transport closes.
     terminate_on_close: bool
 
@@ -194,7 +199,7 @@ class MCPServerStreamableHttpParameters(TypedDict):
 class MCPServerStreamableHttpConfig(BaseMCPServerConfig):
     """StreamableHttpHTTP模式的MCP服务器配置"""
 
-    type: Literal["streamable_http"]
+    type: Literal["streamable"]
     server_parameters: MCPServerStreamableHttpParameters
 
 
@@ -222,7 +227,7 @@ MCPServerConfig = MCPServerStdioConfig | MCPServerStreamableHttpConfig | MCPSSEC
 class GetMCPConfigRet(TypedDict):
     """完整的MCP配置文件类型"""
 
-    inputs: NotRequired[list[MCPServerInput]]
+    inputs: NotRequired[list[MCPServerInput] | None]
     servers: dict[str, MCPServerConfig]
 
 

@@ -164,12 +164,12 @@ class SMCPComputerClient(AsyncClient):
         for cfg in self.computer.mcp_servers:
             # 使用强校验转换为协议定义（中英文）/ Validate strictly to protocol definition (bilingual)
             # 若类型不匹配，抛出异常，属于硬性 Bug / If mismatched, raise to surface a hard bug.
-            validated_server = TypeAdapter(SMCPServerConfigDict).validate_python(cfg, from_attributes=True)
+            validated_server = TypeAdapter(SMCPServerConfigDict).validate_python(cfg.model_dump(mode="json"), from_attributes=True)
             servers[cfg.name] = validated_server
 
         inputs: list[MCPServerInput] = []
         for i in self.computer.inputs:
-            validated_input = TypeAdapter(MCPServerInput).validate_python(i, from_attributes=True)
+            validated_input = TypeAdapter(MCPServerInput).validate_python(i.model_dump(mode="json"), from_attributes=True)
             inputs.append(validated_input)
 
         # 端到端返回强校验（中英双语）/ End-to-end response strict validation (bilingual)

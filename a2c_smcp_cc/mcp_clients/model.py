@@ -3,15 +3,15 @@
 # @Author  : JQQ
 # @Email   : jiaqia@qknode.com
 # @Software: PyCharm
-from typing import ClassVar, Protocol, TypeAlias, runtime_checkable
+from typing import ClassVar, Literal, Protocol, TypeAlias, runtime_checkable
 
 from mcp import StdioServerParameters, Tool
 from mcp.client.session_group import SseServerParameters, StreamableHttpParameters
 from mcp.types import CallToolResult
 from pydantic import BaseModel, ConfigDict, Field
 
-TOOL_NAME: TypeAlias = str
-SERVER_NAME: TypeAlias = str
+from a2c_smcp_cc.types import SERVER_NAME, TOOL_NAME
+
 A2C_TOOL_META: str = "a2c_tool_meta"
 
 
@@ -60,6 +60,43 @@ class StreamableHttpServerConfig(BaseMCPServerConfig):
 
 
 MCPServerConfig: TypeAlias = StdioServerConfig | SseServerConfig | StreamableHttpServerConfig
+
+
+class MCPServerInputBase(BaseModel):
+    """MCP服务器输入项配置基类"""
+
+    id: str
+    description: str
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", arbitrary_types_allowed=False, frozen=True)
+    """配置字段在初始化完成后不允许修改"""
+
+
+class MCPServerPromptStringInput(MCPServerInputBase):
+    """字符串输入类型，参考：https://code.visualstudio.com/docs/reference/variables-reference#_input-variables"""
+
+    type: Literal["promptString"] = Field(default="promptString")
+    default: str | None = Field(default=None)
+    password: bool | None = Field(default=None)
+
+
+class MCPServerPickStringInput(MCPServerInputBase):
+    """选择输入类型，参考：https://code.visualstudio.com/docs/reference/variables-reference#_input-variables"""
+
+    type: Literal["pickString"] = Field(default="pickString")
+    options: list[str] = Field(default_factory=list)
+    default: str | None = Field(default=None)
+
+
+class MCPServerCommandInput(MCPServerInputBase):
+    """命令输入类型，参考：https://code.visualstudio.com/docs/reference/variables-reference#_input-variables"""
+
+    type: Literal["command"] = Field(default="command")
+    command: str = Field(title="")
+    args: dict[str, str] | None = Field(default=None)
+
+
+MCPServerInput = MCPServerPromptStringInput | MCPServerPickStringInput | MCPServerCommandInput
 
 
 @runtime_checkable

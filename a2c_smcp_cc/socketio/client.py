@@ -6,10 +6,12 @@
 from typing import Any
 
 from mcp.types import CallToolResult
+from pydantic import TypeAdapter
 from socketio import AsyncClient
 
 from a2c_smcp_cc.computer import Computer
 from a2c_smcp_cc.socketio.smcp import (
+    GET_MCP_CONFIG_EVENT,
     GET_TOOLS_EVENT,
     JOIN_OFFICE_EVENT,
     LEAVE_OFFICE_EVENT,
@@ -17,11 +19,17 @@ from a2c_smcp_cc.socketio.smcp import (
     TOOL_CALL_EVENT,
     UPDATE_MCP_CONFIG_EVENT,
     EnterOfficeReq,
+    GetMCPConfigReq,
+    GetMCPConfigRet,
     GetToolsReq,
     GetToolsRet,
     LeaveOfficeReq,
+    MCPServerInput,
     ToolCallReq,
     UpdateMCPConfigReq,
+)
+from a2c_smcp_cc.socketio.smcp import (
+    MCPServerConfig as SMCPServerConfigDict,
 )
 
 
@@ -36,6 +44,7 @@ class SMCPComputerClient(AsyncClient):
         self.computer = computer
         self.on(TOOL_CALL_EVENT, self.on_tool_call, namespace=SMCP_NAMESPACE)
         self.on(GET_TOOLS_EVENT, self.on_get_tools, namespace=SMCP_NAMESPACE)
+        self.on(GET_MCP_CONFIG_EVENT, self.on_get_mcp_config, namespace=SMCP_NAMESPACE)
         self.office_id: str | None = None
 
     async def emit(self, event: str, data: Any = None, namespace: str | None = SMCP_NAMESPACE, callback: Any = None) -> None:
@@ -129,3 +138,40 @@ class SMCPComputerClient(AsyncClient):
         mcp_tools = await self.computer.aget_available_tools()
 
         return GetToolsRet(tools=mcp_tools, req_id=data["req_id"])
+
+    async def on_get_mcp_config(self, data: GetMCPConfigReq) -> GetMCPConfigRet:
+        """
+        获取当前计算机的 MCP 配置（供 Agent 端刷新使用）。
+        Get current machine MCP configuration for Agent refresh.
+
+        中文：校验房间与计算机标识后，收集并序列化所有 MCP Server 配置，返回 SMCP 协议定义的配置结构。
+        English: Validate office and computer identifiers, then collect and serialize all MCP server configs
+        into SMCP protocol defined structure.
+
+        Args:
+            data (GetMCPConfigReq): 请求数据。Request payload.
+
+        Returns:
+            GetMCPConfigRet: SMCP 协议定义的 MCP 配置返回。SMCP formatted MCP configuration.
+        """
+        # 校验上下文一致性（中英双语）/ Validate context consistency (bilingual)
+        assert self.office_id == data["robot_id"], "房间名称与Agent信息名称不匹配"
+        assert self.namespaces[SMCP_NAMESPACE] == data["computer"], "计算机标识不匹配"
+
+        servers: dict[str, dict] = {}
+        # 从 Computer 中获取初始化时传入的配置集合（不可变元组）
+        # From Computer, get the immutable tuple of initial MCP server configs
+        for cfg in self.computer.mcp_servers:
+            # 使用强校验转换为协议定义（中英文）/ Validate strictly to protocol definition (bilingual)
+            # 若类型不匹配，抛出异常，属于硬性 Bug / If mismatched, raise to surface a hard bug.
+            validated_server = TypeAdapter(SMCPServerConfigDict).validate_python(cfg, from_attributes=True)
+            servers[cfg.name] = validated_server
+
+        inputs: list[MCPServerInput] = []
+        for i in self.computer.inputs:
+            validated_input = TypeAdapter(MCPServerInput).validate_python(i, from_attributes=True)
+            inputs.append(validated_input)
+
+        # 端到端返回强校验（中英双语）/ End-to-end response strict validation (bilingual)
+        ret = TypeAdapter(GetMCPConfigRet).validate_python({"servers": servers, "inputs": inputs})
+        return ret

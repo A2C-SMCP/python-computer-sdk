@@ -34,7 +34,7 @@ from mcp.types import CallToolResult, TextContent
 from pydantic import TypeAdapter
 
 from a2c_smcp_cc.mcp_clients.manager import MCPServerManager
-from a2c_smcp_cc.mcp_clients.model import MCPServerConfig
+from a2c_smcp_cc.mcp_clients.model import MCPServerConfig, MCPServerInput
 from a2c_smcp_cc.socketio.smcp import SMCPTool
 from a2c_smcp_cc.socketio.types import AttributeValue
 from a2c_smcp_cc.utils.logger import logger
@@ -43,6 +43,7 @@ from a2c_smcp_cc.utils.logger import logger
 class Computer:
     def __init__(
         self,
+        inputs: list[MCPServerInput] | None = None,
         mcp_servers: set[MCPServerConfig] | None = None,
         auto_connect: bool = True,
         auto_reconnect: bool = True,
@@ -60,12 +61,14 @@ class Computer:
         customize the dictionary value to avoid this limitation
 
         Args:
+            inputs (list[MCPServerInput] | None): MCP服务器输入项配置列表。MCP server input config list.
             mcp_servers (set[MCPServerConfig] | None): MCP服务器配置字典。MCP server config dict.
             auto_connect (bool): 是否自动连接。Whether to auto connect.
             auto_reconnect (bool): 是否自动重连。Whether to auto reconnect.
             confirm_callback (Callable[[str, str, str, dict], bool] | None): 工具调用二次确认回调
         """
         self.mcp_manager: MCPServerManager | None = None
+        self._inputs = inputs or []
         self._mcp_servers = mcp_servers or {}
         self._auto_connect = auto_connect
         self._auto_reconnect = auto_reconnect
@@ -121,6 +124,17 @@ class Computer:
             tuple[MCPServerConfig, ...]: 配置字典。Config dict.
         """
         return tuple(self._mcp_servers)
+
+    @property
+    def inputs(self) -> tuple[MCPServerInput, ...]:
+        """
+        获取 MCP 服务配置中的动态字段字义 (不可变)
+        Get Inputs in MCP server config (immutable)
+
+        Returns:
+            tuple[MCPServerInput, ...]: 动态字段字义。Inputs
+        """
+        return tuple(self._inputs)
 
     async def aget_available_tools(self) -> list[SMCPTool]:
         """

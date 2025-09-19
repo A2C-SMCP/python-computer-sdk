@@ -33,6 +33,8 @@ from mcp import Tool
 from mcp.types import CallToolResult, TextContent
 from pydantic import TypeAdapter
 
+from a2c_smcp_cc.inputs.render import ConfigRender
+from a2c_smcp_cc.inputs.resolver import InputNotFoundError, InputResolver
 from a2c_smcp_cc.mcp_clients.manager import MCPServerManager
 from a2c_smcp_cc.mcp_clients.model import MCPServerConfig, MCPServerInput
 from a2c_smcp_cc.socketio.smcp import SMCPTool
@@ -48,6 +50,7 @@ class Computer:
         auto_connect: bool = True,
         auto_reconnect: bool = True,
         confirm_callback: Callable[[str, str, str, dict], bool] | None = None,
+        input_resolver: InputResolver | None = None,
     ) -> None:
         """
         初始化 Computer 实例
@@ -73,14 +76,48 @@ class Computer:
         self._auto_connect = auto_connect
         self._auto_reconnect = auto_reconnect
         self._confirm_callback = confirm_callback
+        # 中文: 按需解析器与渲染器（惰性解析 inputs，保持配置不可变）
+        # English: Lazy input resolver and renderer (on-demand inputs, keep config immutable)
+        self._input_resolver = input_resolver or InputResolver(self._inputs)
+        self._config_render = ConfigRender()
 
     async def boot_up(self) -> None:
         """
         启动计算机，初始化 MCP 服务器管理器。
         Boot up the computer and initialize the MCP server manager.
+
+        1. 将 self._mcp_servers 逐个进行 model_dump 拿到dict配置，然后配合 self._inputs 进行ConfigRender。因为在具体配置中可能存在动态变量
+            的引用。需要在此消解
+        2. 通过当前类的 _resolve_prompt_string _resolve_pick_string _resolve_command 等方法对 MCPServerInput 做解析拿到最终结果进行替换
+        3. 对于 self._mcp_servers 配置的符合变量提取模式但没有提供对应 input 定义时，不做任何处理，使用原值传递。
         """
         self.mcp_manager = MCPServerManager(auto_connect=self._auto_connect, auto_reconnect=self._auto_reconnect)
-        await self.mcp_manager.ainitialize(self._mcp_servers)
+        # 中文: 对每个 Server 配置执行：model_dump -> 按需渲染(遇到占位符才解析 input) -> 重新校验生成不可变对象
+        # English: For each server config: model_dump -> on-demand render (resolve inputs only when referenced) ->
+        #          model_validate to rebuild immutable object
+        validated_servers: list[MCPServerConfig] = []
+
+        async def _resolve_input_by_id(input_id: str) -> Any:
+            try:
+                return await self._input_resolver.aresolve_by_id(input_id)
+            except InputNotFoundError:
+                # 未找到输入项，按要求保留原始输出并打印警告
+                logger.warning(f"未定义的输入占位符: {input_id} / Undefined input placeholder: {input_id}")
+                raise
+
+        # 注意: 假设 self._mcp_servers 为 Iterable[MCPServerConfig]
+        for server_cfg in self._mcp_servers:
+            try:
+                raw = server_cfg.model_dump(mode="json")
+                rendered = await self._config_render.arender(raw, _resolve_input_by_id)
+                validated = type(server_cfg).model_validate(rendered)
+                validated_servers.append(validated)
+            except Exception as e:
+                logger.error(f"配置渲染或校验失败: {getattr(server_cfg, 'name', 'unknown')} - {e}")
+                # 按稳妥策略: 保留原配置继续
+                validated_servers.append(server_cfg)
+
+        await self.mcp_manager.ainitialize(validated_servers)
 
     async def shutdown(self) -> None:
         """

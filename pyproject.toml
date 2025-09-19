@@ -33,6 +33,23 @@ inline-snapshot = "^0.27.2"
 pytest-dotenv = "^0.5.2"
 aiohttp = "^3.12.15"
 
+
+[tool.poetry.group.cli.dependencies]
+typer = "^0.17.4"
+rich = "^14.1.0"
+prompt-toolkit = "^3.0.52"
+
+# 添加 extras 部分定义可选依赖组
+[tool.poetry.extras]
+cli = ["typer", "rich", "prompt-toolkit"]
+dev = ["pytest", "ruff", "mypy", "poethepoet"]
+test = ["polyfactory", "pytest-asyncio", "pytest-cov", "pytest-mock", "inline-snapshot", "pytest-dotenv", "aiohttp"]
+
+
+[tool.poetry.scripts]
+a2c-computer = "a2c_smcp_cc.cli.main:main"
+
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"

@@ -112,10 +112,50 @@ def _print_mcp_config(config: dict[str, Any]) -> None:
     console.print(i_table)
 
 
+@app.callback(invoke_without_command=True)
+def _root(
+    ctx: typer.Context,
+    auto_connect: bool = typer.Option(True, help="是否自动连接 / Auto connect"),
+    auto_reconnect: bool = typer.Option(True, help="是否自动重连 / Auto reconnect"),
+    url: str | None = typer.Option(None, help="Socket.IO 服务器URL，例如 https://host:port"),
+    auth: str | None = typer.Option(None, help="认证参数，形如 key:value,foo:bar"),
+    headers: str | None = typer.Option(None, help="请求头参数，形如 key:value,foo:bar"),
+    no_color: bool = typer.Option(
+        False,
+        "--no-color",
+        help="关闭彩色输出（PyCharm控制台不渲染ANSI时可使用） / Disable ANSI colors",
+    ),
+) -> None:
+    """
+    根级入口：
+    - 若未指定子命令，则等价于执行 `run`，保持 `a2c-computer` 和 `a2c-computer run` 两种用法都可用。
+    - 若指定了子命令，则不做处理，交给子命令。
+    """
+    # 根据 no_color 动态调整全局 Console
+    if no_color:
+        global console
+        console = Console(no_color=True)
+
+    if ctx.invoked_subcommand is None:
+        run(
+            auto_connect=auto_connect,
+            auto_reconnect=auto_reconnect,
+            url=url,
+            auth=auth,
+            headers=headers,
+        )
+
+
 async def _interactive_loop(comp: Computer, init_client: SMCPComputerClient | None = None) -> None:
     session = PromptSession()
     smcp_client: SMCPComputerClient | None = init_client
     console.print("[bold]进入交互模式，输入 help 查看命令 / Enter interactive mode, type 'help' for commands[/bold]")
+    # 如果当前输出不被识别为 TTY，ANSI 颜色可能无法渲染（如 PyCharm 未开启仿真终端）
+    if not console.is_terminal and not console.no_color:
+        console.print(
+            "[yellow]检测到控制台可能不支持 ANSI 颜色。若在 PyCharm 中运行，请在 Run/Debug 配置中启用 'Emulate terminal in "
+            "output console'；或者使用 --no-color 关闭彩色输出。[/yellow]"
+        )
     with patch_stdout():
         while True:
             try:
@@ -407,4 +447,6 @@ def run(
 
 # 为 console_scripts 兼容提供入口
 def main() -> None:  # pragma: no cover
-    run()
+    # 使用 Typer 应用入口，而不是直接调用命令函数
+    # 直接调用被 @app.command 装饰的函数会传入 OptionInfo 默认值，导致参数类型错误
+    app()

@@ -119,6 +119,82 @@ class Computer:
 
         await self.mcp_manager.ainitialize(validated_servers)
 
+    async def _arender_and_validate_server(self, server: MCPServerConfig | dict[str, Any]) -> MCPServerConfig:
+        """
+        动态渲染并校验单个MCP服务器配置，支持原始字典或模型实例。
+        Render and validate a single MCP server config dynamically, supporting raw dict or model instance.
+
+        规则 Rules:
+          - 使用 ConfigRender 对包含 ${input:...} 的占位符进行惰性渲染，解析时依赖当前 InputResolver
+          - 渲染后使用 Pydantic 校验并生成不可变模型对象
+        """
+
+        async def _resolve_input_by_id(input_id: str) -> Any:
+            try:
+                return await self._input_resolver.aresolve_by_id(input_id)
+            except InputNotFoundError:
+                logger.warning(f"未定义的输入占位符: {input_id} / Undefined input placeholder: {input_id}")
+                # 透传异常到上层，由上层决定是否回退或继续
+                raise
+
+        try:
+            if isinstance(server, dict):
+                raw = server
+                rendered = await self._config_render.arender(raw, _resolve_input_by_id)
+                # 使用 TypeAdapter 将 union 类型解析为具体模型
+                validated = TypeAdapter(MCPServerConfig).validate_python(rendered)
+            else:
+                raw = server.model_dump(mode="json")
+                rendered = await self._config_render.arender(raw, _resolve_input_by_id)
+                validated = type(server).model_validate(rendered)
+            return validated
+        except Exception as e:
+            name = (server.get("name") if isinstance(server, dict) else getattr(server, "name", "unknown")) or "unknown"
+            logger.error(f"动态渲染/校验MCP配置失败: {name} - {e}")
+            raise
+
+    async def aadd_or_aupdate_server(self, server: MCPServerConfig | dict[str, Any]) -> None:
+        """
+        动态添加或更新某个MCP Server配置（支持 inputs 占位符解析）。
+        Add or update a MCP Server config dynamically (supports inputs placeholder resolving).
+
+        Args:
+            server (MCPServerConfig | dict[str, Any]): 待添加/更新的配置，可为模型或原始字典。
+        """
+        # 确保 manager 已初始化
+        if self.mcp_manager is None:
+            self.mcp_manager = MCPServerManager(auto_connect=self._auto_connect, auto_reconnect=self._auto_reconnect)
+
+        validated = await self._arender_and_validate_server(server)
+        await self.mcp_manager.aadd_or_aupdate_server(validated)
+
+    async def aremove_server(self, server_name: str) -> None:
+        """
+        动态移除某个MCP Server配置。
+        Remove a MCP Server config dynamically.
+
+        Args:
+            server_name (str): 配置名称。
+        """
+        if not self.mcp_manager:
+            # 未初始化则无操作
+            logger.warning("MCP 管理器尚未初始化，忽略移除操作 / MCP manager not initialized, skip remove")
+            return
+        await self.mcp_manager.aremove_server(server_name)
+
+    def update_inputs(self, inputs: list[MCPServerInput]) -> None:
+        """
+        更新 inputs 定义，并清空解析缓存。
+        Update inputs definition and clear resolver cache.
+
+        注意：更新 inputs 只会影响后续的渲染，不会自动对已激活的配置进行重新渲染/重启。
+        如需应用到已存在的服务，可结合 aadd_or_aupdate_server 重新提交配置达到热更新效果。
+        """
+        self._inputs = inputs or []
+        self._input_resolver = InputResolver(self._inputs)
+        # 清理缓存，确保后续渲染使用最新 inputs
+        self._input_resolver.clear_cache()
+
     async def shutdown(self) -> None:
         """
         关闭计算机，关闭 MCP 服务器管理器。

@@ -138,7 +138,7 @@ async def arun_command(
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout)
         else:
             stdout, stderr = await proc.communicate()
-    except asyncio.TimeoutError:
+    except TimeoutError:
         try:
             proc.kill()
         except Exception:

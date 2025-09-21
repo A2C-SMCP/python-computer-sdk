@@ -13,8 +13,16 @@ from polyfactory.factories.pydantic_factory import ModelFactory
 from pydantic import ValidationError
 
 from a2c_smcp_cc.computer import Computer
+from a2c_smcp_cc.inputs.resolver import InputResolver
 from a2c_smcp_cc.mcp_clients.manager import MCPServerManager
-from a2c_smcp_cc.mcp_clients.model import StdioServerConfig, StdioServerParameters
+from a2c_smcp_cc.mcp_clients.model import (
+    MCPServerCommandInput,
+    MCPServerConfig,
+    MCPServerPickStringInput,
+    MCPServerPromptStringInput,
+    StdioServerConfig,
+    StdioServerParameters,
+)
 
 
 class ToolFactory(ModelFactory[Tool]):
@@ -303,3 +311,187 @@ async def test_aexecute_tool_no_confirm_callback(monkeypatch):
     result = await computer.aexecute_tool("reqid", "tool", {"a": 1})
     assert result.isError is True
     assert "没有实现二次确认回调方法" in result.content[0].text
+
+
+# -------------------- 以下为动态管理相关的单元测试（合并自 test_computer_manage.py） --------------------
+
+
+class DummyResolver(InputResolver):
+    def __init__(self, mapping: dict[str, object]):
+        self.mapping = mapping
+        self.cleared = False
+
+    def clear_cache(self, key: str | None = None) -> None:  # pragma: no cover - only used in update_inputs case
+        self.cleared = True
+
+    async def aresolve_by_id(self, input_id: str):
+        return self.mapping[input_id]
+
+
+@pytest.mark.asyncio
+async def test_aadd_or_aupdate_server_with_raw_dict_uses_inputs_and_validates(monkeypatch):
+    # Arrange manager mock
+    mock_manager = MagicMock(spec=MCPServerManager)
+    mock_manager.aadd_or_aupdate_server = AsyncMock()
+    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+
+    # Prepare computer with custom resolver
+    resolver = DummyResolver({"cmd": "/bin/echo", "port": "9000"})
+    computer = Computer(input_resolver=resolver)
+
+    # Raw config dict with placeholders
+    cfg_dict: dict = {
+        "type": "stdio",
+        "name": "echo",
+        "disabled": False,
+        "server_parameters": {
+            "command": "${input:cmd}",
+            "args": ["--port", "${input:port}"],
+            "env": None,
+            "cwd": None,
+            "encoding": "utf-8",
+            "encoding_error_handler": "strict",
+        },
+        "forbidden_tools": [],
+        "tool_meta": {},
+    }
+
+    # Act
+    await computer.aadd_or_aupdate_server(cfg_dict)
+
+    # Assert: forwarded to manager with validated model instance and placeholders resolved
+    mock_manager.aadd_or_aupdate_server.assert_called_once()
+    (validated_cfg,), _ = mock_manager.aadd_or_aupdate_server.call_args
+    assert isinstance(validated_cfg, MCPServerConfig)
+    assert isinstance(validated_cfg, StdioServerConfig)
+    assert validated_cfg.name == "echo"
+    assert validated_cfg.server_parameters.command == "/bin/echo"
+    assert validated_cfg.server_parameters.args == ["--port", "9000"]
+
+
+@pytest.mark.asyncio
+async def test_aadd_or_aupdate_server_with_model_instance(monkeypatch):
+    # Arrange manager mock
+    mock_manager = MagicMock(spec=MCPServerManager)
+    mock_manager.aadd_or_aupdate_server = AsyncMock()
+    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+
+    # Prepare computer with resolver mapping empty (no placeholders used)
+    resolver = DummyResolver({})
+    computer = Computer(input_resolver=resolver)
+
+    # Model instance config
+    cfg = StdioServerConfig(
+        name="echo2",
+        server_parameters=StdioServerParameters(command="/bin/echo", args=["hello"], env=None, cwd=None),
+    )
+
+    # Act
+    await computer.aadd_or_aupdate_server(cfg)
+
+    # Assert: same model (after dump/render/validate) is sent
+    mock_manager.aadd_or_aupdate_server.assert_called_once()
+    (validated_cfg,), _ = mock_manager.aadd_or_aupdate_server.call_args
+    assert isinstance(validated_cfg, StdioServerConfig)
+    assert validated_cfg.name == cfg.name
+    assert validated_cfg.server_parameters.command == "/bin/echo"
+    assert validated_cfg.server_parameters.args == ["hello"]
+
+
+@pytest.mark.asyncio
+async def test_aadd_or_aupdate_server_missing_input_keeps_placeholder(monkeypatch):
+    # Arrange manager mock (should be called with placeholder preserved)
+    mock_manager = MagicMock(spec=MCPServerManager)
+    mock_manager.aadd_or_aupdate_server = AsyncMock()
+    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+
+    # Resolver without required key -> will raise KeyError inside resolver,
+    # but renderer will catch and keep original placeholder string
+    resolver = DummyResolver({})
+    computer = Computer(input_resolver=resolver)
+
+    cfg_dict: dict = {
+        "type": "stdio",
+        "name": "bad",
+        "disabled": False,
+        "server_parameters": {
+            "command": "${input:missing}",
+            "args": [],
+            "env": None,
+            "cwd": None,
+            "encoding": "utf-8",
+            "encoding_error_handler": "strict",
+        },
+        "forbidden_tools": [],
+        "tool_meta": {},
+    }
+
+    # Act: should not raise; placeholder remains
+    await computer.aadd_or_aupdate_server(cfg_dict)
+    mock_manager.aadd_or_aupdate_server.assert_called_once()
+    (validated_cfg,), _ = mock_manager.aadd_or_aupdate_server.call_args
+    # Assert placeholder preserved after rendering+validation
+    assert validated_cfg.server_parameters.command == "${input:missing}"
+
+
+@pytest.mark.asyncio
+async def test_aremove_server_delegates(monkeypatch):
+    mock_manager = MagicMock(spec=MCPServerManager)
+    mock_manager.aremove_server = AsyncMock()
+    computer = Computer()
+    computer.mcp_manager = mock_manager
+
+    await computer.aremove_server("echo")
+
+    mock_manager.aremove_server.assert_called_once_with("echo")
+
+
+def test_update_inputs_replaces_resolver_and_clears_cache():
+    # Start with a dummy resolver to ensure it gets replaced
+    resolver = DummyResolver({"a": 1})
+    computer = Computer(input_resolver=resolver)
+
+    # Update to real pydantic inputs and ensure new resolver is used
+    computer.update_inputs(
+        [
+            MCPServerPromptStringInput(id="p", description="prompt", default="x"),
+            MCPServerPickStringInput(id="k", description="pick", options=["a", "b"], default="a"),
+            MCPServerCommandInput(id="c", description="cmd", command="echo hi"),
+        ]
+    )
+
+    # After update, resolver should no longer be DummyResolver
+    assert not isinstance(computer._input_resolver, DummyResolver)
+    # The new resolver should be able to clear cache without error
+    computer._input_resolver.clear_cache()
+
+
+@pytest.mark.asyncio
+async def test_boot_up_renders_all_initial_servers(monkeypatch):
+    # Arrange an initial server with placeholders
+    inputs = [MCPServerPromptStringInput(id="cmd", description="", default="/bin/echo")]
+    cfg = StdioServerConfig(
+        name="echo",
+        server_parameters=StdioServerParameters(command="${input:cmd}"),
+    )
+
+    # Spy manager to capture ainitialize payload
+    captured = {}
+
+    class SpyManager(MagicMock):
+        async def ainitialize(self, servers):  # type: ignore[override]
+            captured["servers"] = list(servers)
+
+    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: SpyManager(spec=MCPServerManager))
+
+    # Use a dummy resolver to avoid interactive prompt, mapping 'cmd' to path
+    resolver = DummyResolver({"cmd": "/bin/echo"})
+    computer = Computer(inputs=inputs, mcp_servers={cfg}, input_resolver=resolver)
+
+    await computer.boot_up()
+
+    servers = captured["servers"]
+    assert len(servers) == 1
+    s0 = servers[0]
+    assert isinstance(s0, StdioServerConfig)
+    assert s0.server_parameters.command == "/bin/echo"

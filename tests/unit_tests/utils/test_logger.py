@@ -45,7 +45,7 @@ def reload_module(monkeypatch, env_vars=None):
 
 def test_default_config(monkeypatch):
     """测试默认配置"""
-    module, captured_output = reload_module(monkeypatch)
+    module, captured_output = reload_module(monkeypatch, env_vars={"A2C_SMCP_LOG_LEVEL": "debug"})
 
     # 验证日志级别为 DEBUG
     assert module.logger.level == logging.DEBUG

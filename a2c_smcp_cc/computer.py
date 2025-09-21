@@ -45,7 +45,7 @@ from a2c_smcp_cc.utils.logger import logger
 class Computer:
     def __init__(
         self,
-        inputs: list[MCPServerInput] | None = None,
+        inputs: set[MCPServerInput] | None = None,
         mcp_servers: set[MCPServerConfig] | None = None,
         auto_connect: bool = True,
         auto_reconnect: bool = True,
@@ -64,15 +64,15 @@ class Computer:
         customize the dictionary value to avoid this limitation
 
         Args:
-            inputs (list[MCPServerInput] | None): MCP服务器输入项配置列表。MCP server input config list.
-            mcp_servers (set[MCPServerConfig] | None): MCP服务器配置字典。MCP server config dict.
+            inputs (set[MCPServerInput] | None): MCP服务器输入项配置集合（以 id 唯一、基于 set 去重）。MCP server input config set.
+            mcp_servers (set[MCPServerConfig] | None): MCP服务器配置集合。MCP server config set.
             auto_connect (bool): 是否自动连接。Whether to auto connect.
             auto_reconnect (bool): 是否自动重连。Whether to auto reconnect.
             confirm_callback (Callable[[str, str, str, dict], bool] | None): 工具调用二次确认回调
         """
         self.mcp_manager: MCPServerManager | None = None
-        self._inputs = inputs or []
-        self._mcp_servers = mcp_servers or {}
+        self._inputs: set[MCPServerInput] = set(inputs or set())
+        self._mcp_servers: set[MCPServerConfig] = set(mcp_servers or set())
         self._auto_connect = auto_connect
         self._auto_reconnect = auto_reconnect
         self._confirm_callback = confirm_callback
@@ -182,7 +182,7 @@ class Computer:
             return
         await self.mcp_manager.aremove_server(server_name)
 
-    def update_inputs(self, inputs: list[MCPServerInput]) -> None:
+    def update_inputs(self, inputs: set[MCPServerInput]) -> None:
         """
         更新 inputs 定义，并清空解析缓存。
         Update inputs definition and clear resolver cache.
@@ -190,10 +190,73 @@ class Computer:
         注意：更新 inputs 只会影响后续的渲染，不会自动对已激活的配置进行重新渲染/重启。
         如需应用到已存在的服务，可结合 aadd_or_aupdate_server 重新提交配置达到热更新效果。
         """
-        self._inputs = inputs or []
+        self._inputs = set(inputs or set())
         self._input_resolver = InputResolver(self._inputs)
         # 清理缓存，确保后续渲染使用最新 inputs
         self._input_resolver.clear_cache()
+
+    def add_or_update_input(self, input_cfg: MCPServerInput) -> None:
+        """
+        按 id 动态新增或更新单个 input。
+        Add or update a single input by id dynamically.
+
+        规则 Rules:
+          - 以 input.id 为唯一键，存在则替换，不存在则追加
+          - 重新构建 InputResolver 并清空对应缓存，确保后续渲染拿到最新值
+        """
+        if not input_cfg or not getattr(input_cfg, "id", None):
+            logger.warning("无效的 input 配置，忽略 / Invalid input config, skip")
+            return
+
+        # 由于 __hash__ 与 __eq__ 基于 id，先丢弃再添加可实现“更新”
+        self._inputs.discard(input_cfg)
+        self._inputs.add(input_cfg)
+
+        # 重新初始化解析器以应用最新定义，并清理该 id 的缓存
+        self._input_resolver = InputResolver(self._inputs)
+        self._input_resolver.clear_cache(input_cfg.id)
+
+    def remove_input(self, input_id: str) -> bool:
+        """
+        按 id 移除单个 input，返回是否删除成功。
+        Remove a single input by id. Returns whether deletion happened.
+        """
+        if not input_id:
+            return False
+
+        removed = False
+        target = None
+        for existed in self._inputs:
+            if existed.id == input_id:
+                target = existed
+                break
+        if target is not None:
+            self._inputs.discard(target)
+            removed = True
+
+        # 重新初始化解析器，并清理该 id 的缓存（如果有）
+        self._input_resolver = InputResolver(self._inputs)
+        self._input_resolver.clear_cache(input_id)
+        return removed
+
+    def get_input(self, input_id: str) -> MCPServerInput | None:
+        """
+        获取指定 id 的 input 定义（只读）。
+        Get input definition by id (read-only).
+        """
+        if not input_id:
+            return None
+        for existed in self._inputs:
+            if existed.id == input_id:
+                return existed
+        return None
+
+    def list_inputs(self) -> tuple[MCPServerInput, ...]:
+        """
+        列出当前全部 inputs（不可变）。
+        List all current inputs (immutable).
+        """
+        return tuple(self._inputs)
 
     async def shutdown(self) -> None:
         """
@@ -241,11 +304,11 @@ class Computer:
     @property
     def inputs(self) -> tuple[MCPServerInput, ...]:
         """
-        获取 MCP 服务配置中的动态字段字义 (不可变)
-        Get Inputs in MCP server config (immutable)
+        获取 MCP 服务配置中的动态字段定义（不可变视图）。内部以 set 管理，返回 tuple 快照。
+        Get Inputs in MCP server config (immutable view). Internally managed as a set, returns a tuple snapshot.
 
         Returns:
-            tuple[MCPServerInput, ...]: 动态字段字义。Inputs
+            tuple[MCPServerInput, ...]: 动态字段定义。Inputs
         """
         return tuple(self._inputs)
 

@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any
 
 from a2c_smcp_cc.inputs.cli_io import ainput_pick, ainput_prompt, arun_command
@@ -34,7 +35,7 @@ class InputResolver:
     English: Input resolver with lazy per-id resolution and result cache.
     """
 
-    def __init__(self, inputs: list[MCPServerInput] | tuple[MCPServerInput, ...]) -> None:
+    def __init__(self, inputs: Iterable[MCPServerInput]) -> None:
         self._inputs = {i.id: i for i in inputs}
         self._cache: dict[str, Any] = {}
 

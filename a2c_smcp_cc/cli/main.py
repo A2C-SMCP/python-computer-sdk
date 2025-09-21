@@ -25,6 +25,7 @@ from rich.console import Console
 from rich.table import Table
 
 from a2c_smcp_cc.computer import Computer
+from a2c_smcp_cc.mcp_clients.model import MCPServerInput as MCPServerInputModel
 from a2c_smcp_cc.socketio.client import SMCPComputerClient
 from a2c_smcp_cc.socketio.smcp import MCPServerConfig as SMCPServerConfigDict
 from a2c_smcp_cc.socketio.smcp import MCPServerInput as SMCPServerInputDict
@@ -224,11 +225,75 @@ async def _interactive_loop(comp: Computer, init_client: SMCPComputerClient | No
                             console.print("[yellow]用法: inputs load @file.json[/yellow]")
                         else:
                             data = json.loads(Path(parts[2][1:]).read_text(encoding="utf-8"))
-                            inputs = TypeAdapter(list[SMCPServerInputDict]).validate_python(data)
-                            comp.update_inputs(inputs)
+                            raw_items = TypeAdapter(list[SMCPServerInputDict]).validate_python(data)
+                            models = {TypeAdapter(MCPServerInputModel).validate_python(item) for item in raw_items}
+                            comp.update_inputs(models)
                             console.print("[green]Inputs 已更新 / Inputs updated[/green]")
                             if smcp_client:
                                 await smcp_client.emit_update_mcp_config()
+                    elif sub == "add":
+                        # 支持 @file 或 单对象 JSON
+                        if len(parts) < 3:
+                            console.print("[yellow]用法: inputs add <json|@file.json>[/yellow]")
+                        else:
+                            payload = raw.split(" ", 2)[2]
+                            if payload.startswith("@"):  # 文件里可为单个或数组
+                                data = json.loads(Path(payload[1:]).read_text(encoding="utf-8"))
+                            else:
+                                data = json.loads(payload)
+                            if isinstance(data, list):
+                                items = TypeAdapter(list[SMCPServerInputDict]).validate_python(data)
+                                for item in items:
+                                    comp.add_or_update_input(TypeAdapter(MCPServerInputModel).validate_python(item))
+                            else:
+                                item = TypeAdapter(SMCPServerInputDict).validate_python(data)
+                                comp.add_or_update_input(TypeAdapter(MCPServerInputModel).validate_python(item))
+                            console.print("[green]Input(s) 已添加/更新 / Added/Updated[/green]")
+                            if smcp_client:
+                                await smcp_client.emit_update_mcp_config()
+                    elif sub in {"update"}:
+                        # 语义与 add 相同，提供同义词
+                        if len(parts) < 3:
+                            console.print("[yellow]用法: inputs update <json|@file.json>[/yellow]")
+                        else:
+                            payload = raw.split(" ", 2)[2]
+                            if payload.startswith("@"):  # 文件里可为单个或数组
+                                data = json.loads(Path(payload[1:]).read_text(encoding="utf-8"))
+                            else:
+                                data = json.loads(payload)
+                            if isinstance(data, list):
+                                items = TypeAdapter(list[SMCPServerInputDict]).validate_python(data)
+                                for item in items:
+                                    comp.add_or_update_input(TypeAdapter(SMCPServerInputDict).validate_python(item))
+                            else:
+                                item = TypeAdapter(SMCPServerInputDict).validate_python(data)
+                                comp.add_or_update_input(item)
+                            console.print("[green]Input(s) 已添加/更新 / Added/Updated[/green]")
+                            if smcp_client:
+                                await smcp_client.emit_update_mcp_config()
+                    elif sub in {"rm", "remove"}:
+                        if len(parts) < 3:
+                            console.print("[yellow]用法: inputs rm <id>[/yellow]")
+                        else:
+                            ok = comp.remove_input(parts[2])
+                            if ok:
+                                console.print("[green]已移除 / Removed[/green]")
+                                if smcp_client:
+                                    await smcp_client.emit_update_mcp_config()
+                            else:
+                                console.print("[yellow]不存在的 id / Not found[/yellow]")
+                    elif sub == "get":
+                        if len(parts) < 3:
+                            console.print("[yellow]用法: inputs get <id>[/yellow]")
+                        else:
+                            item = comp.get_input(parts[2])
+                            if item is None:
+                                console.print("[yellow]不存在的 id / Not found[/yellow]")
+                            else:
+                                console.print_json(data=item.model_dump(mode="json"))
+                    elif sub == "list":
+                        items = [i.model_dump(mode="json") for i in comp.inputs]
+                        console.print_json(data=items)
                     else:
                         console.print("[yellow]未知的 inputs 子命令 / Unknown subcommand[/yellow]")
 
@@ -320,7 +385,7 @@ def run(
 
     async def _amain() -> None:
         # 初始化空配置，后续通过交互动态维护 / init with empty config, then manage dynamically
-        comp = Computer(inputs=[], mcp_servers=set(), auto_connect=auto_connect, auto_reconnect=auto_reconnect)
+        comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=auto_connect, auto_reconnect=auto_reconnect)
         async with comp:
             init_client: SMCPComputerClient | None = None
             if url:

@@ -49,6 +49,17 @@ python -m a2c_smcp_cc.cli.main run --auto-connect true --auto-reconnect true
   - 停止单个或全部 MCP Server 客户端。
 - inputs load @file
   - 从文件加载 inputs 定义（用于占位符的按需解析）。文件必须是包含 inputs 列表的 JSON。
+  - 说明：内部以 set 管理，按 id 唯一去重。
+ - inputs add <json|@file>
+   - 新增或更新一个或多个 inputs 定义（id 相同即视为更新）。
+ - inputs update <json|@file>
+   - 与 add 等价的同义命令。
+ - inputs rm <id>
+   - 按 id 删除一个 input 定义。
+ - inputs get <id>
+   - 查看某个 input 的当前定义。
+ - inputs list
+   - 列出当前全部 inputs 定义。
 - socket connect <url>
   - 连接到信令服务器（Socket.IO）。
 - socket join <office_id> <computer_name>
@@ -147,7 +158,8 @@ notify update
 6) 测试渲染任意 JSON
 ```bash
 render {"env":"${input:MY_ENV_VALUE}","regions":"${input:REGION}"}
-# 或ender @./any.json
+# 或
+render @./any.json
 ```
 
 7) 停止与移除
@@ -179,6 +191,8 @@ server rm my-stdio-server
   - 为冲突的工具配置 `tool_meta.alias`，保证在全局唯一。
 - 输入占位符没有被替换
   - 确认已通过 `inputs load @file` 提供 inputs 定义，或检查 id 是否拼写正确。
+- Inputs 唯一性
+  - inputs 在内存中以 set 管理，且模型以 `id` 作为唯一标准（通过 `__hash__`/`__eq__` 实现）。当多次添加相同 id 的输入时，视为更新覆盖。
 - 无法通知远端刷新
   - 确认已 `socket connect <url>` 且 `socket join <office_id> <computer_name>` 成功，再执行 `notify update`。
 

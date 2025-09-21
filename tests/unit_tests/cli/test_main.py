@@ -43,8 +43,42 @@ async def test_interactive_help_and_exit(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
     monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
 
-    comp = Computer(inputs=[], mcp_servers=set(), auto_connect=False, auto_reconnect=False)
+    comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
     await _interactive_loop(comp)
+
+
+@pytest.mark.asyncio
+async def test_inputs_cli_crud_commands(monkeypatch: pytest.MonkeyPatch) -> None:
+    """覆盖 inputs 子命令：add/update/rm/get/list，并在连接状态下触发配置更新通知。"""
+    monkeypatch.setattr(cli_main, "SMCPComputerClient", FakeSMCPClient)
+
+    # 使用 socket connect 建立连接，随后执行 inputs 的 CRUD 命令
+    commands = [
+        "socket connect http://localhost:7000",
+        # add 单条
+        'inputs add {"id":"USER","type":"promptString","description":"d","default":"a"}',
+        # get + list
+        "inputs get USER",
+        "inputs list",
+        # update 批量（数组）
+        'inputs update [{"id":"USER","type":"promptString","description":"d2","default":"b"},'
+        ' {"id":"REG","type":"pickString","description":"r","options":["us","eu"],"default":"us"}]',
+        "inputs list",
+        # rm
+        "inputs rm USER",
+        "inputs list",
+        "exit",
+    ]
+
+    monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
+    monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
+
+    comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
+    await _interactive_loop(comp)
+
+    last: FakeSMCPClient = FakeSMCPClient.last  # type: ignore[assignment]
+    # 至少在 add/update/rm 期间触发了多次更新通知
+    assert last.updated >= 3
 
 
 @pytest.mark.asyncio
@@ -66,11 +100,11 @@ async def test_socket_connect_guided_inputs_parsing(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
     monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
 
-    comp = Computer(inputs=[], mcp_servers=set(), auto_connect=False, auto_reconnect=False)
+    comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
     await _interactive_loop(comp)
 
     # 断言 FakeSMCPClient 收到了期望的参数
-    last: FakeSMCPClient = getattr(FakeSMCPClient, "last")  # type: ignore[assignment]
+    last: FakeSMCPClient = FakeSMCPClient.last  # type: ignore[assignment]
     assert last.connected is True
     assert last.connect_args is not None
     assert last.connect_args["url"] == "http://localhost:8000"
@@ -100,7 +134,7 @@ def test_run_with_cli_url_auth_headers(monkeypatch: pytest.MonkeyPatch) -> None:
         headers="h1:v1,h2:v2",
     )
 
-    last: FakeSMCPClient = getattr(FakeSMCPClient, "last")  # type: ignore[assignment]
+    last: FakeSMCPClient = FakeSMCPClient.last  # type: ignore[assignment]
     assert last.connected is True
     assert last.connect_args == {
         "url": "http://service:1234",
@@ -138,7 +172,7 @@ async def test_server_add_and_status_without_auto_connect(monkeypatch: pytest.Mo
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
     monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
 
-    comp = Computer(inputs=[], mcp_servers=set(), auto_connect=False, auto_reconnect=False)
+    comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
     await _interactive_loop(comp)
 
 
@@ -152,7 +186,7 @@ async def test_unknown_and_status_manager_uninitialized(monkeypatch: pytest.Monk
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
     monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
 
-    comp = Computer(inputs=[], mcp_servers=set(), auto_connect=False, auto_reconnect=False)
+    comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
     await _interactive_loop(comp)
 
 
@@ -166,13 +200,13 @@ async def test_server_rm_without_name_and_add_invalid_json(monkeypatch: pytest.M
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
     monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
 
-    comp = Computer(inputs=[], mcp_servers=set(), auto_connect=False, auto_reconnect=False)
+    comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
     await _interactive_loop(comp)
 
 
 @pytest.mark.asyncio
 async def test_start_stop_all_with_manager_initialized(monkeypatch: pytest.MonkeyPatch) -> None:
-    comp = Computer(inputs=[], mcp_servers=set(), auto_connect=False, auto_reconnect=False)
+    comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
     await comp.boot_up()
 
     commands = [
@@ -211,7 +245,7 @@ async def test_inputs_load_and_render(tmp_path: Path, monkeypatch: pytest.Monkey
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
     monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
 
-    comp = Computer(inputs=[], mcp_servers=set(), auto_connect=False, auto_reconnect=False)
+    comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
     await _interactive_loop(comp)
 
 
@@ -258,5 +292,5 @@ async def test_socket_and_notify_branches(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
     monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
 
-    comp = Computer(inputs=[], mcp_servers=set(), auto_connect=False, auto_reconnect=False)
+    comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
     await _interactive_loop(comp)

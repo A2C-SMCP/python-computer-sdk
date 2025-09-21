@@ -69,10 +69,21 @@ class MCPServerInputBase(BaseModel):
     """MCP服务器输入项配置基类"""
 
     id: str
+    """Input的唯一标准，即使跨类型，也不可重复"""
     description: str
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", arbitrary_types_allowed=False, frozen=True)
     """配置字段在初始化完成后不允许修改"""
+
+    def __hash__(self) -> int:
+        """以 id 作为唯一哈希，确保在 set 中按 id 去重"""
+        return hash(self.id)
+
+    def __eq__(self, other: object) -> bool:
+        """按 id 判断相等性，确保不同内容但相同 id 的输入在集合中视为同一元素"""
+        if not isinstance(other, MCPServerInputBase):
+            return False
+        return self.id == other.id
 
 
 class MCPServerPromptStringInput(MCPServerInputBase):

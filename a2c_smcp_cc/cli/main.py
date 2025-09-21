@@ -33,6 +33,38 @@ app = typer.Typer(add_completion=False, help="A2C Computer CLI")
 console = Console()
 
 
+def _parse_kv_pairs(text: str | None) -> dict[str, Any] | None:
+    """
+    将形如 "k1:v1,k2:v2" 的字符串解析为 dict。
+    要求：多个键值对之间用逗号分隔，逗号后不要空格；若有空格会自动忽略并给出宽容解析。
+
+    Args:
+        text: 原始输入字符串；None 或空字符串时返回 None。
+
+    Returns:
+        dict 或 None
+    """
+    if text is None:
+        return None
+    s = text.strip()
+    if s == "":
+        return None
+    result: dict[str, Any] = {}
+    for seg in s.split(","):
+        seg = seg.strip()  # 宽容处理潜在空格
+        if seg == "":
+            continue
+        if ":" not in seg:
+            raise ValueError(f"无效的键值对: {seg}，应为 key:value 形式")
+        k, v = seg.split(":", 1)
+        k = k.strip()
+        v = v.strip()
+        if not k:
+            raise ValueError(f"无效的键名: '{seg}'")
+        result[k] = v
+    return result if result else None
+
+
 def _print_status(comp: Computer) -> None:
     if not comp.mcp_manager:
         console.print("[yellow]Manager 未初始化 / Manager not initialized[/yellow]")
@@ -79,9 +111,9 @@ def _print_mcp_config(config: dict[str, Any]) -> None:
     console.print(i_table)
 
 
-async def _interactive_loop(comp: Computer) -> None:
+async def _interactive_loop(comp: Computer, init_client: SMCPComputerClient | None = None) -> None:
     session = PromptSession()
-    smcp_client: SMCPComputerClient | None = None
+    smcp_client: SMCPComputerClient | None = init_client
     console.print("[bold]进入交互模式，输入 help 查看命令 / Enter interactive mode, type 'help' for commands[/bold]")
     with patch_stdout():
         while True:
@@ -104,7 +136,7 @@ async def _interactive_loop(comp: Computer) -> None:
                             "  start <name>|all                          # 启动客户端 / start client(s)",
                             "  stop <name>|all                           # 停止客户端 / stop client(s)",
                             "  inputs load <@file>                        # 从文件加载inputs定义 / load inputs",
-                            "  socket connect <url>                      # 连接Socket.IO",
+                            "  socket connect [<url>]                    # 连接Socket.IO（若省略URL将进入引导式输入）",
                             "  socket join <office_id> <computer_name>   # 加入房间",
                             "  socket leave                               # 离开房间",
                             "  notify update                              # 触发配置更新通知",
@@ -203,15 +235,30 @@ async def _interactive_loop(comp: Computer) -> None:
                 elif cmd == "socket" and len(parts) >= 2:
                     sub = parts[1].lower()
                     if sub == "connect":
-                        if len(parts) < 3:
-                            console.print("[yellow]用法: socket connect <url>[/yellow]")
+                        if smcp_client and smcp_client.connected:
+                            console.print("[yellow]已连接 / Already connected[/yellow]")
                         else:
-                            if smcp_client and smcp_client.connected:
-                                console.print("[yellow]已连接 / Already connected[/yellow]")
-                            else:
-                                smcp_client = SMCPComputerClient(computer=comp)
-                                await smcp_client.connect(parts[2])
-                                console.print("[green]已连接 / Connected[/green]")
+                            # 若提供了 URL，直接使用；否则进入引导式输入
+                            url: str | None = parts[2] if len(parts) >= 3 else None
+                            if not url:
+                                url = (await session.prompt_async("URL: ")).strip()
+                            if not url:
+                                console.print("[yellow]URL 不能为空 / URL required[/yellow]")
+                                continue
+
+                            auth_str = (await session.prompt_async("Auth (key:value, 可留空): ")).strip() if len(parts) < 3 else ""
+                            headers_str = (await session.prompt_async("Headers (key:value, 可留空): ")).strip() if len(parts) < 3 else ""
+
+                            try:
+                                auth = _parse_kv_pairs(auth_str)
+                                headers = _parse_kv_pairs(headers_str)
+                            except Exception as e:
+                                console.print(f"[red]参数解析失败 / Parse error: {e}[/red]")
+                                continue
+
+                            smcp_client = SMCPComputerClient(computer=comp)
+                            await smcp_client.connect(url, auth=auth, headers=headers)
+                            console.print("[green]已连接 / Connected[/green]")
                     elif sub == "join":
                         if not smcp_client or not smcp_client.connected:
                             console.print("[yellow]请先连接 / Connect first[/yellow]")
@@ -262,6 +309,9 @@ async def _interactive_loop(comp: Computer) -> None:
 def run(
     auto_connect: bool = typer.Option(True, help="是否自动连接 / Auto connect"),
     auto_reconnect: bool = typer.Option(True, help="是否自动重连 / Auto reconnect"),
+    url: str | None = typer.Option(None, help="Socket.IO 服务器URL，例如 https://host:port"),
+    auth: str | None = typer.Option(None, help="认证参数，形如 key:value,foo:bar"),
+    headers: str | None = typer.Option(None, help="请求头参数，形如 key:value,foo:bar"),
 ) -> None:
     """
     中文: 启动计算机并进入持续运行模式。后续将支持从配置文件加载 servers 与 inputs。
@@ -272,7 +322,20 @@ def run(
         # 初始化空配置，后续通过交互动态维护 / init with empty config, then manage dynamically
         comp = Computer(inputs=[], mcp_servers=set(), auto_connect=auto_connect, auto_reconnect=auto_reconnect)
         async with comp:
-            await _interactive_loop(comp)
+            init_client: SMCPComputerClient | None = None
+            if url:
+                try:
+                    auth_dict = _parse_kv_pairs(auth)
+                    headers_dict = _parse_kv_pairs(headers)
+                except Exception as e:
+                    console.print(f"[red]启动参数解析失败 / Failed to parse CLI params: {e}[/red]")
+                    auth_dict = None
+                    headers_dict = None
+                init_client = SMCPComputerClient(computer=comp)
+                await init_client.connect(url, auth=auth_dict, headers=headers_dict)
+                console.print("[green]已通过启动参数连接到 Socket.IO / Connected via CLI options[/green]")
+
+            await _interactive_loop(comp, init_client=init_client)
 
     asyncio.run(_amain())
 

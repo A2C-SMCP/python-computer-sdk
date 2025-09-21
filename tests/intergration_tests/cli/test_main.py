@@ -66,3 +66,46 @@ async def test_cli_with_real_stdio(stdio_params: StdioServerParameters) -> None:
     comp = Computer(inputs=[], mcp_servers=set(), auto_connect=False, auto_reconnect=False)
 
     await _interactive_loop(comp)
+
+
+class FakeSMCPClient:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: D401
+        self.connected = False
+        self.connect_args: dict[str, Any] | None = None
+        FakeSMCPClient.last = self  # type: ignore[attr-defined]
+
+    async def connect(self, url: str, auth: dict[str, Any] | None = None, headers: dict[str, Any] | None = None) -> None:
+        self.connected = True
+        self.connect_args = {"url": url, "auth": auth, "headers": headers}
+
+
+@pytest.mark.asyncio
+async def test_cli_socket_connect_guided_inputs_without_real_network(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    集成层面验证 CLI 的交互式引导输入 URL/Auth/Headers 的行为，但不依赖真实网络。
+    """
+    # Patch client to fake
+    cli_main.SMCPComputerClient = FakeSMCPClient  # type: ignore
+
+    commands = [
+        "socket connect",
+        "http://127.0.0.1:9000",
+        "apikey:xyz",
+        "app:demo,build:42",
+        "exit",
+    ]
+
+    # Patch interactive IO
+    cli_main.PromptSession = lambda: FakePromptSession(commands)  # type: ignore
+    cli_main.patch_stdout = lambda: no_patch_stdout()  # type: ignore
+
+    comp = Computer(inputs=[], mcp_servers=set(), auto_connect=False, auto_reconnect=False)
+    await _interactive_loop(comp)
+
+    last: FakeSMCPClient = getattr(FakeSMCPClient, "last")  # type: ignore[assignment]
+    assert last.connected is True
+    assert last.connect_args == {
+        "url": "http://127.0.0.1:9000",
+        "auth": {"apikey": "xyz"},
+        "headers": {"app": "demo", "build": "42"},
+    }

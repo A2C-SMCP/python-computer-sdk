@@ -48,6 +48,68 @@ async def test_interactive_help_and_exit(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 @pytest.mark.asyncio
+async def test_socket_connect_guided_inputs_parsing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    验证在未提供 URL 的情况下，交互式引导输入 URL/Auth/Headers，并正确解析传给 connect(auth=..., headers=...).
+    """
+    monkeypatch.setattr(cli_main, "SMCPComputerClient", FakeSMCPClient)
+
+    # 触发引导式：先输入命令，再依次回应 URL、Auth、Headers，然后退出
+    commands = [
+        "socket connect",
+        "http://localhost:8000",
+        "token:abc123",
+        "app:demo,ver:1.0",
+        "exit",
+    ]
+
+    monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
+    monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
+
+    comp = Computer(inputs=[], mcp_servers=set(), auto_connect=False, auto_reconnect=False)
+    await _interactive_loop(comp)
+
+    # 断言 FakeSMCPClient 收到了期望的参数
+    last: FakeSMCPClient = getattr(FakeSMCPClient, "last")  # type: ignore[assignment]
+    assert last.connected is True
+    assert last.connect_args is not None
+    assert last.connect_args["url"] == "http://localhost:8000"
+    assert last.connect_args["auth"] == {"token": "abc123"}
+    assert last.connect_args["headers"] == {"app": "demo", "ver": "1.0"}
+
+
+def test_run_with_cli_url_auth_headers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    验证通过 run(url=..., auth=..., headers=...) 启动时，会自动连接并传入解析后的参数，随后进入交互并退出。
+    """
+    monkeypatch.setattr(cli_main, "SMCPComputerClient", FakeSMCPClient)
+
+    # 进入交互后立即退出
+    commands = [
+        "exit",
+    ]
+    monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
+    monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
+
+    # 调用同步的 run()，其内部使用 asyncio.run() 执行
+    cli_main.run(
+        auto_connect=False,
+        auto_reconnect=False,
+        url="http://service:1234",
+        auth="token:abc",
+        headers="h1:v1,h2:v2",
+    )
+
+    last: FakeSMCPClient = getattr(FakeSMCPClient, "last")  # type: ignore[assignment]
+    assert last.connected is True
+    assert last.connect_args == {
+        "url": "http://service:1234",
+        "auth": {"token": "abc"},
+        "headers": {"h1": "v1", "h2": "v2"},
+    }
+
+
+@pytest.mark.asyncio
 async def test_server_add_and_status_without_auto_connect(monkeypatch: pytest.MonkeyPatch) -> None:
     # Minimal stdio server config (disabled=true to avoid start operations later)
     stdio_cfg = {
@@ -159,9 +221,13 @@ class FakeSMCPClient:
         self.office_id: str | None = None
         self.joined_args: tuple[str, str] | None = None
         self.updated = 0
+        # 记录最后一个实例，便于断言
+        FakeSMCPClient.last = self  # type: ignore[attr-defined]
+        self.connect_args: dict[str, Any] | None = None
 
-    async def connect(self, url: str) -> None:
+    async def connect(self, url: str, auth: dict[str, Any] | None = None, headers: dict[str, Any] | None = None) -> None:
         self.connected = True
+        self.connect_args = {"url": url, "auth": auth, "headers": headers}
 
     async def join_office(self, office_id: str, computer_name: str) -> None:
         assert self.connected

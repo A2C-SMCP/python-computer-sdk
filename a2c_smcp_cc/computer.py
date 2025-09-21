@@ -151,7 +151,7 @@ class Computer:
         except Exception as e:
             name = (server.get("name") if isinstance(server, dict) else getattr(server, "name", "unknown")) or "unknown"
             logger.error(f"动态渲染/校验MCP配置失败: {name} - {e}")
-            raise
+            raise e
 
     async def aadd_or_aupdate_server(self, server: MCPServerConfig | dict[str, Any]) -> None:
         """

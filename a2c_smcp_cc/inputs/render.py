@@ -54,7 +54,8 @@ class ConfigRender:
     async def arender_str(s: str, resolve_input: Callable[[str], Awaitable[Any]]) -> Any:
         """
         中文: 对字符串中的所有占位符进行按需替换；若替换为非字符串值，返回替换后的非字符串值（用于纯占位符情况）。
-        English: Replace all placeholders in the string lazily; when result is non-string and the whole string is just a placeholder, return it.
+        English: Replace placeholders lazily; if the entire string is a single placeholder and resolves to a non-string,
+        return that value.
         """
         matches = list(PLACEHOLDER_PATTERN.finditer(s))
         if not matches:

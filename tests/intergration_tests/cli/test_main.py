@@ -102,7 +102,7 @@ async def test_cli_socket_connect_guided_inputs_without_real_network(monkeypatch
     comp = Computer(inputs=[], mcp_servers=set(), auto_connect=False, auto_reconnect=False)
     await _interactive_loop(comp)
 
-    last: FakeSMCPClient = getattr(FakeSMCPClient, "last")  # type: ignore[assignment]
+    last: FakeSMCPClient = FakeSMCPClient.last  # type: ignore[assignment]
     assert last.connected is True
     assert last.connect_args == {
         "url": "http://127.0.0.1:9000",

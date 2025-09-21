@@ -129,7 +129,7 @@ async def test_arun_command_raw_and_lines_and_json():
 
     # json success
     js = {"x": 1, "y": [1, 2]}
-    cmd = "python - <<'PY'\nimport json,sys; print(json.dumps(%s))\nPY" % json.dumps(js)
+    cmd = f"python - <<'PY'\nimport json,sys; print(json.dumps({json.dumps(js)}))\nPY"
     out_json = await arun_command(cmd, parse="json")
     assert out_json == js
 

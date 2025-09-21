@@ -53,7 +53,7 @@ async def test_computer_aexecute_tool_confirm_callback_called(stdio_params):
     stdio_cfg = StdioServerConfig(name="stdio_server", server_parameters=stdio_params, tool_meta={})
     computer = Computer(mcp_servers={stdio_cfg}, confirm_callback=confirm_mock)
     await computer.boot_up()
-    tools = await computer.aget_available_tools()
+    await computer.aget_available_tools()
     tool_name = "hello"
     result = await computer.aexecute_tool("reqid", tool_name, {"name": "China"})
     assert hasattr(result, "content")

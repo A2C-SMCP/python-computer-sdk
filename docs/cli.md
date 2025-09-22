@@ -137,6 +137,32 @@ server add @./server_stdio.json
 server add {"name":"my-stdio-server","type":"stdio","disabled":false,"forbidden_tools":[],"tool_meta":{},"server_parameters":{"command":"my_mcp_server","args":[],"env":null,"cwd":null,"encoding":"utf-8","encoding_error_handler":"strict"}}
 ```
 
+针对通过 npx 启动 Playwright MCP（端口 8931）的 stdio 配置示例：
+
+```json
+{
+  "name": "playwright-mcp",
+  "type": "stdio",
+  "disabled": false,
+  "forbidden_tools": [],
+  "tool_meta": {},
+  "server_parameters": {
+    "command": "npx",
+    "args": ["@playwright/mcp@latest", "--port", "8931"],
+    "env": null,
+    "cwd": null,
+    "encoding": "utf-8",
+    "encoding_error_handler": "strict"
+  }
+}
+```
+
+如果要直接在交互式 CLI 中添加，可粘贴为一行：
+
+```bash
+server add {"name":"playwright-mcp","type":"stdio","disabled":false,"forbidden_tools":[],"tool_meta":{},"server_parameters":{"command":"npx","args":["@playwright/mcp@latest","--port","8931"],"env":null,"cwd":null,"encoding":"utf-8","encoding_error_handler":"strict"}}
+```
+
 3) 启动所有服务，查看状态与工具
 ```bash
 start all

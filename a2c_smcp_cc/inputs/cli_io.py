@@ -18,10 +18,9 @@ from typing import Any
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
-from rich.console import Console
 from rich.table import Table
 
-console = Console()
+from a2c_smcp_cc.utils import console as console_util
 
 
 async def ainput_prompt(message: str, *, password: bool = False, default: str | None = None) -> str:
@@ -60,7 +59,7 @@ async def ainput_pick(
     table.add_column("Option", overflow="fold")
     for idx, opt in enumerate(options):
         table.add_row(str(idx), opt)
-    console.print(table)
+    console_util.console.print(table)
 
     tip = "输入序号，多个用逗号分隔" if multi else "输入序号"
     if default_index is not None and 0 <= default_index < len(options):
@@ -84,7 +83,7 @@ async def ainput_pick(
             if multi:
                 idxs = [int(x.strip()) for x in raw.split(",") if x.strip() != ""]
                 if any(i < 0 or i >= len(options) for i in idxs):
-                    console.print("[yellow]序号越界，请重试 / Index out of range, please retry[/yellow]")
+                    console_util.console.print("[yellow]序号越界，请重试 / Index out of range, please retry[/yellow]")
                     continue
                 picked = [options[i] for i in idxs]
                 # 去重保持顺序
@@ -98,11 +97,11 @@ async def ainput_pick(
             else:
                 idx = int(raw)
                 if idx < 0 or idx >= len(options):
-                    console.print("[yellow]序号越界，请重试 / Index out of range, please retry[/yellow]")
+                    console_util.console.print("[yellow]序号越界，请重试 / Index out of range, please retry[/yellow]")
                     continue
                 return options[idx]
         except ValueError:
-            console.print("[yellow]请输入有效的数字 / Please enter valid number(s)[/yellow]")
+            console_util.console.print("[yellow]请输入有效的数字 / Please enter valid number(s)[/yellow]")
 
 
 async def arun_command(

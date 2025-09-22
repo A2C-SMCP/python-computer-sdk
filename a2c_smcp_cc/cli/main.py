@@ -21,7 +21,6 @@ import typer
 from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
 from pydantic import TypeAdapter
-from rich.console import Console
 from rich.table import Table
 
 from a2c_smcp_cc.computer import Computer
@@ -29,9 +28,11 @@ from a2c_smcp_cc.mcp_clients.model import MCPServerInput as MCPServerInputModel
 from a2c_smcp_cc.socketio.client import SMCPComputerClient
 from a2c_smcp_cc.socketio.smcp import MCPServerConfig as SMCPServerConfigDict
 from a2c_smcp_cc.socketio.smcp import MCPServerInput as SMCPServerInputDict
+from a2c_smcp_cc.utils import console as console_util
 
 app = typer.Typer(add_completion=False, help="A2C Computer CLI")
-console = Console()
+# 使用全局 Console（引用模块属性，便于后续动态切换）
+console = console_util.console
 
 
 def _parse_kv_pairs(text: str | None) -> dict[str, Any] | None:
@@ -134,7 +135,9 @@ def _root(
     # 根据 no_color 动态调整全局 Console
     if no_color:
         global console
-        console = Console(no_color=True)
+        console_util.set_no_color(True)
+        # 重新绑定本地引用
+        console = console_util.console
 
     if ctx.invoked_subcommand is None:
         run(
@@ -156,258 +159,274 @@ async def _interactive_loop(comp: Computer, init_client: SMCPComputerClient | No
             "[yellow]检测到控制台可能不支持 ANSI 颜色。若在 PyCharm 中运行，请在 Run/Debug 配置中启用 'Emulate terminal in "
             "output console'；或者使用 --no-color 关闭彩色输出。[/yellow]"
         )
-    with patch_stdout():
-        while True:
-            try:
+    while True:
+        try:
+            with patch_stdout():
                 raw = (await session.prompt_async("a2c> ")).strip()
-            except (EOFError, KeyboardInterrupt):
-                console.print("\n[cyan]Bye[/cyan]")
+        except (EOFError, KeyboardInterrupt):
+            console.print("\n[cyan]Bye[/cyan]")
+            break
+
+        if raw == "" or raw.lower() in {"help", "?"}:
+            # 使用 Rich Table 美化帮助信息
+            help_table = Table(
+                title="可用命令 / Commands",
+                header_style="bold magenta",
+                show_lines=False,
+                expand=False,
+            )
+            help_table.add_column("Command", style="bold cyan", no_wrap=True)
+            help_table.add_column("Description", style="white")
+
+            help_table.add_row("status", "查看服务器状态 / show server status")
+            help_table.add_row("tools", "列出可用工具 / list tools")
+            help_table.add_row("mcp", "显示当前 MCP 配置 / show current MCP config")
+            help_table.add_row("server add <json|@file>", "添加或更新 MCP 配置 / add or update config")
+            help_table.add_row("server rm <name>", "移除 MCP 配置 / remove config")
+            help_table.add_row("start <name>|all", "启动客户端 / start client(s)")
+            help_table.add_row("stop <name>|all", "停止客户端 / stop client(s)")
+            help_table.add_row("inputs load <@file>", "从文件加载 inputs 定义 / load inputs")
+            help_table.add_row(
+                "socket connect [<url>]",
+                "连接 Socket.IO（省略 URL 将进入引导式输入） / connect to Socket.IO (guided if URL omitted)",
+            )
+            help_table.add_row("socket join <office_id> <computer_name>", "加入房间 / join office")
+            help_table.add_row("socket leave", "离开房间 / leave office")
+            help_table.add_row("notify update", "触发配置更新通知 / emit config updated notification")
+            help_table.add_row("render <json|@file>", "测试渲染（占位符解析） / test rendering (placeholders)")
+            help_table.add_row("quit | exit", "退出 / quit")
+
+            console.print(help_table)
+            console.print("[dim]提示: 输入命令后按回车执行；输入 'help' 或 '?' 重新查看命令列表。[/dim]")
+            continue
+
+        parts = raw.split()
+        cmd = parts[0].lower()
+
+        try:
+            if cmd in {"quit", "exit"}:
                 break
 
-            if raw == "" or raw.lower() in {"help", "?"}:
-                console.print(
-                    "\n".join(
-                        [
-                            "可用命令 / Commands:",
-                            "  status                                   # 查看服务器状态 / show server status",
-                            "  tools                                    # 列出可用工具 / list tools",
-                            "  mcp                                       # 显示当前MCP配置 / show current MCP config",
-                            "  server add <json|@file>                  # 添加或更新MCP配置 / add or update config",
-                            "  server rm <name>                          # 移除MCP配置 / remove config",
-                            "  start <name>|all                          # 启动客户端 / start client(s)",
-                            "  stop <name>|all                           # 停止客户端 / stop client(s)",
-                            "  inputs load <@file>                        # 从文件加载inputs定义 / load inputs",
-                            "  socket connect [<url>]                    # 连接Socket.IO（若省略URL将进入引导式输入）",
-                            "  socket join <office_id> <computer_name>   # 加入房间",
-                            "  socket leave                               # 离开房间",
-                            "  notify update                              # 触发配置更新通知",
-                            "  render <json|@file>                        # 测试渲染（占位符解析）",
-                            "  quit|exit                                  # 退出",
-                        ]
-                    )
-                )
-                continue
+            elif cmd == "status":
+                _print_status(comp)
 
-            parts = raw.split()
-            cmd = parts[0].lower()
+            elif cmd == "tools":
+                tools = await comp.aget_available_tools()
+                _print_tools(tools)
 
-            try:
-                if cmd in {"quit", "exit"}:
-                    break
+            elif cmd == "mcp":
+                # 复用 SMCP 协议的返回结构打印当前配置
+                servers: dict[str, dict] = {}
+                for cfg in comp.mcp_servers:
+                    servers[cfg.name] = json.loads(json.dumps(cfg.model_dump(mode="json")))
+                inputs = [json.loads(json.dumps(i.model_dump(mode="json"))) for i in comp.inputs]
+                _print_mcp_config({"servers": servers, "inputs": inputs})
 
-                elif cmd == "status":
-                    _print_status(comp)
-
-                elif cmd == "tools":
-                    tools = await comp.aget_available_tools()
-                    _print_tools(tools)
-
-                elif cmd == "mcp":
-                    # 复用 SMCP 协议的返回结构打印当前配置
-                    servers: dict[str, dict] = {}
-                    for cfg in comp.mcp_servers:
-                        servers[cfg.name] = json.loads(json.dumps(cfg.model_dump(mode="json")))
-                    inputs = [json.loads(json.dumps(i.model_dump(mode="json"))) for i in comp.inputs]
-                    _print_mcp_config({"servers": servers, "inputs": inputs})
-
-                elif cmd == "server" and len(parts) >= 2:
-                    sub = parts[1].lower()
-                    payload = raw.split(" ", 2)[2] if len(parts) >= 3 else ""
-                    if sub == "add":
-                        # 支持 @file 载入或直接 JSON 字符串
-                        if payload.startswith("@"):
-                            data = json.loads(Path(payload[1:]).read_text(encoding="utf-8"))
-                        else:
-                            data = json.loads(payload)
-                        # 校验为 SMCP 协议定义，再交由 Computer 处理（内部会渲染 inputs）
-                        validated = TypeAdapter(SMCPServerConfigDict).validate_python(data)
-                        await comp.aadd_or_aupdate_server(validated)
-                        console.print("[green]已添加/更新服务器配置 / Added/Updated server config[/green]")
-                        if smcp_client:
-                            await smcp_client.emit_update_mcp_config()
-                    elif sub in {"rm", "remove"}:
-                        if len(parts) < 3:
-                            console.print("[yellow]用法: server rm <name>[/yellow]")
-                        else:
-                            await comp.aremove_server(parts[2])
-                            console.print("[green]已移除配置 / Removed[/green]")
-                            if smcp_client:
-                                await smcp_client.emit_update_mcp_config()
-                    else:
-                        console.print("[yellow]未知的 server 子命令 / Unknown subcommand[/yellow]")
-
-                elif cmd == "start" and len(parts) >= 2:
-                    target = parts[1]
-                    if not comp.mcp_manager:
-                        console.print("[yellow]Manager 未初始化[/yellow]")
-                    else:
-                        if target == "all":
-                            await comp.mcp_manager.astart_all()
-                        else:
-                            await comp.mcp_manager.astart_client(target)
-                        console.print("[green]启动完成 / Started[/green]")
-
-                elif cmd == "stop" and len(parts) >= 2:
-                    target = parts[1]
-                    if not comp.mcp_manager:
-                        console.print("[yellow]Manager 未初始化[/yellow]")
-                    else:
-                        if target == "all":
-                            await comp.mcp_manager.astop_all()
-                        else:
-                            await comp.mcp_manager.astop_client(target)
-                        console.print("[green]停止完成 / Stopped[/green]")
-
-                elif cmd == "inputs" and len(parts) >= 2:
-                    sub = parts[1].lower()
-                    if sub == "load":
-                        if len(parts) < 3 or not parts[2].startswith("@"):
-                            console.print("[yellow]用法: inputs load @file.json[/yellow]")
-                        else:
-                            data = json.loads(Path(parts[2][1:]).read_text(encoding="utf-8"))
-                            raw_items = TypeAdapter(list[SMCPServerInputDict]).validate_python(data)
-                            models = {TypeAdapter(MCPServerInputModel).validate_python(item) for item in raw_items}
-                            comp.update_inputs(models)
-                            console.print("[green]Inputs 已更新 / Inputs updated[/green]")
-                            if smcp_client:
-                                await smcp_client.emit_update_mcp_config()
-                    elif sub == "add":
-                        # 支持 @file 或 单对象 JSON
-                        if len(parts) < 3:
-                            console.print("[yellow]用法: inputs add <json|@file.json>[/yellow]")
-                        else:
-                            payload = raw.split(" ", 2)[2]
-                            if payload.startswith("@"):  # 文件里可为单个或数组
-                                data = json.loads(Path(payload[1:]).read_text(encoding="utf-8"))
-                            else:
-                                data = json.loads(payload)
-                            if isinstance(data, list):
-                                items = TypeAdapter(list[SMCPServerInputDict]).validate_python(data)
-                                for item in items:
-                                    comp.add_or_update_input(TypeAdapter(MCPServerInputModel).validate_python(item))
-                            else:
-                                item = TypeAdapter(SMCPServerInputDict).validate_python(data)
-                                comp.add_or_update_input(TypeAdapter(MCPServerInputModel).validate_python(item))
-                            console.print("[green]Input(s) 已添加/更新 / Added/Updated[/green]")
-                            if smcp_client:
-                                await smcp_client.emit_update_mcp_config()
-                    elif sub in {"update"}:
-                        # 语义与 add 相同，提供同义词
-                        if len(parts) < 3:
-                            console.print("[yellow]用法: inputs update <json|@file.json>[/yellow]")
-                        else:
-                            payload = raw.split(" ", 2)[2]
-                            if payload.startswith("@"):  # 文件里可为单个或数组
-                                data = json.loads(Path(payload[1:]).read_text(encoding="utf-8"))
-                            else:
-                                data = json.loads(payload)
-                            if isinstance(data, list):
-                                items = TypeAdapter(list[SMCPServerInputDict]).validate_python(data)
-                                for item in items:
-                                    comp.add_or_update_input(TypeAdapter(SMCPServerInputDict).validate_python(item))
-                            else:
-                                item = TypeAdapter(SMCPServerInputDict).validate_python(data)
-                                comp.add_or_update_input(item)
-                            console.print("[green]Input(s) 已添加/更新 / Added/Updated[/green]")
-                            if smcp_client:
-                                await smcp_client.emit_update_mcp_config()
-                    elif sub in {"rm", "remove"}:
-                        if len(parts) < 3:
-                            console.print("[yellow]用法: inputs rm <id>[/yellow]")
-                        else:
-                            ok = comp.remove_input(parts[2])
-                            if ok:
-                                console.print("[green]已移除 / Removed[/green]")
-                                if smcp_client:
-                                    await smcp_client.emit_update_mcp_config()
-                            else:
-                                console.print("[yellow]不存在的 id / Not found[/yellow]")
-                    elif sub == "get":
-                        if len(parts) < 3:
-                            console.print("[yellow]用法: inputs get <id>[/yellow]")
-                        else:
-                            item = comp.get_input(parts[2])
-                            if item is None:
-                                console.print("[yellow]不存在的 id / Not found[/yellow]")
-                            else:
-                                console.print_json(data=item.model_dump(mode="json"))
-                    elif sub == "list":
-                        items = [i.model_dump(mode="json") for i in comp.inputs]
-                        console.print_json(data=items)
-                    else:
-                        console.print("[yellow]未知的 inputs 子命令 / Unknown subcommand[/yellow]")
-
-                elif cmd == "socket" and len(parts) >= 2:
-                    sub = parts[1].lower()
-                    if sub == "connect":
-                        if smcp_client and smcp_client.connected:
-                            console.print("[yellow]已连接 / Already connected[/yellow]")
-                        else:
-                            # 若提供了 URL，直接使用；否则进入引导式输入
-                            url: str | None = parts[2] if len(parts) >= 3 else None
-                            if not url:
-                                url = (await session.prompt_async("URL: ")).strip()
-                            if not url:
-                                console.print("[yellow]URL 不能为空 / URL required[/yellow]")
-                                continue
-
-                            auth_str = (await session.prompt_async("Auth (key:value, 可留空): ")).strip() if len(parts) < 3 else ""
-                            headers_str = (await session.prompt_async("Headers (key:value, 可留空): ")).strip() if len(parts) < 3 else ""
-
-                            try:
-                                auth = _parse_kv_pairs(auth_str)
-                                headers = _parse_kv_pairs(headers_str)
-                            except Exception as e:
-                                console.print(f"[red]参数解析失败 / Parse error: {e}[/red]")
-                                continue
-
-                            smcp_client = SMCPComputerClient(computer=comp)
-                            await smcp_client.connect(url, auth=auth, headers=headers)
-                            console.print("[green]已连接 / Connected[/green]")
-                    elif sub == "join":
-                        if not smcp_client or not smcp_client.connected:
-                            console.print("[yellow]请先连接 / Connect first[/yellow]")
-                        elif len(parts) < 4:
-                            console.print("[yellow]用法: socket join <office_id> <computer_name>[/yellow]")
-                        else:
-                            await smcp_client.join_office(parts[2], parts[3])
-                            console.print("[green]已加入房间 / Joined office[/green]")
-                    elif sub == "leave":
-                        if not smcp_client or not smcp_client.connected:
-                            console.print("[yellow]未连接 / Not connected[/yellow]")
-                        elif not smcp_client.office_id:
-                            console.print("[yellow]未加入房间 / Not in any office[/yellow]")
-                        else:
-                            await smcp_client.leave_office(smcp_client.office_id)
-                            console.print("[green]已离开房间 / Left office[/green]")
-                    else:
-                        console.print("[yellow]未知的 socket 子命令 / Unknown subcommand[/yellow]")
-
-                elif cmd == "notify" and len(parts) >= 2:
-                    sub = parts[1].lower()
-                    if sub == "update":
-                        if not smcp_client:
-                            console.print("[yellow]未连接 Socket.IO，已跳过 / Not connected, skip[/yellow]")
-                        else:
-                            await smcp_client.emit_update_mcp_config()
-                            console.print("[green]已触发配置更新通知 / Update notification emitted[/green]")
-                    else:
-                        console.print("[yellow]未知的 notify 子命令 / Unknown subcommand[/yellow]")
-
-                elif cmd == "render":
-                    payload = raw.split(" ", 1)[1] if len(parts) >= 2 else ""
+            elif cmd == "server" and len(parts) >= 2:
+                sub = parts[1].lower()
+                payload = raw.split(" ", 2)[2] if len(parts) >= 3 else ""
+                if sub == "add":
+                    # 支持 @file 载入或直接 JSON 字符串
                     if payload.startswith("@"):
                         data = json.loads(Path(payload[1:]).read_text(encoding="utf-8"))
                     else:
                         data = json.loads(payload)
-                    # 使用 Computer 内的渲染器与解析器
-                    rendered = await comp._config_render.arender(data, lambda x: comp._input_resolver.aresolve_by_id(x))
-                    console.print_json(data=rendered)
-
+                    # 校验为 SMCP 协议定义，再交由 Computer 处理（内部会渲染 inputs）
+                    validated = TypeAdapter(SMCPServerConfigDict).validate_python(data)
+                    await comp.aadd_or_aupdate_server(validated)
+                    console.print("[green]已添加/更新服务器配置 / Added/Updated server config[/green]")
+                    if smcp_client:
+                        await smcp_client.emit_update_mcp_config()
+                elif sub in {"rm", "remove"}:
+                    if len(parts) < 3:
+                        console.print("[yellow]用法: server rm <name>[/yellow]")
+                    else:
+                        await comp.aremove_server(parts[2])
+                        console.print("[green]已移除配置 / Removed[/green]")
+                        if smcp_client:
+                            await smcp_client.emit_update_mcp_config()
                 else:
-                    console.print("[yellow]未知命令 / Unknown command[/yellow]")
-            except Exception as e:  # pragma: no cover
-                console.print(f"[red]执行失败 / Failed: {e}[/red]")
+                    console.print("[yellow]未知的 server 子命令 / Unknown subcommand[/yellow]")
+
+            elif cmd == "start" and len(parts) >= 2:
+                target = parts[1]
+                if not comp.mcp_manager:
+                    console.print("[yellow]Manager 未初始化[/yellow]")
+                else:
+                    if target == "all":
+                        await comp.mcp_manager.astart_all()
+                    else:
+                        await comp.mcp_manager.astart_client(target)
+                    console.print("[green]启动完成 / Started[/green]")
+
+            elif cmd == "stop" and len(parts) >= 2:
+                target = parts[1]
+                if not comp.mcp_manager:
+                    console.print("[yellow]Manager 未初始化[/yellow]")
+                else:
+                    if target == "all":
+                        await comp.mcp_manager.astop_all()
+                    else:
+                        await comp.mcp_manager.astop_client(target)
+                    console.print("[green]停止完成 / Stopped[/green]")
+
+            elif cmd == "inputs" and len(parts) >= 2:
+                sub = parts[1].lower()
+                if sub == "load":
+                    if len(parts) < 3 or not parts[2].startswith("@"):
+                        console.print("[yellow]用法: inputs load @file.json[/yellow]")
+                    else:
+                        data = json.loads(Path(parts[2][1:]).read_text(encoding="utf-8"))
+                        raw_items = TypeAdapter(list[SMCPServerInputDict]).validate_python(data)
+                        models = {TypeAdapter(MCPServerInputModel).validate_python(item) for item in raw_items}
+                        comp.update_inputs(models)
+                        console.print("[green]Inputs 已更新 / Inputs updated[/green]")
+                        if smcp_client:
+                            await smcp_client.emit_update_mcp_config()
+                elif sub == "add":
+                    # 支持 @file 或 单对象 JSON
+                    if len(parts) < 3:
+                        console.print("[yellow]用法: inputs add <json|@file.json>[/yellow]")
+                    else:
+                        payload = raw.split(" ", 2)[2]
+                        if payload.startswith("@"):  # 文件里可为单个或数组
+                            data = json.loads(Path(payload[1:]).read_text(encoding="utf-8"))
+                        else:
+                            data = json.loads(payload)
+                        if isinstance(data, list):
+                            items = TypeAdapter(list[SMCPServerInputDict]).validate_python(data)
+                            for item in items:
+                                comp.add_or_update_input(TypeAdapter(MCPServerInputModel).validate_python(item))
+                        else:
+                            item = TypeAdapter(SMCPServerInputDict).validate_python(data)
+                            comp.add_or_update_input(TypeAdapter(MCPServerInputModel).validate_python(item))
+                        console.print("[green]Input(s) 已添加/更新 / Added/Updated[/green]")
+                        if smcp_client:
+                            await smcp_client.emit_update_mcp_config()
+                elif sub in {"update"}:
+                    # 语义与 add 相同，提供同义词
+                    if len(parts) < 3:
+                        console.print("[yellow]用法: inputs update <json|@file.json>[/yellow]")
+                    else:
+                        payload = raw.split(" ", 2)[2]
+                        if payload.startswith("@"):  # 文件里可为单个或数组
+                            data = json.loads(Path(payload[1:]).read_text(encoding="utf-8"))
+                        else:
+                            data = json.loads(payload)
+                        if isinstance(data, list):
+                            items = TypeAdapter(list[SMCPServerInputDict]).validate_python(data)
+                            for item in items:
+                                comp.add_or_update_input(TypeAdapter(SMCPServerInputDict).validate_python(item))
+                        else:
+                            item = TypeAdapter(SMCPServerInputDict).validate_python(data)
+                            comp.add_or_update_input(item)
+                        console.print("[green]Input(s) 已添加/更新 / Added/Updated[/green]")
+                        if smcp_client:
+                            await smcp_client.emit_update_mcp_config()
+                elif sub in {"rm", "remove"}:
+                    if len(parts) < 3:
+                        console.print("[yellow]用法: inputs rm <id>[/yellow]")
+                    else:
+                        ok = comp.remove_input(parts[2])
+                        if ok:
+                            console.print("[green]已移除 / Removed[/green]")
+                            if smcp_client:
+                                await smcp_client.emit_update_mcp_config()
+                        else:
+                            console.print("[yellow]不存在的 id / Not found[/yellow]")
+                elif sub == "get":
+                    if len(parts) < 3:
+                        console.print("[yellow]用法: inputs get <id>[/yellow]")
+                    else:
+                        item = comp.get_input(parts[2])
+                        if item is None:
+                            console.print("[yellow]不存在的 id / Not found[/yellow]")
+                        else:
+                            console.print_json(data=item.model_dump(mode="json"))
+                elif sub == "list":
+                    items = [i.model_dump(mode="json") for i in comp.inputs]
+                    console.print_json(data=items)
+                else:
+                    console.print("[yellow]未知的 inputs 子命令 / Unknown subcommand[/yellow]")
+
+            elif cmd == "socket" and len(parts) >= 2:
+                sub = parts[1].lower()
+                if sub == "connect":
+                    if smcp_client and smcp_client.connected:
+                        console.print("[yellow]已连接 / Already connected[/yellow]")
+                    else:
+                        # 若提供了 URL，直接使用；否则进入引导式输入
+                        url: str | None = parts[2] if len(parts) >= 3 else None
+                        if not url:
+                            with patch_stdout():
+                                url = (await session.prompt_async("URL: ")).strip()
+                        if not url:
+                            console.print("[yellow]URL 不能为空 / URL required[/yellow]")
+                            continue
+
+                        if len(parts) < 3:
+                            with patch_stdout():
+                                auth_str = (await session.prompt_async("Auth (key:value, 可留空): ")).strip()
+                            with patch_stdout():
+                                headers_str = (await session.prompt_async("Headers (key:value, 可留空): ")).strip()
+                        else:
+                            auth_str = ""
+                            headers_str = ""
+
+                        try:
+                            auth = _parse_kv_pairs(auth_str)
+                            headers = _parse_kv_pairs(headers_str)
+                        except Exception as e:
+                            console.print(f"[red]参数解析失败 / Parse error: {e}[/red]")
+                            continue
+
+                        smcp_client = SMCPComputerClient(computer=comp)
+                        await smcp_client.connect(url, auth=auth, headers=headers)
+                        console.print("[green]已连接 / Connected[/green]")
+                elif sub == "join":
+                    if not smcp_client or not smcp_client.connected:
+                        console.print("[yellow]请先连接 / Connect first[/yellow]")
+                    elif len(parts) < 4:
+                        console.print("[yellow]用法: socket join <office_id> <computer_name>[/yellow]")
+                    else:
+                        await smcp_client.join_office(parts[2], parts[3])
+                        console.print("[green]已加入房间 / Joined office[/green]")
+                elif sub == "leave":
+                    if not smcp_client or not smcp_client.connected:
+                        console.print("[yellow]未连接 / Not connected[/yellow]")
+                    elif not smcp_client.office_id:
+                        console.print("[yellow]未加入房间 / Not in any office[/yellow]")
+                    else:
+                        await smcp_client.leave_office(smcp_client.office_id)
+                        console.print("[green]已离开房间 / Left office[/green]")
+                else:
+                    console.print("[yellow]未知的 socket 子命令 / Unknown subcommand[/yellow]")
+
+            elif cmd == "notify" and len(parts) >= 2:
+                sub = parts[1].lower()
+                if sub == "update":
+                    if not smcp_client:
+                        console.print("[yellow]未连接 Socket.IO，已跳过 / Not connected, skip[/yellow]")
+                    else:
+                        await smcp_client.emit_update_mcp_config()
+                        console.print("[green]已触发配置更新通知 / Update notification emitted[/green]")
+                else:
+                    console.print("[yellow]未知的 notify 子命令 / Unknown subcommand[/yellow]")
+
+            elif cmd == "render":
+                payload = raw.split(" ", 1)[1] if len(parts) >= 2 else ""
+                if payload.startswith("@"):
+                    data = json.loads(Path(payload[1:]).read_text(encoding="utf-8"))
+                else:
+                    data = json.loads(payload)
+                # 使用 Computer 内的渲染器与解析器
+                rendered = await comp._config_render.arender(data, lambda x: comp._input_resolver.aresolve_by_id(x))
+                console.print_json(data=rendered)
+
+            else:
+                console.print("[yellow]未知命令 / Unknown command[/yellow]")
+        except Exception as e:  # pragma: no cover
+            console.print(f"[red]执行失败 / Failed: {e}[/red]")
 
 
 @app.command()

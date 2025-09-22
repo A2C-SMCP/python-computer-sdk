@@ -14,3 +14,10 @@ test = "pytest tests"
 test-cov = "pytest tests --cov a2c_smcp_cc --cov-report=term-missing --cov-fail-under=0 --cov-config=.coveragerc"
 lint = "ruff check --fix ."
 format = "ruff format ."
+
+---
+
+e2e 测试
+
+为保证命令行交互界面的运行成功，需要使用e2e测试，保证一些复杂生产交互用例的成功执行。
+

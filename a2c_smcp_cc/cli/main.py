@@ -165,7 +165,7 @@ async def _interactive_loop(comp: Computer, init_client: SMCPComputerClient | No
         )
     while True:
         try:
-            with patch_stdout():
+            with patch_stdout(raw=True):
                 raw = (await session.prompt_async("a2c> ")).strip()
         except (EOFError, KeyboardInterrupt):
             console.print("\n[cyan]Bye[/cyan]")
@@ -528,6 +528,7 @@ def _run_impl(
                     spath = config[1:] if config.startswith("@") else config
                     data = json.loads(Path(spath).read_text(encoding="utf-8"))
                     # 允许单个对象或数组
+
                     async def _add_server(cfg_obj: dict[str, Any]) -> None:
                         validated = TypeAdapter(SMCPServerConfigDict).validate_python(cfg_obj)
                         await comp.aadd_or_aupdate_server(validated)

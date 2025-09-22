@@ -163,7 +163,7 @@ ncoding": "utf-8", "encoding_error_handler": "strict"}}
 如果要直接在交互式 CLI 中添加，可粘贴为一行：
 
 ```bash
-server add {"name":"playwright-mcp","type":"stdio","disabled":false,"forbidden_tools":[],"tool_meta":{},"server_parameters":{"command":"npx","args":["@playwright/mcp@latest","--port","8931"],"env":null,"cwd":null,"encoding":"utf-8","encoding_error_handler":"strict"}}
+server add {"name":"playwright-mcp","type":"stdio","disabled":false,"forbidden_tools":[],"tool_meta":{},"server_parameters":{"command":"npx","args":["@playwright/mcp@latest"],"env":null,"cwd":null,"encoding":"utf-8","encoding_error_handler":"strict"}}
 ```
 
 3) 启动所有服务，查看状态与工具

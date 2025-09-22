@@ -233,10 +233,24 @@ async def _interactive_loop(comp: Computer, init_client: SMCPComputerClient | No
                         data = json.loads(payload)
                     # 校验为 SMCP 协议定义，再交由 Computer 处理（内部会渲染 inputs）
                     validated = TypeAdapter(SMCPServerConfigDict).validate_python(data)
-                    await comp.aadd_or_aupdate_server(validated)
-                    console.print("[green]已添加/更新服务器配置 / Added/Updated server config[/green]")
-                    if smcp_client:
-                        await smcp_client.emit_update_mcp_config()
+
+                    # 使用 create_task 创建独立协程，避免阻塞交互循环 / Use create_task to avoid blocking interactive loop
+                    async def _add_server_task(c: SMCPServerConfigDict, client: SMCPComputerClient | None) -> None:
+                        # 显式传参以绑定当前值，避免闭包晚绑定问题
+                        # Pass params to bind current values and avoid late-binding in closures
+                        try:
+                            await comp.aadd_or_aupdate_server(c)
+                            console.print("[green]✅ 服务器配置已添加/更新并正在启动 / Server config added/updated and starting[/green]")
+                            if client:
+                                await client.emit_update_mcp_config()
+                        except Exception as e:
+                            console.print(f"[red]❌ 添加/更新服务器失败 / Failed to add/update server: {e}[/red]")
+
+                    # 创建后台任务，不等待完成 / Create background task without waiting
+                    asyncio.create_task(_add_server_task(validated, smcp_client))
+                    console.print(
+                        "[cyan]🚀 服务器配置提交成功，正在后台启动... / Server config submitted, starting in background...[/cyan]"
+                    )
                 elif sub in {"rm", "remove"}:
                     if len(parts) < 3:
                         console.print("[yellow]用法: server rm <name>[/yellow]")
@@ -253,22 +267,44 @@ async def _interactive_loop(comp: Computer, init_client: SMCPComputerClient | No
                 if not comp.mcp_manager:
                     console.print("[yellow]Manager 未初始化[/yellow]")
                 else:
-                    if target == "all":
-                        await comp.mcp_manager.astart_all()
-                    else:
-                        await comp.mcp_manager.astart_client(target)
-                    console.print("[green]启动完成 / Started[/green]")
+                    # 使用 create_task 创建独立协程，避免阻塞交互循环 / Use create_task to avoid blocking interactive loop
+                    async def _start_server_task(t: str) -> None:
+                        # 绑定当前的目标参数，避免闭包晚绑定问题 / Bind current target to avoid late-binding in closure
+                        try:
+                            if t == "all":
+                                await comp.mcp_manager.astart_all()
+                                console.print("[green]✅ 所有服务器启动完成 / All servers started[/green]")
+                            else:
+                                await comp.mcp_manager.astart_client(t)
+                                console.print(f"[green]✅ 服务器 '{t}' 启动完成 / Server '{t}' started[/green]")
+                        except Exception as e:
+                            console.print(f"[red]❌ 启动服务器失败 / Failed to start server: {e}[/red]")
+
+                    # 创建后台任务，不等待完成 / Create background task without waiting
+                    asyncio.create_task(_start_server_task(target))
+                    console.print(f"[cyan]🚀 正在后台启动服务器 '{target}'... / Starting server '{target}' in background...[/cyan]")
 
             elif cmd == "stop" and len(parts) >= 2:
                 target = parts[1]
                 if not comp.mcp_manager:
                     console.print("[yellow]Manager 未初始化[/yellow]")
                 else:
-                    if target == "all":
-                        await comp.mcp_manager.astop_all()
-                    else:
-                        await comp.mcp_manager.astop_client(target)
-                    console.print("[green]停止完成 / Stopped[/green]")
+                    # 使用 create_task 创建独立协程，避免阻塞交互循环 / Use create_task to avoid blocking interactive loop
+                    async def _stop_server_task(t: str) -> None:
+                        # 绑定当前的目标参数，避免闭包晚绑定问题 / Bind current target to avoid late-binding in closure
+                        try:
+                            if t == "all":
+                                await comp.mcp_manager.astop_all()
+                                console.print("[green]✅ 所有服务器停止完成 / All servers stopped[/green]")
+                            else:
+                                await comp.mcp_manager.astop_client(t)
+                                console.print(f"[green]✅ 服务器 '{t}' 停止完成 / Server '{t}' stopped[/green]")
+                        except Exception as e:
+                            console.print(f"[red]❌ 停止服务器失败 / Failed to stop server: {e}[/red]")
+
+                    # 创建后台任务，不等待完成 / Create background task without waiting
+                    asyncio.create_task(_stop_server_task(target))
+                    console.print(f"[cyan]🛑 正在后台停止服务器 '{target}'... / Stopping server '{target}' in background...[/cyan]")
 
             elif cmd == "inputs" and len(parts) >= 2:
                 sub = parts[1].lower()

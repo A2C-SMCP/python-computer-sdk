@@ -67,7 +67,7 @@ async def test_ainput_pick_single_happy_path(monkeypatch):
 
     # silence console printing by replacing console.print with no-op
     monkeypatch.setattr(cli_io, "PromptSession", lambda: DummySession())
-    monkeypatch.setattr(cli_io.console, "print", lambda *a, **k: None)
+    monkeypatch.setattr(cli_io.console_util.console, "print", lambda *a, **k: None)
 
     picked = await ainput_pick("Pick one", ["a", "b", "c"], multi=False)
     assert picked == "b"
@@ -84,7 +84,7 @@ async def test_ainput_pick_multi_with_dedup_and_order(monkeypatch):
     import a2c_smcp_cc.inputs.cli_io as cli_io
 
     monkeypatch.setattr(cli_io, "PromptSession", lambda: DummySession())
-    monkeypatch.setattr(cli_io.console, "print", lambda *a, **k: None)
+    monkeypatch.setattr(cli_io.console_util.console, "print", lambda *a, **k: None)
 
     picked = await ainput_pick("Pick multi", ["a", "b", "c"], multi=True)
     assert picked == ["c", "a"]
@@ -105,7 +105,7 @@ async def test_ainput_pick_default_on_interrupt_and_empty(monkeypatch):
     import a2c_smcp_cc.inputs.cli_io as cli_io
 
     monkeypatch.setattr(cli_io, "PromptSession", lambda: DummySession())
-    monkeypatch.setattr(cli_io.console, "print", lambda *a, **k: None)
+    monkeypatch.setattr(cli_io.console_util.console, "print", lambda *a, **k: None)
 
     picked = await ainput_pick("Pick one", ["a", "b"], default_index=1, multi=False)
     assert picked == "b"

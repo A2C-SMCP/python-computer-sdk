@@ -133,16 +133,7 @@ class MCPServerManager:
             backup_config = copy.deepcopy(self._servers_config)
             try:
                 await self._add_or_update_server_config(config)
-
-                # 在后台刷新工具映射，避免阻塞交互式 CLI
-
-                async def _bg_refresh() -> None:
-                    try:
-                        await self._arefresh_tool_mapping()
-                    except ToolNameDuplicatedError as e:
-                        logger.error(f"Tool mapping refresh failed: {e}")
-
-                asyncio.create_task(_bg_refresh())
+                await self._arefresh_tool_mapping()
             except ToolNameDuplicatedError as e:
                 self._servers_config = backup_config
                 raise e
@@ -153,8 +144,7 @@ class MCPServerManager:
             if server_name in self._active_clients:
                 await self._astop_client(server_name)
             del self._servers_config[server_name]
-            # 后台刷新，避免阻塞
-            asyncio.create_task(self._arefresh_tool_mapping())
+            await self._arefresh_tool_mapping()
 
     async def _arestart_server(self, server_name: str) -> None:
         """
@@ -211,20 +201,12 @@ class MCPServerManager:
         client = client_factory(config)
         await client.aconnect()
         self._active_clients[server_name] = client
-        # 在后台刷新工具映射，避免在交互命令中因为 list_tools 耗时过长而阻塞
-
-        async def _bg_refresh_on_start() -> None:
-            try:
-                await self._arefresh_tool_mapping()
-            except ToolNameDuplicatedError as e:
-                # 回滚当前启动的客户端并报告错误
-                logger.error(f"Tool mapping duplicated after starting '{server_name}': {e}")
-                try:
-                    await client.adisconnect()
-                finally:
-                    self._active_clients.pop(server_name, None)
-
-        asyncio.create_task(_bg_refresh_on_start())
+        try:
+            await self._arefresh_tool_mapping()
+        except ToolNameDuplicatedError as e:
+            await client.adisconnect()
+            del self._active_clients[server_name]
+            raise e
 
     async def astop_client(self, server_name: str) -> None:
         """停止单个服务器客户端"""

@@ -2,7 +2,7 @@
 文件名: main.py
 作者: JQQ
 创建日期: 2025/9/18
-最后修改日期: 2025/9/18
+最后修改日期: 2025/9/22
 版权: 2023 JQQ. All rights reserved.
 依赖: typer, rich, prompt_toolkit
 描述:
@@ -167,7 +167,11 @@ async def _interactive_loop(comp: Computer, init_client: SMCPComputerClient | No
             console.print("\n[cyan]Bye[/cyan]")
             break
 
-        if raw == "" or raw.lower() in {"help", "?"}:
+        if raw == "":
+            # 空输入直接跳过；不显示帮助 / Ignore empty input; do nothing
+            continue
+
+        if raw.lower() in {"help", "?"}:
             # 使用 Rich Table 美化帮助信息
             help_table = Table(
                 title="可用命令 / Commands",

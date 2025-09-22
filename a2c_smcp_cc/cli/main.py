@@ -140,12 +140,16 @@ def _root(
         console = console_util.console
 
     if ctx.invoked_subcommand is None:
-        run(
+        # 注意：不要直接调用被 @app.command 装饰的 run()，否则未传入的参数会保留 OptionInfo 默认值
+        # 这里改为调用纯实现函数 _run_impl，并显式传入 config=None 与 inputs=None。
+        _run_impl(
             auto_connect=auto_connect,
             auto_reconnect=auto_reconnect,
             url=url,
             auth=auth,
             headers=headers,
+            config=None,
+            inputs=None,
         )
 
 
@@ -469,17 +473,19 @@ async def _interactive_loop(comp: Computer, init_client: SMCPComputerClient | No
             console.print(f"[red]执行失败 / Failed: {e}[/red]")
 
 
-@app.command()
-def run(
-    auto_connect: bool = typer.Option(True, help="是否自动连接 / Auto connect"),
-    auto_reconnect: bool = typer.Option(True, help="是否自动重连 / Auto reconnect"),
-    url: str | None = typer.Option(None, help="Socket.IO 服务器URL，例如 https://host:port"),
-    auth: str | None = typer.Option(None, help="认证参数，形如 key:value,foo:bar"),
-    headers: str | None = typer.Option(None, help="请求头参数，形如 key:value,foo:bar"),
+def _run_impl(
+    *,
+    auto_connect: bool,
+    auto_reconnect: bool,
+    url: str | None,
+    auth: str | None,
+    headers: str | None,
+    config: str | None,
+    inputs: str | None,
 ) -> None:
     """
-    中文: 启动计算机并进入持续运行模式。后续将支持从配置文件加载 servers 与 inputs。
-    English: Boot the computer and enter persistent loop. Config-file loading will be added later.
+    纯实现函数：不要在此处使用 Typer 的 Option 默认值，避免 OptionInfo 泄露到运行时。
+    Both CLI (@app.command) 与回调 (@app.callback) 在需要时调用本函数。
     """
 
     async def _amain() -> None:
@@ -499,9 +505,80 @@ def run(
                 await init_client.connect(url, auth=auth_dict, headers=headers_dict)
                 console.print("[green]已通过启动参数连接到 Socket.IO / Connected via CLI options[/green]")
 
+            # 启动参数加载 inputs 与 servers 配置
+            # Load inputs first (so that servers config rendering can use them if needed later via interactive commands)
+            if inputs:
+                try:
+                    ipath = inputs[1:] if inputs.startswith("@") else inputs
+                    data = json.loads(Path(ipath).read_text(encoding="utf-8"))
+                    # 允许单个对象或数组
+                    if isinstance(data, list):
+                        raw_items = TypeAdapter(list[SMCPServerInputDict]).validate_python(data)
+                        models = {TypeAdapter(MCPServerInputModel).validate_python(item) for item in raw_items}
+                        comp.update_inputs(models)
+                    else:
+                        item = TypeAdapter(SMCPServerInputDict).validate_python(data)
+                        comp.add_or_update_input(TypeAdapter(MCPServerInputModel).validate_python(item))
+                    console.print("[green]已加载 Inputs 配置 / Inputs loaded[/green]")
+                except Exception as e:  # pragma: no cover
+                    console.print(f"[red]加载 Inputs 失败 / Failed to load inputs: {e}[/red]")
+
+            if config:
+                try:
+                    spath = config[1:] if config.startswith("@") else config
+                    data = json.loads(Path(spath).read_text(encoding="utf-8"))
+                    # 允许单个对象或数组
+                    async def _add_server(cfg_obj: dict[str, Any]) -> None:
+                        validated = TypeAdapter(SMCPServerConfigDict).validate_python(cfg_obj)
+                        await comp.aadd_or_aupdate_server(validated)
+
+                    if isinstance(data, list):
+                        for cfg in data:
+                            await _add_server(cfg)
+                    else:
+                        await _add_server(data)
+                    console.print("[green]已加载 Servers 配置 / Servers loaded[/green]")
+                except Exception as e:  # pragma: no cover
+                    console.print(f"[red]加载 Servers 失败 / Failed to load servers: {e}[/red]")
+
             await _interactive_loop(comp, init_client=init_client)
 
     asyncio.run(_amain())
+
+
+@app.command()
+def run(
+    auto_connect: bool = typer.Option(True, help="是否自动连接 / Auto connect"),
+    auto_reconnect: bool = typer.Option(True, help="是否自动重连 / Auto reconnect"),
+    url: str | None = typer.Option(None, help="Socket.IO 服务器URL，例如 https://host:port"),
+    auth: str | None = typer.Option(None, help="认证参数，形如 key:value,foo:bar"),
+    headers: str | None = typer.Option(None, help="请求头参数，形如 key:value,foo:bar"),
+    config: str | None = typer.Option(
+        None,
+        "--config",
+        "-c",
+        help="在启动时从文件加载 MCP Servers 配置（支持 @file 语法或直接文件路径） / Load MCP Servers from file at startup",
+    ),
+    inputs: str | None = typer.Option(
+        None,
+        "--inputs",
+        "-i",
+        help="在启动时从文件加载 Inputs 定义（支持 @file 语法或直接文件路径） / Load Inputs from file at startup",
+    ),
+) -> None:
+    """
+    中文: 启动计算机并进入持续运行模式。后续将支持从配置文件加载 servers 与 inputs。
+    English: Boot the computer and enter persistent loop. Config-file loading will be added later.
+    """
+    _run_impl(
+        auto_connect=auto_connect,
+        auto_reconnect=auto_reconnect,
+        url=url,
+        auth=auth,
+        headers=headers,
+        config=config,
+        inputs=inputs,
+    )
 
 
 # 为 console_scripts 兼容提供入口

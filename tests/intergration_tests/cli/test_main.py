@@ -63,7 +63,7 @@ async def test_cli_with_real_stdio(stdio_params: StdioServerParameters) -> None:
     cli_main.PromptSession = lambda: FakePromptSession(commands)  # type: ignore
     cli_main.patch_stdout = lambda: no_patch_stdout()  # type: ignore
 
-    comp = Computer(inputs=[], mcp_servers=set(), auto_connect=False, auto_reconnect=False)
+    comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
 
     await _interactive_loop(comp)
 
@@ -99,7 +99,7 @@ async def test_cli_socket_connect_guided_inputs_without_real_network(monkeypatch
     cli_main.PromptSession = lambda: FakePromptSession(commands)  # type: ignore
     cli_main.patch_stdout = lambda: no_patch_stdout()  # type: ignore
 
-    comp = Computer(inputs=[], mcp_servers=set(), auto_connect=False, auto_reconnect=False)
+    comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
     await _interactive_loop(comp)
 
     last: FakeSMCPClient = FakeSMCPClient.last  # type: ignore[assignment]

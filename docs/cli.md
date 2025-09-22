@@ -136,8 +136,7 @@ server add @./server_stdio.json
 # 或直接输入 JSON 字符串
 server add {"name":"my-stdio-server","type":"stdio","disabled":false,"forbidden_tools":[],"tool_meta":{},"server_parameters":{"command":"my_mcp_server","args":[],"env":null,"cwd":null,"encoding":"utf-8","encoding_error_handler":"strict"}}
 # 或者使用这个测试用例
-server add {"name": "e2e-test", "type": "stdio", "disabled": false, "forbidden_tools": [], "tool_meta": {}, "server_parameters": {"command": "python", "args": ["tests/intergration_tests/mcp_servers/direct_execution.py"], "env": null, "cwd": null, "e
-ncoding": "utf-8", "encoding_error_handler": "strict"}}
+server add {"name": "e2e-test", "type": "stdio", "disabled": false, "forbidden_tools": [], "tool_meta": {}, "server_parameters": {"command": "python", "args": ["tests/intergration_tests/mcp_servers/direct_execution.py"], "env": null, "cwd": null, "encoding": "utf-8", "encoding_error_handler": "strict"}}
 ```
 
 针对通过 npx 启动 Playwright MCP（端口 8931）的 stdio 配置示例：

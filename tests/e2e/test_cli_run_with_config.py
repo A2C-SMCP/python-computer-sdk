@@ -42,7 +42,11 @@ def _spawn_cli_with_args(*extra_args: str):
             "run",
             *extra_args,
         ]
-    child = pexpect.spawn(args[0], args[1:], env=env, encoding="utf-8", timeout=25)
+    # 计算与设置工作目录 / Compute and set working directory
+    # 默认将工作目录设置为项目根目录（本文件位于 tests/e2e/conftest.py，向上两级即为项目根）
+    # By default, set cwd to project root (this file lives at tests/e2e/conftest.py; go up two levels)
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    child = pexpect.spawn(args[0], args[1:], env=env, encoding="utf-8", timeout=25, cwd=project_root)
     try:
         child.setwinsize(24, 120)
     except Exception:

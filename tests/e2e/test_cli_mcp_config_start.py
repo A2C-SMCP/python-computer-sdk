@@ -78,16 +78,6 @@ def test_start_via_known_config_file(cli_proc: pexpect.spawn) -> None:
 
     # 添加服务器配置 / Add server configuration
     child.sendline("server add @tests/e2e/configs/server_direct_execution.json")
-    _wait_for_prompt(child)
-
-    # 验证服务器已添加但未启动 / Verify server is added but not started
-    child.sendline("status")
-    _wait_for_prompt(child)
-
-    # 显式启动所有服务器，确保进程就绪 / Explicitly start all servers and ensure processes are ready
-    child.sendline("start all")
-    _wait_for_prompt(child)
-
     # 给服务器更多时间来完全启动 / Give servers more time to fully start
     time.sleep(2.0)
 

@@ -402,16 +402,16 @@ async def _interactive_loop(comp: Computer, init_client: SMCPComputerClient | No
                         # 若提供了 URL，直接使用；否则进入引导式输入
                         url: str | None = parts[2] if len(parts) >= 3 else None
                         if not url:
-                            with patch_stdout():
+                            with patch_stdout(raw=True):
                                 url = (await session.prompt_async("URL: ")).strip()
                         if not url:
                             console.print("[yellow]URL 不能为空 / URL required[/yellow]")
                             continue
 
                         if len(parts) < 3:
-                            with patch_stdout():
+                            with patch_stdout(raw=True):
                                 auth_str = (await session.prompt_async("Auth (key:value, 可留空): ")).strip()
-                            with patch_stdout():
+                            with patch_stdout(raw=True):
                                 headers_str = (await session.prompt_async("Headers (key:value, 可留空): ")).strip()
                         else:
                             auth_str = ""

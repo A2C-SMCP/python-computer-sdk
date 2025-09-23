@@ -41,7 +41,7 @@ async def test_interactive_help_and_exit(monkeypatch: pytest.MonkeyPatch) -> Non
         "exit",
     ]
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
-    monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
+    monkeypatch.setattr(cli_main, "patch_stdout", lambda raw: no_patch_stdout())
 
     comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
     await _interactive_loop(comp)
@@ -71,7 +71,7 @@ async def test_inputs_cli_crud_commands(monkeypatch: pytest.MonkeyPatch) -> None
     ]
 
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
-    monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
+    monkeypatch.setattr(cli_main, "patch_stdout", lambda raw: no_patch_stdout())
 
     comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
     await _interactive_loop(comp)
@@ -98,7 +98,7 @@ async def test_socket_connect_guided_inputs_parsing(monkeypatch: pytest.MonkeyPa
     ]
 
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
-    monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
+    monkeypatch.setattr(cli_main, "patch_stdout", lambda raw: no_patch_stdout())
 
     comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
     await _interactive_loop(comp)
@@ -123,7 +123,7 @@ def test_run_with_cli_url_auth_headers(monkeypatch: pytest.MonkeyPatch) -> None:
         "exit",
     ]
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
-    monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
+    monkeypatch.setattr(cli_main, "patch_stdout", lambda raw: no_patch_stdout())
 
     # 调用同步的 run()，其内部使用 asyncio.run() 执行
     cli_main.run(
@@ -170,7 +170,7 @@ async def test_server_add_and_status_without_auto_connect(monkeypatch: pytest.Mo
     ]
 
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
-    monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
+    monkeypatch.setattr(cli_main, "patch_stdout", lambda raw: no_patch_stdout())
 
     comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
     await _interactive_loop(comp)
@@ -184,7 +184,7 @@ async def test_unknown_and_status_manager_uninitialized(monkeypatch: pytest.Monk
         "exit",
     ]
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
-    monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
+    monkeypatch.setattr(cli_main, "patch_stdout", lambda raw: no_patch_stdout())
 
     comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
     await _interactive_loop(comp)
@@ -198,7 +198,7 @@ async def test_server_rm_without_name_and_add_invalid_json(monkeypatch: pytest.M
         "exit",
     ]
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
-    monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
+    monkeypatch.setattr(cli_main, "patch_stdout", lambda raw: no_patch_stdout())
 
     comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
     await _interactive_loop(comp)
@@ -215,7 +215,7 @@ async def test_start_stop_all_with_manager_initialized(monkeypatch: pytest.Monke
         "exit",
     ]
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
-    monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
+    monkeypatch.setattr(cli_main, "patch_stdout", lambda raw: no_patch_stdout())
 
     await _interactive_loop(comp)
 
@@ -243,7 +243,7 @@ async def test_inputs_load_and_render(tmp_path: Path, monkeypatch: pytest.Monkey
     ]
 
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
-    monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
+    monkeypatch.setattr(cli_main, "patch_stdout", lambda raw: no_patch_stdout())
 
     comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
     await _interactive_loop(comp)
@@ -290,7 +290,7 @@ async def test_socket_and_notify_branches(monkeypatch: pytest.MonkeyPatch) -> No
     ]
 
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
-    monkeypatch.setattr(cli_main, "patch_stdout", lambda: no_patch_stdout())
+    monkeypatch.setattr(cli_main, "patch_stdout", lambda raw: no_patch_stdout())
 
     comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
     await _interactive_loop(comp)

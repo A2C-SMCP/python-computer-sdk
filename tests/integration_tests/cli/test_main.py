@@ -61,7 +61,7 @@ async def test_cli_with_real_stdio(stdio_params: StdioServerParameters) -> None:
 
     # Patch interactive IO
     cli_main.PromptSession = lambda: FakePromptSession(commands)  # type: ignore
-    cli_main.patch_stdout = lambda: no_patch_stdout()  # type: ignore
+    cli_main.patch_stdout = lambda raw: no_patch_stdout()  # type: ignore
 
     comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
 
@@ -97,7 +97,7 @@ async def test_cli_socket_connect_guided_inputs_without_real_network(monkeypatch
 
     # Patch interactive IO
     cli_main.PromptSession = lambda: FakePromptSession(commands)  # type: ignore
-    cli_main.patch_stdout = lambda: no_patch_stdout()  # type: ignore
+    cli_main.patch_stdout = lambda raw: no_patch_stdout()  # type: ignore
 
     comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
     await _interactive_loop(comp)

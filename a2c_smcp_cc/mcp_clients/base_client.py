@@ -5,7 +5,6 @@
 # @Email   : jqq1716@gmail.com
 # @Software: PyCharm
 import asyncio
-import os
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from contextlib import AsyncExitStack
@@ -107,12 +106,6 @@ class BaseMCPClient(ABC):
         self._create_session_success_event = asyncio.Event()
         self._create_session_failure_event = asyncio.Event()
         self._async_session_closed_event = asyncio.Event()
-        # 连接与会话创建的超时时间（秒）。允许通过环境变量 A2C_MCP_CONNECT_TIMEOUT 覆盖，默认 8 秒
-        self._connect_timeout: float
-        try:
-            self._connect_timeout = float(os.getenv("A2C_MCP_CONNECT_TIMEOUT", "8"))
-        except Exception:
-            self._connect_timeout = 8.0
 
         # 初始化异步状态机
         self.machine = A2CAsyncMachine(
@@ -180,8 +173,8 @@ class BaseMCPClient(ABC):
         """
         logger.debug(f"Session keep-alive task: {asyncio.current_task().get_name()}")
         try:
-            # 创建异步会话，同时完成上下文的压栈（增加超时防护，避免因服务端未按预期握手导致永久等待）
-            self._async_session = await asyncio.wait_for(self._create_async_session(), timeout=self._connect_timeout)
+            # 创建异步会话，同时完成上下文的压栈
+            self._async_session = await self._create_async_session()
             # 通知创建成功
             self._create_session_success_event.set()
             # 持续等待关闭信息
@@ -191,12 +184,6 @@ class BaseMCPClient(ABC):
             except asyncio.CancelledError:
                 # 任务被取消，完成上下文
                 logger.debug(f"Session keep-alive task cancelled: {asyncio.current_task().get_name()}")
-        except TimeoutError:
-            logger.error(
-                f"Session keep-alive task timeout when creating session after {self._connect_timeout}s: {asyncio.current_task().get_name()}"
-            )
-            self._create_session_failure_event.set()
-            await self.aerror()
         except Exception as e:
             logger.error(f"Session keep-alive task error: {asyncio.current_task().get_name()}: {e}")
             self._create_session_failure_event.set()
@@ -227,13 +214,8 @@ class BaseMCPClient(ABC):
         """进入已连接状态（可重写）"""
         logger.debug(f"Entering connected state with event: {event}\n\nserver params: {self.params}")
         self._session_keep_alive_task = asyncio.create_task(self._keep_alive_task())
-        # 等待会话创建成功，添加超时避免无限等待
-        try:
-            await asyncio.wait_for(self._create_session_success_event.wait(), timeout=self._connect_timeout)
-        except TimeoutError:
-            logger.error(f"Waiting for session creation timed out after {self._connect_timeout}s")
-            await self.aerror()
-            return
+        # 等待会话创建成功
+        await self._create_session_success_event.wait()
         # 初始化client_session
         await (await self.async_session).initialize()
 

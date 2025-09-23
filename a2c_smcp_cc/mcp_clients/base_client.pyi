@@ -25,15 +25,19 @@ from transitions.extensions.asyncio import AsyncMachine, AsyncTransitionConfigDi
 from a2c_smcp_cc.utils.async_property import async_property
 from a2c_smcp_cc.utils.logger import logger as logger
 
+
 class STATES(StrEnum):
     initialized = "initialized"
     connected = "connected"
     disconnected = "disconnected"
     error = "error"
 
+
 TRANSITIONS: list[AsyncTransitionConfigDict]
 
+
 class A2CAsyncMachine(AsyncMachine): ...
+
 
 class BaseMCPClient(ABC):
     params: BaseModel
@@ -45,7 +49,6 @@ class BaseMCPClient(ABC):
     _create_session_success_event: asyncio.Event
     _create_session_failure_event: asyncio.Event
     _async_session_closed_event: asyncio.Event
-    _connect_timeout: float
     state: STATES
 
     def __init__(self, params: BaseModel, state_change_callback: Callable[[str, str], None | Awaitable[None]] = None) -> None: ...

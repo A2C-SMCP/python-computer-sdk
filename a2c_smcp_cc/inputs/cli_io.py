@@ -23,20 +23,33 @@ from rich.table import Table
 from a2c_smcp_cc.utils import console as console_util
 
 
-async def ainput_prompt(message: str, *, password: bool = False, default: str | None = None) -> str:
+async def ainput_prompt(
+    message: str,
+    *,
+    password: bool = False,
+    default: str | None = None,
+    session: PromptSession | None = None,
+) -> str:
     """
     中文: 提示用户输入字符串；当 password=True 时进行掩码输入。
     English: Prompt user for a string input; when password=True, mask the input.
     """
-    session = PromptSession()
-    # 中文: 为避免与交互命令提示符 `a2c>` 同行导致光标错位，这里强制在新行开始用户输入提示。
-    # English: To avoid cursor misalignment with the interactive 'a2c>' prompt, start input on a fresh line.
-    prompt_text = "\n" + f"{message} " + (f"[default: {repr(default)}] " if default is not None else "")
-    # 中文: 使用 raw 模式减少 prompt_toolkit 与上层输出的干扰。
-    # English: Use raw mode to reduce interference with upper-level outputs.
-    with patch_stdout(raw=True):
+    sess = session or PromptSession()
+    prompt_text = f"{message} " + (f"[default: {repr(default)}] " if default is not None else "")
+    # 中文: 若未提供 session，说明在交互循环外部调用，为避免与 a2c> 冲突，强制换行并启用 raw。
+    # English: If no session provided (outside interactive loop), start on a new line and enable raw to avoid conflicts.
+    if session is None:
+        prompt_text = "\n" + prompt_text
+        with patch_stdout(raw=True):
+            try:
+                value = await sess.prompt_async(prompt_text, is_password=password)
+            except (EOFError, KeyboardInterrupt):
+                return default or ""
+    else:
+        # 中文: 复用交互循环的 session，不额外换行；由外层 prompt_toolkit 负责正确重绘与光标管理。
+        # English: Reuse interactive loop session; no extra newline; rely on outer prompt_toolkit for redraw/cursor.
         try:
-            value = await session.prompt_async(prompt_text, is_password=password)
+            value = await sess.prompt_async(prompt_text, is_password=password)
         except (EOFError, KeyboardInterrupt):
             return default or ""
     if value == "" and default is not None:
@@ -50,6 +63,7 @@ async def ainput_pick(
     *,
     default_index: int | None = None,
     multi: bool = False,
+    session: PromptSession | None = None,
 ) -> None | list[str] | str | list[Any]:
     """
     中文: 让用户以序号选择一个或多个字符串。
@@ -69,17 +83,14 @@ async def ainput_pick(
     if default_index is not None and 0 <= default_index < len(options):
         tip += f"（默认: {default_index}）"
 
-    session = PromptSession()
+    sess = session or PromptSession()
     while True:
-        # 中文: 与 ainput_prompt 相同，强制换行并启用 raw 模式，避免与 `a2c>` 同行。
-        # English: Same as ainput_prompt: force newline and raw mode to avoid sharing line with 'a2c>'.
-        with patch_stdout(raw=True):
-            try:
-                raw = await session.prompt_async("\n" + f"{tip}: ")
-            except (EOFError, KeyboardInterrupt):
-                if default_index is not None and 0 <= default_index < len(options):
-                    return [options[default_index]] if multi else options[default_index]
-                return [] if multi else ""
+        try:
+            raw = await sess.prompt_async(f"{tip}: ")
+        except (EOFError, KeyboardInterrupt):
+            if default_index is not None and 0 <= default_index < len(options):
+                return [options[default_index]] if multi else options[default_index]
+            return [] if multi else ""
 
         raw = raw.strip()
         if raw == "" and default_index is not None and 0 <= default_index < len(options):

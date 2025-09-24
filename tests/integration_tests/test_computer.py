@@ -12,6 +12,7 @@ Integration test: Computer.aexecute_tool tool execution
 from unittest.mock import MagicMock
 
 import pytest
+from prompt_toolkit import PromptSession
 
 from a2c_smcp_cc.computer import Computer
 from a2c_smcp_cc.mcp_clients.model import SseServerConfig, StdioServerConfig, ToolMeta
@@ -70,7 +71,7 @@ class _DictResolver:
     def __init__(self, mapping: dict[str, object]):
         self._m = mapping
 
-    async def aresolve_by_id(self, input_id: str):  # noqa: D401
+    async def aresolve_by_id(self, input_id: str, *, session: PromptSession | None = None):  # noqa: D401
         return self._m[input_id]
 
     def clear_cache(self, key: str | None = None):  # noqa: D401
@@ -106,11 +107,13 @@ async def test_dynamic_add_with_inputs_and_tool_call(stdio_params) -> None:
     }
 
     # 提供解析器，返回与 fixture 相符的值
-    resolver = _DictResolver({
-        "cmd": cmd,
-        "arg0": args[0] if args else "",
-        "arg1": args[1] if len(args) > 1 else "",
-    })
+    resolver = _DictResolver(
+        {
+            "cmd": cmd,
+            "arg0": args[0] if args else "",
+            "arg1": args[1] if len(args) > 1 else "",
+        }
+    )
 
     # 初始化 Computer（auto_connect=true 便于动态添加后立即连接）
     computer = Computer(auto_connect=True, input_resolver=resolver)

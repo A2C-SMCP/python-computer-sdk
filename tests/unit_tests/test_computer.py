@@ -10,6 +10,7 @@ import pytest
 from mcp import Tool
 from mcp.types import ToolAnnotations
 from polyfactory.factories.pydantic_factory import ModelFactory
+from prompt_toolkit import PromptSession
 from pydantic import ValidationError
 
 from a2c_smcp_cc.computer import Computer
@@ -324,7 +325,7 @@ class DummyResolver(InputResolver):
     def clear_cache(self, key: str | None = None) -> None:  # pragma: no cover - only used in update_inputs case
         self.cleared = True
 
-    async def aresolve_by_id(self, input_id: str):
+    async def aresolve_by_id(self, input_id: str, *, session: PromptSession | None = None):
         return self.mapping[input_id]
 
 

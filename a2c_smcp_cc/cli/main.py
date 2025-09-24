@@ -249,23 +249,15 @@ async def _interactive_loop(comp: Computer, init_client: SMCPComputerClient | No
                     # 校验为 SMCP 协议定义，再交由 Computer 处理（内部会渲染 inputs）
                     validated = TypeAdapter(SMCPServerConfigDict).validate_python(data)
 
-                    # 使用 create_task 创建独立协程，避免阻塞交互循环 / Use create_task to avoid blocking interactive loop
-                    async def _add_server_task(c: SMCPServerConfigDict, client: SMCPComputerClient | None) -> None:
-                        # 显式传参以绑定当前值，避免闭包晚绑定问题
-                        # Pass params to bind current values and avoid late-binding in closures
-                        try:
-                            await comp.aadd_or_aupdate_server(c)
-                            console.print("[green]✅ 服务器配置已添加/更新并正在启动 / Server config added/updated and starting[/green]")
-                            if client:
-                                await client.emit_update_mcp_config()
-                        except Exception as e:
-                            console.print(f"[red]❌ 添加/更新服务器失败 / Failed to add/update server: {e}[/red]")
-
-                    # 创建后台任务，不等待完成 / Create background task without waiting
-                    asyncio.create_task(_add_server_task(validated, smcp_client))
-                    console.print(
-                        "[cyan]🚀 服务器配置提交成功，正在后台启动... / Server config submitted, starting in background...[/cyan]"
-                    )
+                    # 中文: 直接复用当前 PromptSession 进行 inputs 解析，避免与 a2c> 提示符冲突
+                    # English: Reuse current PromptSession for inputs resolution to avoid conflict with 'a2c>' prompt
+                    try:
+                        await comp.aadd_or_aupdate_server(validated, session=session)
+                        console.print("[green]✅ 服务器配置已添加/更新并正在启动 / Server config added/updated and starting[/green]")
+                        if smcp_client:
+                            await smcp_client.emit_update_mcp_config()
+                    except Exception as e:
+                        console.print(f"[red]❌ 添加/更新服务器失败 / Failed to add/update server: {e}[/red]")
                 elif sub in {"rm", "remove"}:
                     if len(parts) < 3:
                         console.print("[yellow]用法: server rm <name>[/yellow]")
@@ -524,7 +516,10 @@ async def _interactive_loop(comp: Computer, init_client: SMCPComputerClient | No
                 else:
                     data = json.loads(payload)
                 # 使用 Computer 内的渲染器与解析器
-                rendered = await comp._config_render.arender(data, lambda x: comp._input_resolver.aresolve_by_id(x))
+                rendered = await comp._config_render.arender(
+                    data,
+                    lambda x: comp._input_resolver.aresolve_by_id(x, session=session),
+                )
                 console.print_json(data=rendered)
 
             else:

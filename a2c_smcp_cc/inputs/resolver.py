@@ -15,6 +15,9 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
+from prompt_toolkit import PromptSession
+
+from a2c_smcp_cc.inputs.base import BaseInputResolver
 from a2c_smcp_cc.inputs.cli_io import ainput_pick, ainput_prompt, arun_command
 from a2c_smcp_cc.mcp_clients.model import (
     MCPServerCommandInput,
@@ -29,67 +32,34 @@ class InputNotFoundError(KeyError):
     pass
 
 
-class InputResolver:
+class InputResolver(BaseInputResolver[PromptSession]):
     """
     中文: 输入解析器，支持基于 id 的惰性解析与结果缓存。
     English: Input resolver with lazy per-id resolution and result cache.
     """
 
-    def __init__(self, inputs: Iterable[MCPServerInput]) -> None:
-        self._inputs = {i.id: i for i in inputs}
-        self._cache: dict[str, Any] = {}
+    def __init__(self, inputs: Iterable[MCPServerInput], session: PromptSession | None = None) -> None:
+        """
+        中文: CLI 特化的输入解析器，支持可选的 PromptSession 注入。
+        English: CLI-specialized input resolver with optional PromptSession injection.
+        """
+        super().__init__(inputs, session=session)
 
-    def clear_cache(self, key: str | None = None) -> None:
-        if key is None:
-            self._cache.clear()
-        else:
-            self._cache.pop(key, None)
-
-    def get_cached_value(self, input_id: str) -> Any | None:
-        """
-        中文: 获取指定 id 的已解析缓存值；不存在时返回 None。
-        English: Get cached value of given id; return None if not present.
-        """
-        return self._cache.get(input_id)
-
-    def set_cached_value(self, input_id: str, value: Any) -> bool:
-        """
-        中文: 设置指定 id 的缓存值；仅当该 id 在 inputs 定义中存在时生效，返回是否成功。
-        English: Set cached value for given id; only works if id exists in inputs. Returns success flag.
-        """
-        if input_id not in self._inputs:
-            return False
-        self._cache[input_id] = value
-        return True
-
-    def delete_cached_value(self, input_id: str) -> bool:
-        """
-        中文: 删除指定 id 的缓存值，返回是否删除发生。
-        English: Delete cached value for given id, returns whether deletion happened.
-        """
-        if input_id in self._cache:
-            self._cache.pop(input_id, None)
-            return True
-        return False
-
-    def list_cached_values(self) -> dict[str, Any]:
-        """
-        中文: 返回当前所有 inputs 的缓存值快照（浅拷贝）。
-        English: Return a snapshot (shallow copy) of all cached input values.
-        """
-        return dict(self._cache)
-
-    async def aresolve_by_id(self, input_id: str) -> Any:
+    async def aresolve_by_id(self, input_id: str, *, session: PromptSession | None = None) -> Any:
         if input_id in self._cache:
             return self._cache[input_id]
         cfg = self._inputs.get(input_id)
         if not cfg:
             raise InputNotFoundError(input_id)
 
+        # 优先使用调用时传入的 session，其次使用初始化指定的 self.session
+        # Prefer provided session; fallback to self.session
+        sess = session or self.session
+
         if isinstance(cfg, MCPServerPromptStringInput):
-            value = await self._aresolve_prompt(cfg)
+            value = await self._aresolve_prompt(cfg, session=sess)
         elif isinstance(cfg, MCPServerPickStringInput):
-            value = await self._aresolve_pick(cfg)
+            value = await self._aresolve_pick(cfg, session=sess)
         elif isinstance(cfg, MCPServerCommandInput):
             value = await self._aresolve_command(cfg)
         else:  # pragma: no cover
@@ -99,18 +69,18 @@ class InputResolver:
         self._cache[input_id] = value
         return value
 
-    async def _aresolve_prompt(self, cfg: MCPServerPromptStringInput) -> str:
+    async def _aresolve_prompt(self, cfg: MCPServerPromptStringInput, *, session: PromptSession | None = None) -> str:
         msg = cfg.description or f"请输入 {cfg.id} / Please input {cfg.id}"
         pwd = bool(cfg.password)
-        return await ainput_prompt(msg, password=pwd, default=cfg.default)
+        return await ainput_prompt(msg, password=pwd, default=cfg.default, session=session)
 
-    async def _aresolve_pick(self, cfg: MCPServerPickStringInput) -> str:
+    async def _aresolve_pick(self, cfg: MCPServerPickStringInput, *, session: PromptSession | None = None) -> str:
         msg = cfg.description or f"请选择 {cfg.id} / Please pick {cfg.id}"
         options = cfg.options or []
         default_index = None
         if cfg.default is not None and cfg.default in options:
             default_index = options.index(cfg.default)
-        picked = await ainput_pick(msg, options, default_index=default_index, multi=False)
+        picked = await ainput_pick(msg, options, default_index=default_index, multi=False, session=session)
         return picked or (cfg.default or "")
 
     async def _aresolve_command(self, cfg: MCPServerCommandInput) -> Any:

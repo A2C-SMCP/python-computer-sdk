@@ -6,6 +6,7 @@
 # @Software: PyCharm
 
 import pytest
+from prompt_toolkit import PromptSession
 
 from a2c_smcp_cc.inputs.resolver import InputNotFoundError, InputResolver
 from a2c_smcp_cc.mcp_clients.model import (
@@ -17,13 +18,14 @@ from a2c_smcp_cc.mcp_clients.model import (
 
 @pytest.mark.asyncio
 async def test_resolver_prompt_path(monkeypatch):
-    inputs = [MCPServerPromptStringInput(id="p1", description="desc", default="d", password=True)]
+    inputs = [MCPServerPromptStringInput(id="p1", description="desc", default="d", password=True, type="promptString")]
     r = InputResolver(inputs)
 
-    async def fake_prompt(message: str, *, password: bool = False, default: str | None = None) -> str:
+    async def fake_prompt(message: str, *, password: bool = False, default: str | None = None, session: PromptSession | None = None) -> str:
         assert "desc" in message
         assert password is True
         assert default == "d"
+        assert session is None
         return "typed"
 
     import a2c_smcp_cc.inputs.resolver as resolver_mod
@@ -39,7 +41,7 @@ async def test_resolver_pick_path_default_fallback(monkeypatch):
     inputs = [MCPServerPickStringInput(id="k", description="pick one", options=["a", "b", "c"], default="b")]
     r = InputResolver(inputs)
 
-    async def fake_pick(message, options, *, default_index=None, multi=False):
+    async def fake_pick(message, options, *, default_index=None, multi=False, session: PromptSession | None = None):
         # simulate user returns empty so resolver should use cfg.default
         return ""
 

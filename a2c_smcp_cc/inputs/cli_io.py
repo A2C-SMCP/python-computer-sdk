@@ -29,8 +29,12 @@ async def ainput_prompt(message: str, *, password: bool = False, default: str | 
     English: Prompt user for a string input; when password=True, mask the input.
     """
     session = PromptSession()
-    prompt_text = f"{message} " + (f"[default: {default}] " if default is not None else "")
-    with patch_stdout():
+    # 中文: 为避免与交互命令提示符 `a2c>` 同行导致光标错位，这里强制在新行开始用户输入提示。
+    # English: To avoid cursor misalignment with the interactive 'a2c>' prompt, start input on a fresh line.
+    prompt_text = "\n" + f"{message} " + (f"[default: {repr(default)}] " if default is not None else "")
+    # 中文: 使用 raw 模式减少 prompt_toolkit 与上层输出的干扰。
+    # English: Use raw mode to reduce interference with upper-level outputs.
+    with patch_stdout(raw=True):
         try:
             value = await session.prompt_async(prompt_text, is_password=password)
         except (EOFError, KeyboardInterrupt):
@@ -67,9 +71,11 @@ async def ainput_pick(
 
     session = PromptSession()
     while True:
-        with patch_stdout():
+        # 中文: 与 ainput_prompt 相同，强制换行并启用 raw 模式，避免与 `a2c>` 同行。
+        # English: Same as ainput_prompt: force newline and raw mode to avoid sharing line with 'a2c>'.
+        with patch_stdout(raw=True):
             try:
-                raw = await session.prompt_async(f"{tip}: ")
+                raw = await session.prompt_async("\n" + f"{tip}: ")
             except (EOFError, KeyboardInterrupt):
                 if default_index is not None and 0 <= default_index < len(options):
                     return [options[default_index]] if multi else options[default_index]

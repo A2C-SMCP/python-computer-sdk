@@ -258,6 +258,44 @@ class Computer:
         """
         return tuple(self._inputs)
 
+    # ------------------------
+    # 当前 inputs 值（缓存）增删改查 / CRUD for current input values (cache)
+    # ------------------------
+    def get_input_value(self, input_id: str) -> Any | None:
+        """
+        中文: 获取指定 id 的当前已解析值（来自缓存）。若尚未解析，则返回 None。
+        English: Get current resolved value for given id from cache. Returns None if not resolved yet.
+        """
+        return self._input_resolver.get_cached_value(input_id)
+
+    def set_input_value(self, input_id: str, value: Any) -> bool:
+        """
+        中文: 设置指定 id 的当前值（写入缓存）。仅当该 id 在 inputs 定义中存在时生效，返回是否成功。
+        English: Set current value for given id (write to cache). Only works if id exists in inputs; returns success.
+        """
+        return self._input_resolver.set_cached_value(input_id, value)
+
+    def remove_input_value(self, input_id: str) -> bool:
+        """
+        中文: 删除指定 id 的当前缓存值，返回是否删除发生。
+        English: Delete current cached value for given id. Returns whether deletion happened.
+        """
+        return self._input_resolver.delete_cached_value(input_id)
+
+    def list_input_values(self) -> dict[str, Any]:
+        """
+        中文: 列出所有已解析的 inputs 当前值（缓存快照）。若无则返回空字典。
+        English: List all resolved input values (cache snapshot). Returns empty dict if none.
+        """
+        return self._input_resolver.list_cached_values()
+
+    def clear_input_values(self, input_id: str | None = None) -> None:
+        """
+        中文: 清空所有或指定 id 的输入值缓存。
+        English: Clear all cached values or the specified id.
+        """
+        self._input_resolver.clear_cache(input_id)
+
     async def shutdown(self) -> None:
         """
         关闭计算机，关闭 MCP 服务器管理器。

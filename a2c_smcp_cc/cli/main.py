@@ -194,6 +194,13 @@ async def _interactive_loop(comp: Computer, init_client: SMCPComputerClient | No
             help_table.add_row("start <name>|all", "启动客户端 / start client(s)")
             help_table.add_row("stop <name>|all", "停止客户端 / stop client(s)")
             help_table.add_row("inputs load <@file>", "从文件加载 inputs 定义 / load inputs")
+            # 中文: 新增当前 inputs 值的增删改查命令
+            # English: Add CRUD commands for current inputs values
+            help_table.add_row("inputs value list", "列出当前 inputs 的缓存值 / list current cached input values")
+            help_table.add_row("inputs value get <id>", "获取指定 id 的值 / get cached value by id")
+            help_table.add_row("inputs value set <id> <json|text>", "设置指定 id 的值 / set cached value by id")
+            help_table.add_row("inputs value rm <id>", "删除指定 id 的值 / remove cached value by id")
+            help_table.add_row("inputs value clear [<id>]", "清空全部或指定 id 的缓存 / clear all or one cached value")
             help_table.add_row(
                 "socket connect [<url>]",
                 "连接 Socket.IO（省略 URL 将进入引导式输入） / connect to Socket.IO (guided if URL omitted)",
@@ -390,6 +397,59 @@ async def _interactive_loop(comp: Computer, init_client: SMCPComputerClient | No
                 elif sub == "list":
                     items = [i.model_dump(mode="json") for i in comp.inputs]
                     console.print_json(data=items)
+                elif sub == "value":
+                    # 中文: 管理当前 inputs 值（缓存）
+                    # English: Manage current inputs values (cache)
+                    if len(parts) < 3:
+                        console.print("[yellow]用法: inputs value <list|get|set|rm|clear> ...[/yellow]")
+                    else:
+                        vsub = parts[2].lower()
+                        if vsub == "list":
+                            values = comp.list_input_values()
+                            # 无则为空对象 / empty when none
+                            console.print_json(data=values or {})
+                        elif vsub == "get":
+                            if len(parts) < 4:
+                                console.print("[yellow]用法: inputs value get <id>[/yellow]")
+                            else:
+                                val = comp.get_input_value(parts[3])
+                                if val is None:
+                                    console.print("[yellow]未找到或尚未解析 / Not found or not resolved yet[/yellow]")
+                                else:
+                                    # 尝试作为 JSON 打印，不可序列化时回退为字符串
+                                    try:
+                                        console.print_json(data=val)
+                                    except Exception:
+                                        console.print(repr(val))
+                        elif vsub == "set":
+                            if len(parts) < 5:
+                                console.print("[yellow]用法: inputs value set <id> <json|text>[/yellow]")
+                            else:
+                                target_id = parts[3]
+                                payload = raw.split(" ", 4)[4]
+                                # 允许 JSON 或普通文本
+                                try:
+                                    data = json.loads(payload)
+                                except Exception:
+                                    data = payload
+                                ok = comp.set_input_value(target_id, data)
+                                if ok:
+                                    console.print("[green]已设置 / Set[/green]")
+                                else:
+                                    console.print("[yellow]不存在的 id / Not found[/yellow]")
+                        elif vsub in {"rm", "remove"}:
+                            if len(parts) < 4:
+                                console.print("[yellow]用法: inputs value rm <id>[/yellow]")
+                            else:
+                                ok = comp.remove_input_value(parts[3])
+                                console.print("[green]已删除 / Removed[/green]" if ok else "[yellow]无此缓存 / No such cache[/yellow]")
+                        elif vsub == "clear":
+                            # 可选 id，省略则清空全部
+                            target_id = parts[3] if len(parts) >= 4 else None
+                            comp.clear_input_values(target_id)
+                            console.print("[green]缓存已清理 / Cache cleared[/green]")
+                        else:
+                            console.print("[yellow]未知的 inputs value 子命令 / Unknown subcommand[/yellow]")
                 else:
                     console.print("[yellow]未知的 inputs 子命令 / Unknown subcommand[/yellow]")
 

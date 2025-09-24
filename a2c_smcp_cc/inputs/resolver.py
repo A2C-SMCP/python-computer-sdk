@@ -45,6 +45,40 @@ class InputResolver:
         else:
             self._cache.pop(key, None)
 
+    def get_cached_value(self, input_id: str) -> Any | None:
+        """
+        中文: 获取指定 id 的已解析缓存值；不存在时返回 None。
+        English: Get cached value of given id; return None if not present.
+        """
+        return self._cache.get(input_id)
+
+    def set_cached_value(self, input_id: str, value: Any) -> bool:
+        """
+        中文: 设置指定 id 的缓存值；仅当该 id 在 inputs 定义中存在时生效，返回是否成功。
+        English: Set cached value for given id; only works if id exists in inputs. Returns success flag.
+        """
+        if input_id not in self._inputs:
+            return False
+        self._cache[input_id] = value
+        return True
+
+    def delete_cached_value(self, input_id: str) -> bool:
+        """
+        中文: 删除指定 id 的缓存值，返回是否删除发生。
+        English: Delete cached value for given id, returns whether deletion happened.
+        """
+        if input_id in self._cache:
+            self._cache.pop(input_id, None)
+            return True
+        return False
+
+    def list_cached_values(self) -> dict[str, Any]:
+        """
+        中文: 返回当前所有 inputs 的缓存值快照（浅拷贝）。
+        English: Return a snapshot (shallow copy) of all cached input values.
+        """
+        return dict(self._cache)
+
     async def aresolve_by_id(self, input_id: str) -> Any:
         if input_id in self._cache:
             return self._cache[input_id]

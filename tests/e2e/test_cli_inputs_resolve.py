@@ -65,10 +65,10 @@ def test_inputs_resolve_then_server_start(cli_proc: pexpect.spawn) -> None:
         for _ in range(retries):
             child.sendline(cmd)
             child.expect(PROMPT_RE)
+            time.sleep(delay)
             out = strip_ansi((child.before or "").strip())
             if needle in out:
                 return
-            time.sleep(delay)
         # 最后再打一遍用于调试 / one more time for debug output
         child.sendline(cmd)
         child.expect(PROMPT_RE)

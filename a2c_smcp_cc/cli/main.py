@@ -274,44 +274,34 @@ async def _interactive_loop(comp: Computer, init_client: SMCPComputerClient | No
                 if not comp.mcp_manager:
                     console.print("[yellow]Manager 未初始化[/yellow]")
                 else:
-                    # 使用 create_task 创建独立协程，避免阻塞交互循环 / Use create_task to avoid blocking interactive loop
-                    async def _start_server_task(t: str) -> None:
-                        # 绑定当前的目标参数，避免闭包晚绑定问题 / Bind current target to avoid late-binding in closure
-                        try:
-                            if t == "all":
-                                await comp.mcp_manager.astart_all()
-                                console.print("[green]✅ 所有服务器启动完成 / All servers started[/green]")
-                            else:
-                                await comp.mcp_manager.astart_client(t)
-                                console.print(f"[green]✅ 服务器 '{t}' 启动完成 / Server '{t}' started[/green]")
-                        except Exception as e:
-                            console.print(f"[red]❌ 启动服务器失败 / Failed to start server: {e}[/red]")
-
-                    # 创建后台任务，不等待完成 / Create background task without waiting
-                    asyncio.create_task(_start_server_task(target))
-                    console.print(f"[cyan]🚀 正在后台启动服务器 '{target}'... / Starting server '{target}' in background...[/cyan]")
+                    # 中文: 改为同步等待启动完成，避免测试中出现竞态条件
+                    # English: Await start to complete to avoid race conditions in tests
+                    try:
+                        if target == "all":
+                            await comp.mcp_manager.astart_all()
+                            console.print("[green]✅ 所有服务器启动完成 / All servers started[/green]")
+                        else:
+                            await comp.mcp_manager.astart_client(target)
+                            console.print(f"[green]✅ 服务器 '{target}' 启动完成 / Server '{target}' started[/green]")
+                    except Exception as e:
+                        console.print(f"[red]❌ 启动服务器失败 / Failed to start server: {e}[/red]")
 
             elif cmd == "stop" and len(parts) >= 2:
                 target = parts[1]
                 if not comp.mcp_manager:
                     console.print("[yellow]Manager 未初始化[/yellow]")
                 else:
-                    # 使用 create_task 创建独立协程，避免阻塞交互循环 / Use create_task to avoid blocking interactive loop
-                    async def _stop_server_task(t: str) -> None:
-                        # 绑定当前的目标参数，避免闭包晚绑定问题 / Bind current target to avoid late-binding in closure
-                        try:
-                            if t == "all":
-                                await comp.mcp_manager.astop_all()
-                                console.print("[green]✅ 所有服务器停止完成 / All servers stopped[/green]")
-                            else:
-                                await comp.mcp_manager.astop_client(t)
-                                console.print(f"[green]✅ 服务器 '{t}' 停止完成 / Server '{t}' stopped[/green]")
-                        except Exception as e:
-                            console.print(f"[red]❌ 停止服务器失败 / Failed to stop server: {e}[/red]")
-
-                    # 创建后台任务，不等待完成 / Create background task without waiting
-                    asyncio.create_task(_stop_server_task(target))
-                    console.print(f"[cyan]🛑 正在后台停止服务器 '{target}'... / Stopping server '{target}' in background...[/cyan]")
+                    # 中文: 改为同步等待停止完成，避免测试中出现竞态条件
+                    # English: Await stop to complete to avoid race conditions in tests
+                    try:
+                        if target == "all":
+                            await comp.mcp_manager.astop_all()
+                            console.print("[green]✅ 所有服务器停止完成 / All servers stopped[/green]")
+                        else:
+                            await comp.mcp_manager.astop_client(target)
+                            console.print(f"[green]✅ 服务器 '{target}' 停止完成 / Server '{target}' stopped[/green]")
+                    except Exception as e:
+                        console.print(f"[red]❌ 停止服务器失败 / Failed to stop server: {e}[/red]")
 
             elif cmd == "inputs" and len(parts) >= 2:
                 sub = parts[1].lower()

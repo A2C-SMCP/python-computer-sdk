@@ -29,7 +29,8 @@ pexpect = pytest.importorskip("pexpect", reason="e2e tests require pexpect; inst
 def _spawn_cli(*extra_args: str, cwd: str | None = None) -> Iterator[pexpect.spawn]:
     """
     中文: 启动 CLI 交互进程，返回 pexpect child；确保在退出时清理。可通过 `cwd` 指定子进程工作目录，默认使用项目根目录。
-    English: Spawn the CLI interactive process and ensure cleanup on exit. You can specify child process working directory via `cwd`; defaults to project root.
+    English: Spawn the CLI interactive process and ensure cleanup on exit. You can specify child process working directory via `cwd`;
+        defaults to project root.
     """
     env = os.environ.copy()
     # 确保 Python 输出不被缓冲，便于 pexpect 捕获 / Unbuffered Python output for stable pexpect reads

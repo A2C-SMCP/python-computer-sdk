@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import signal
 import sys
@@ -21,6 +22,16 @@ from contextlib import contextmanager
 import pytest
 
 pexpect = pytest.importorskip("pexpect", reason="e2e tests require pexpect; install with `pip install pexpect`.")
+
+
+# ANSI-aware prompt matching and helper to strip ANSI sequences
+# 与 conftest/test_cli_interactive 保持一致，确保在包含控制序列/光标移动的终端下也能稳定匹配提示符
+ANSI = r"(?:\x1b\[[0-?]*[ -/]*[@-~])*"
+PROMPT_RE = re.compile(ANSI + r"a2c>" + ANSI)
+
+
+def strip_ansi(s: str) -> str:
+    return re.sub(ANSI, "", s)
 
 
 @contextmanager
@@ -68,20 +79,20 @@ def _spawn_cli_with_args(*extra_args: str):
 
 
 def _wait_prompt(child: pexpect.spawn, timeout: float = 15.0) -> None:
-    child.expect("a2c> ", timeout=timeout)
+    child.expect(PROMPT_RE, timeout=timeout)
 
 
 def _assert_tools(child: pexpect.spawn, name: str, retries: int = 10, delay: float = 1.0) -> None:
     for _ in range(retries):
         child.sendline("tools")
         _wait_prompt(child)
-        out = (child.before or "").strip()
+        out = strip_ansi((child.before or "").strip())
         if name in out:
             return
         time.sleep(delay)
     child.sendline("tools")
     _wait_prompt(child)
-    out = (child.before or "").strip()
+    out = strip_ansi((child.before or "").strip())
     assert name in out, f"tools 未包含 {name}. 输出:\n{out}"
 
 
@@ -89,13 +100,13 @@ def _assert_status(child: pexpect.spawn, server: str, retries: int = 8, delay: f
     for _ in range(retries):
         child.sendline("status")
         _wait_prompt(child)
-        out = (child.before or "").strip()
+        out = strip_ansi((child.before or "").strip())
         if server in out:
             return
         time.sleep(delay)
     child.sendline("status")
     _wait_prompt(child)
-    out = (child.before or "").strip()
+    out = strip_ansi((child.before or "").strip())
     assert server in out, f"status 未出现 {server}. 输出:\n{out}"
 
 

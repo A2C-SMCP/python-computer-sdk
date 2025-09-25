@@ -41,6 +41,10 @@ rich = "^14.1.0"
 prompt-toolkit = "^3.0.52"
 
 # 添加 extras 部分定义可选依赖组
+
+[tool.poetry.group.build.dependencies]
+bump-my-version = "^1.2.3"
+
 [tool.poetry.extras]
 cli = ["typer", "rich", "prompt-toolkit"]
 dev = ["pytest", "ruff", "mypy", "poethepoet"]

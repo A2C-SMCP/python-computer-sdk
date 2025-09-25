@@ -7,4 +7,5 @@
 from a2c_smcp_cc.computer import Computer
 from a2c_smcp_cc.socketio.client import SMCPComputerClient
 
+__version__: str = "0.1.0"
 __all__ = ["Computer", "SMCPComputerClient"]

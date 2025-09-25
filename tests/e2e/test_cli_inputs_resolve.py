@@ -61,9 +61,18 @@ def test_inputs_resolve_then_server_start(cli_proc: pexpect.spawn) -> None:
     child.expect(PROMPT_RE)
 
     # 4) 轮询校验 status/tools / poll for status/tools
-    def _assert_contains(cmd: str, needle: str, retries: int = 12, delay: float = 1.0) -> None:
+    def _assert_contains(cmd: str, needle: str, retries: int = 12, delay: float = 1.0, pre_wait: float = 0.0) -> None:
+        """
+        中文: 在 e2e 交互中对输出进行轮询断言。为缓解提示符与表格输出的时序竞态，允许在发送命令后先短暂等待再匹配提示符。
+        English: Poll-and-assert helper for e2e. To mitigate prompt vs. output racing, optionally wait a bit after
+                 sending the command before expecting the prompt.
+        """
         for _ in range(retries):
             child.sendline(cmd)
+            # 中文: 在某些环境中，Rich 输出和 prompt 重绘存在时序竞争；先小睡片刻有助于让输出先于提示符写入 pty。
+            # English: In some envs, Rich output vs prompt redraw race; a short pre-wait helps output land before prompt.
+            if pre_wait > 0:
+                time.sleep(pre_wait)
             child.expect(PROMPT_RE)
             time.sleep(delay)
             out = strip_ansi((child.before or "").strip())
@@ -75,5 +84,7 @@ def test_inputs_resolve_then_server_start(cli_proc: pexpect.spawn) -> None:
         out = strip_ansi((child.before or "").strip())
         assert needle in out, f"`{cmd}` 未包含 {needle}. 输出:\n{out}"
 
-    _assert_contains("status", "e2e-inputs-test", retries=14, delay=0.8)
-    _assert_contains("tools", "hello", retries=14, delay=1.0)
+    _assert_contains("status", "e2e-inputs-test", retries=16, delay=0.8, pre_wait=0.1)
+    # 中文: tools 输出涉及列举远端工具，首次枚举易受竞态影响；提高重试次数并在发送命令后预等待以增强稳定性
+    # English: tools listing can race on first enumeration; increase retries and add pre-wait for stability
+    _assert_contains("tools", "hello", retries=18, delay=1.0, pre_wait=0.6)

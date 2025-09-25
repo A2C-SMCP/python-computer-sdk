@@ -16,7 +16,7 @@ A2C_TOOL_META: str = "a2c_tool_meta"
 
 
 class ToolMeta(BaseModel):
-    auto_apply: bool | None = Field(default=None, title="是否自动使用", description="如果设置为False，则调用工具前会触发回调，请求用例批准")
+    auto_apply: bool | None = Field(default=None, title="是否自动使用", description="如果设置为False，则调用工具前会触发回调，请求用户批准")
     alias: str | None = Field(
         default=None, title="工具别名", description="如果不同MCP Server中存在同名工具，允许通过此别名修改，从而解决名称冲突"
     )

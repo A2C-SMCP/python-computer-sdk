@@ -42,6 +42,10 @@ def _spawn_cli(*extra_args: str, cwd: str | None = None) -> Iterator[pexpect.spa
     # 使用最简终端，促使 prompt_toolkit 降级，减少 ANSI 控制序列
     # Use dumb TERM to reduce advanced terminal features
     env.setdefault("TERM", "dumb")
+    # 禁用分页与固定列宽，进一步减少输出差异 / Disable pager and fix width to reduce variability
+    env.setdefault("PAGER", "cat")
+    env.setdefault("COLUMNS", "120")
+    env.setdefault("NO_COLOR", "1")
     # 关闭颜色与复杂渲染，便于断言 / Disable colors for stable assertions
     # 优先使用已安装的 console script；否则回退到 python -c 调用 main()
     # Prefer console script if available; fallback to python -c main()
@@ -65,7 +69,9 @@ def _spawn_cli(*extra_args: str, cwd: str | None = None) -> Iterator[pexpect.spa
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     spawn_cwd = cwd or project_root
 
-    child = pexpect.spawn(args[0], args[1:], env=env, encoding="utf-8", timeout=20, cwd=spawn_cwd)
+    child = pexpect.spawn(args[0], args[1:], env=env, encoding="utf-8", timeout=60, cwd=spawn_cwd)
+    # 保证每次发送前有一个时延保持稳定
+    child.delaybeforesend = 0.03
     # 控制窗口大小，减少 CPR 请求 / Set winsize to reduce CPR
     try:
         child.setwinsize(24, 120)

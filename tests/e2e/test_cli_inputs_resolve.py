@@ -54,6 +54,7 @@ def test_inputs_resolve_then_server_start(cli_proc: pexpect.spawn) -> None:
     time.sleep(1.0)
     # 输入一个回车，表示使用默认值
     child.sendline("\n")
+    child.sendline("\n")
     child.expect(PROMPT_RE)
 
     # 3) 启动所有服务 / start all servers
@@ -67,7 +68,19 @@ def test_inputs_resolve_then_server_start(cli_proc: pexpect.spawn) -> None:
         English: Poll-and-assert helper for e2e. To mitigate prompt vs. output racing, optionally wait a bit after
                  sending the command before expecting the prompt.
         """
+
+        # 先尝试把缓冲区中可能已到达的提示符“吃掉”，避免下一次 expect 命中旧提示符，导致拿到上一次命令的输出
+        # Drain any already-buffered prompt(s) so that the next expect waits for the prompt after our command
+        def _drain_to_prompt() -> None:
+            for _ in range(3):
+                try:
+                    child.expect(PROMPT_RE, timeout=0.2)
+                except pexpect.TIMEOUT:  # type: ignore[name-defined]
+                    break
+
         for _ in range(retries):
+            # 清空到最新提示符，确保接下来等待的是本次命令产生的提示符
+            _drain_to_prompt()
             child.sendline(cmd)
             # 中文: 在某些环境中，Rich 输出和 prompt 重绘存在时序竞争；先小睡片刻有助于让输出先于提示符写入 pty。
             # English: In some envs, Rich output vs prompt redraw race; a short pre-wait helps output land before prompt.
@@ -79,12 +92,14 @@ def test_inputs_resolve_then_server_start(cli_proc: pexpect.spawn) -> None:
             if needle in out:
                 return
         # 最后再打一遍用于调试 / one more time for debug output
+        _drain_to_prompt()
         child.sendline(cmd)
         child.expect(PROMPT_RE)
         out = strip_ansi((child.before or "").strip())
         assert needle in out, f"`{cmd}` 未包含 {needle}. 输出:\n{out}"
 
-    _assert_contains("status", "e2e-inputs-test", retries=16, delay=0.8, pre_wait=0.1)
+    _assert_contains("status", "e2e-inputs-test", retries=3, delay=0.8, pre_wait=0.6)
+    time.sleep(2)
     # 中文: tools 输出涉及列举远端工具，首次枚举易受竞态影响；提高重试次数并在发送命令后预等待以增强稳定性
     # English: tools listing can race on first enumeration; increase retries and add pre-wait for stability
-    _assert_contains("tools", "hello", retries=18, delay=1.0, pre_wait=0.6)
+    _assert_contains("tools", "hello", retries=3, delay=1.0, pre_wait=0.6)

@@ -1,0 +1,77 @@
+# 文件名: e2e-tests.yml / File name: e2e-tests.yml
+# 作者: JQQ / Author: JQQ
+# 创建日期: 2025/09/26 / Created: 2025/09/26
+# 最后修改日期: 2025/09/26 / Last Modified: 2025/09/26
+# 版权: 2023 JQQ. All rights reserved. / Copyright: 2023 JQQ. All rights reserved.
+# 依赖: GitHub Actions, Python 3.11, Poetry, poethepoet / Deps: GitHub Actions, Python 3.11, Poetry, poethepoet
+# 描述: E2E 测试工作流，安装依赖后运行 `poetry run poe test-e2e` / Description: E2E test workflow that installs deps then runs `poetry run poe test-e2e`
+
+name: E2E Tests
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Run end-to-end tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 安装 Poetry（通过 pip 安装，避免无效的第三方 Action）
+      # Install Poetry via pip to avoid invalid third-party Action
+      - name: Install Poetry
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install poetry
+
+      - name: Configure Poetry
+        run: |
+          poetry config virtualenvs.create true --local
+          poetry config virtualenvs.in-project true --local
+
+      - name: Cache Poetry cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry
+          key: ${{ runner.os }}-pypoetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pypoetry-
+
+      - name: Cache virtualenv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-venv-3.11-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-venv-
+
+      - name: Install dependencies
+        run: |
+          poetry --version
+          poetry install --no-interaction --with dev,test,cli
+
+      - name: Run e2e tests
+        run: |
+          poetry run poe test-e2e
+
+      # - name: Upload e2e logs
+      #   if: always()
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: e2e-logs
+      #     path: tests/e2e/**/*.log

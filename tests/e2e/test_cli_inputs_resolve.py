@@ -46,6 +46,8 @@ def test_inputs_resolve_then_server_start(cli_proc: pexpect.spawn) -> None:
 
     # 1) 加载 inputs 定义 / load inputs definitions
     child.sendline("inputs load @tests/e2e/configs/inputs_basic.json")
+    # 给渲染/注册留一点时间 / allow a short time for render/registration
+    time.sleep(1.0)
     child.expect(PROMPT_RE)
 
     # 2) 添加引用 ${input:SCRIPT} 的 server / add server that references ${input:SCRIPT}
@@ -54,11 +56,14 @@ def test_inputs_resolve_then_server_start(cli_proc: pexpect.spawn) -> None:
     time.sleep(1.0)
     # 输入一个回车，表示使用默认值
     child.sendline("\n")
-    child.sendline("\n")
+    # 给渲染/注册留一点时间 / allow a short time for render/registration
+    time.sleep(1.0)
     child.expect(PROMPT_RE)
 
     # 3) 启动所有服务 / start all servers
     child.sendline("start all")
+    # 给渲染/注册留一点时间 / allow a short time for render/registration
+    time.sleep(1.0)
     child.expect(PROMPT_RE)
 
     # 4) 轮询校验 status/tools / poll for status/tools
@@ -94,6 +99,8 @@ def test_inputs_resolve_then_server_start(cli_proc: pexpect.spawn) -> None:
         # 最后再打一遍用于调试 / one more time for debug output
         _drain_to_prompt()
         child.sendline(cmd)
+        # 给渲染/注册留一点时间 / allow a short time for render/registration
+        time.sleep(1.0)
         child.expect(PROMPT_RE)
         out = strip_ansi((child.before or "").strip())
         assert needle in out, f"`{cmd}` 未包含 {needle}. 输出:\n{out}"

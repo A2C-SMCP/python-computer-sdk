@@ -47,7 +47,6 @@ def computer() -> Computer:
     return mock_computer
 
 
-@pytest.mark.asyncio
 @pytest.fixture
 async def computer_server(basic_server_port: int) -> AsyncGenerator[MockComputerServerNamespace, Any]:
     """启动测试服务器"""

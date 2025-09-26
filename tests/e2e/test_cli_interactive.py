@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import re
+import time
 
 import pytest
 
@@ -65,6 +66,8 @@ def test_help_shows_table(cli_proc: pexpect.spawn) -> None:
     child.sendline("help")
     # 先等待帮助标题出现，再等待提示符，避免 child.before 为空 / wait for help title first, then the prompt
     child.expect(HELP_TITLE_RE)
+    # 给渲染/注册留一点时间 / allow a short time for render/registration
+    time.sleep(1.0)
     child.expect(PROMPT_RE)
     output = strip_ansi(child.before or "")
 
@@ -74,6 +77,8 @@ def test_help_shows_table(cli_proc: pexpect.spawn) -> None:
     # 再用 ? 验证一次 / verify with ? again
     child.sendline("?")
     child.expect(HELP_TITLE_RE)
+    # 给渲染/注册留一点时间 / allow a short time for render/registration
+    time.sleep(1.0)
     child.expect(PROMPT_RE)
     output2 = strip_ansi(child.before or "")
     assert "server add <json|@file>" in output2

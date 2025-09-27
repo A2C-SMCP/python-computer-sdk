@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from rich.table import Table
@@ -40,6 +41,17 @@ def parse_kv_pairs(text: str | None) -> dict[str, Any] | None:
     s = text.strip()
     if s == "":
         return None
+    # 优先尝试 JSON 反序列化：支持直接传入合法的 JSON 对象字符串
+    # Try JSON deserialization first: support passing a valid JSON object string directly
+    try:
+        parsed = json.loads(s)
+    except Exception:
+        pass
+    else:
+        if isinstance(parsed, dict):
+            return parsed
+        # 合法 JSON 但不是对象（如数组/字符串/数字），给出明确错误
+        raise ValueError('JSON 字符串必须是对象类型（例如 {"k":"v"}）')
     result: dict[str, Any] = {}
     for seg in s.split(","):
         seg = seg.strip()

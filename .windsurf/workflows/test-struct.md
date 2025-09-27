@@ -10,8 +10,9 @@ description: 测试架构
 6. 一些集成操作使用poe管理，定义如下：
 
 [tool.poe.tasks]
-test = "pytest tests"
-test-cov = "pytest tests --cov a2c_smcp_cc --cov-report=term-missing --cov-fail-under=0 --cov-config=.coveragerc"
+test = "pytest tests tests/unit_tests tests/integration_tests"
+test-cov = "pytest tests -m 'not e2e' --cov a2c_smcp_cc --cov-report=term-missing --cov-fail-under=0 --cov-config=.coveragerc"
+test-e2e = "pytest tests -m e2e"
 lint = "ruff check --fix ."
 format = "ruff format ."
 

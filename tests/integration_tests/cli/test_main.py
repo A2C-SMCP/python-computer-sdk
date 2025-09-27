@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from contextlib import contextmanager
 from typing import Any
 
 import pytest
 from mcp import StdioServerParameters
+from typer.testing import CliRunner
 
 import a2c_smcp_cc.cli.main as cli_main
 from a2c_smcp_cc.cli.main import _interactive_loop
@@ -109,3 +111,100 @@ async def test_cli_socket_connect_guided_inputs_without_real_network(monkeypatch
         "auth": {"apikey": "xyz"},
         "headers": {"app": "demo", "build": "42"},
     }
+
+
+# ------------------------------
+# 测试 --computer-factory 集成路径（通过 Typer CLI）
+# ------------------------------
+
+
+class _DummyInteractive:
+    called: bool = False
+    last_comp: Any | None = None
+
+    @classmethod
+    async def coro(cls, comp: Any, init_client: Any | None = None) -> None:  # noqa: ARG003
+        cls.called = True
+        cls.last_comp = comp
+
+
+class _FakeComputer:
+    """轻量 Computer 替身，匹配构造参数与异步上下文协议。"""
+
+    def __init__(
+        self,
+        inputs: set[Any] | None = None,
+        mcp_servers: set[Any] | None = None,
+        auto_connect: bool = True,
+        auto_reconnect: bool = True,
+        confirm_callback: Callable[[str, str, str, dict], bool] | None = None,
+        input_resolver: Any | None = None,
+    ) -> None:
+        self.init_args = {
+            "inputs": inputs,
+            "mcp_servers": mcp_servers,
+            "auto_connect": auto_connect,
+            "auto_reconnect": auto_reconnect,
+            "confirm_callback": confirm_callback,
+            "input_resolver": input_resolver,
+        }
+
+    async def __aenter__(self) -> _FakeComputer:
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:  # noqa: ANN001
+        return None
+
+
+@pytest.fixture(autouse=True)
+def _reset_dummy_interactive() -> None:
+    _DummyInteractive.called = False
+    _DummyInteractive.last_comp = None
+
+
+def test_cli_root_with_computer_factory(monkeypatch: pytest.MonkeyPatch) -> None:
+    """根路径（无子命令）携带 --computer-factory 时应调用解析的工厂。"""
+    runner = CliRunner()
+
+    # 工厂: 返回 _FakeComputer，并计数
+    calls: dict[str, Any] = {"count": 0}
+
+    def factory(**kwargs: Any) -> _FakeComputer:
+        calls["count"] += 1
+        return _FakeComputer(**kwargs)
+
+    monkeypatch.setattr(cli_main, "resolve_import_target", lambda s: factory, raising=True)
+    monkeypatch.setattr(cli_main, "_interactive_loop", _DummyInteractive.coro, raising=True)
+
+    result = runner.invoke(cli_main.app, ["--computer-factory", "pkg.mod:factory"])  # noqa: S603
+
+    assert result.exit_code == 0
+    assert calls["count"] == 1
+    assert _DummyInteractive.called is True
+    assert isinstance(_DummyInteractive.last_comp, _FakeComputer)
+
+
+def test_cli_run_with_computer_factory_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """当解析到的目标不可调用时，CLI 应回退到默认 Computer；为便于断言，替换为 _FakeComputer。"""
+    runner = CliRunner()
+
+    monkeypatch.setattr(cli_main, "resolve_import_target", lambda s: object(), raising=True)
+    monkeypatch.setattr(cli_main, "Computer", _FakeComputer, raising=True)
+    monkeypatch.setattr(cli_main, "_interactive_loop", _DummyInteractive.coro, raising=True)
+
+    result = runner.invoke(
+        cli_main.app,
+        [
+            "run",
+            "--computer-factory",
+            "x.y:bad",
+            "--auto-connect",
+            "--auto-reconnect",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert _DummyInteractive.called is True
+    assert isinstance(_DummyInteractive.last_comp, _FakeComputer)
+    assert _DummyInteractive.last_comp.init_args["auto_connect"] is True
+    assert _DummyInteractive.last_comp.init_args["auto_reconnect"] is True

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from a2c_smcp_cc.cli.utils import parse_kv_pairs
+from a2c_smcp_cc.cli.utils import parse_kv_pairs, resolve_import_target
 
 
 class TestParseKvPairs:
@@ -33,3 +33,25 @@ class TestParseKvPairs:
             parse_kv_pairs('[1,2,3]')
         with pytest.raises(ValueError):
             parse_kv_pairs('"str"')
+
+
+class TestResolveImportTarget:
+    def test_resolve_with_colon(self) -> None:
+        obj = resolve_import_target("a2c_smcp_cc.cli.utils:resolve_import_target")
+        assert obj is resolve_import_target
+
+    def test_resolve_with_dot(self) -> None:
+        obj = resolve_import_target("a2c_smcp_cc.cli.utils.resolve_import_target")
+        assert obj is resolve_import_target
+
+    def test_relative_import_not_allowed(self) -> None:
+        with pytest.raises(ValueError):
+            resolve_import_target(".cli.utils:resolve_import_target")
+
+    def test_invalid_target_format(self) -> None:
+        with pytest.raises(ValueError):
+            resolve_import_target("only_module_name")
+
+    def test_missing_attribute(self) -> None:
+        with pytest.raises(AttributeError):
+            resolve_import_target("a2c_smcp_cc.cli.utils:not_exist_attr")

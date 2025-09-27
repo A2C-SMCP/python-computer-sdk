@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,149 @@ import pytest
 import a2c_smcp_cc.cli.main as cli_main
 from a2c_smcp_cc.cli.main import _interactive_loop
 from a2c_smcp_cc.computer import Computer
+
+
+class DummyInteractive:
+    called: bool = False
+    last_comp: Any | None = None
+    last_init_client: Any | None = None
+
+    @classmethod
+    async def coro(cls, comp: Any, init_client: Any | None = None) -> None:  # matches _interactive_loop signature
+        cls.called = True
+        cls.last_comp = comp
+        cls.last_init_client = init_client
+
+
+class FakeComputer:
+    """A lightweight fake that matches Computer's init signature and async context manager."""
+
+    def __init__(
+        self,
+        inputs: set[Any] | None = None,
+        mcp_servers: set[Any] | None = None,
+        auto_connect: bool = True,
+        auto_reconnect: bool = True,
+        confirm_callback: Callable[[str, str, str, dict], bool] | None = None,
+        input_resolver: Any | None = None,
+    ) -> None:
+        self.init_args = {
+            "inputs": inputs,
+            "mcp_servers": mcp_servers,
+            "auto_connect": auto_connect,
+            "auto_reconnect": auto_reconnect,
+            "confirm_callback": confirm_callback,
+            "input_resolver": input_resolver,
+        }
+
+    async def __aenter__(self) -> FakeComputer:
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:  # noqa: ANN001
+        return None
+
+
+def test_run_impl_uses_default_computer_when_no_factory(monkeypatch: pytest.MonkeyPatch) -> None:
+    from a2c_smcp_cc.cli import main as cli_main
+
+    # Patch Computer to our fake and _interactive_loop to a dummy coro
+    monkeypatch.setattr(cli_main, "Computer", FakeComputer, raising=True)
+    monkeypatch.setattr(cli_main, "_interactive_loop", DummyInteractive.coro, raising=True)
+
+    # Call implementation with no factory and no side-effect options
+    cli_main._run_impl(
+        auto_connect=True,
+        auto_reconnect=True,
+        url=None,
+        auth=None,
+        headers=None,
+        computer_factory=None,
+        config=None,
+        inputs=None,
+    )
+
+    assert DummyInteractive.called is True
+    assert isinstance(DummyInteractive.last_comp, FakeComputer)
+    assert DummyInteractive.last_comp.init_args["auto_connect"] is True
+    assert DummyInteractive.last_comp.init_args["auto_reconnect"] is True
+
+
+def test_run_impl_uses_resolved_factory(monkeypatch: pytest.MonkeyPatch) -> None:
+    from a2c_smcp_cc.cli import main as cli_main
+
+    # Prepare a factory that returns our FakeComputer
+    calls: dict[str, Any] = {"count": 0}
+
+    def factory(**kwargs: Any) -> FakeComputer:
+        calls["count"] += 1
+        return FakeComputer(**kwargs)
+
+    # Patch resolver to return our factory; patch interactive loop to avoid blocking
+    monkeypatch.setattr(cli_main, "resolve_import_target", lambda s: factory, raising=True)
+    monkeypatch.setattr(cli_main, "_interactive_loop", DummyInteractive.coro, raising=True)
+
+    cli_main._run_impl(
+        auto_connect=False,
+        auto_reconnect=False,
+        url=None,
+        auth=None,
+        headers=None,
+        computer_factory="some.module:factory",
+        config=None,
+        inputs=None,
+    )
+
+    assert calls["count"] == 1
+    assert isinstance(DummyInteractive.last_comp, FakeComputer)
+    assert DummyInteractive.last_comp.init_args["auto_connect"] is False
+    assert DummyInteractive.last_comp.init_args["auto_reconnect"] is False
+
+
+def test_run_impl_factory_not_callable_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    from a2c_smcp_cc.cli import main as cli_main
+
+    # Make resolve_import_target return a non-callable
+    monkeypatch.setattr(cli_main, "resolve_import_target", lambda s: object(), raising=True)
+    # Patch Computer fallback to our FakeComputer
+    monkeypatch.setattr(cli_main, "Computer", FakeComputer, raising=True)
+    monkeypatch.setattr(cli_main, "_interactive_loop", DummyInteractive.coro, raising=True)
+
+    cli_main._run_impl(
+        auto_connect=True,
+        auto_reconnect=True,
+        url=None,
+        auth=None,
+        headers=None,
+        computer_factory="x.y:bad",
+        config=None,
+        inputs=None,
+    )
+
+    assert isinstance(DummyInteractive.last_comp, FakeComputer)
+
+
+def test_run_impl_resolve_error_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    from a2c_smcp_cc.cli import main as cli_main
+
+    def _raise(_: str) -> Any:
+        raise ValueError("boom")
+
+    monkeypatch.setattr(cli_main, "resolve_import_target", _raise, raising=True)
+    monkeypatch.setattr(cli_main, "Computer", FakeComputer, raising=True)
+    monkeypatch.setattr(cli_main, "_interactive_loop", DummyInteractive.coro, raising=True)
+
+    cli_main._run_impl(
+        auto_connect=True,
+        auto_reconnect=True,
+        url=None,
+        auth=None,
+        headers=None,
+        computer_factory="x.y:z",
+        config=None,
+        inputs=None,
+    )
+
+    assert isinstance(DummyInteractive.last_comp, FakeComputer)
 
 
 class FakePromptSession:

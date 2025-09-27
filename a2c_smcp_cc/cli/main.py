@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -25,9 +26,13 @@ from pydantic import TypeAdapter
 from a2c_smcp_cc.cli.interactive_impl import interactive_loop as _interactive_loop_impl
 from a2c_smcp_cc.cli.utils import (
     parse_kv_pairs,
+    resolve_import_target,
 )
 from a2c_smcp_cc.computer import Computer
-from a2c_smcp_cc.mcp_clients.model import MCPServerInput as MCPServerInputModel
+from a2c_smcp_cc.inputs.resolver import InputResolver
+from a2c_smcp_cc.mcp_clients.model import (
+    MCPServerInput as MCPServerInputModel,
+)
 from a2c_smcp_cc.socketio.client import SMCPComputerClient
 from a2c_smcp_cc.socketio.smcp import MCPServerConfig as SMCPServerConfigDict
 from a2c_smcp_cc.socketio.smcp import MCPServerInput as SMCPServerInputDict
@@ -38,6 +43,27 @@ app = typer.Typer(add_completion=False, help="A2C Computer CLI")
 console = console_util.console
 
 
+# ------------------------------
+# Computer 工厂函数类型标注
+# ------------------------------
+# 中文:
+#  - 该类型表示一个可调用对象（函数或类构造器），用于创建 Computer 或其子类的实例。
+#  - 参数签名需与 Computer.__init__ 兼容；你可以据此在你自己的工厂函数上添加类型注释。
+# English:
+#  - This type denotes a callable (function or class constructor) used to create a Computer or subclass instance.
+#  - The parameter signature must be compatible with Computer.__init__; use it for your own factory annotations.
+ComputerFactory = Callable[
+    [
+        set["MCPServerInputModel"] | None,
+        bool,
+        bool,
+        Callable[[str, str, str, dict], bool] | None,
+        InputResolver | None,
+    ],
+    Computer,
+]
+
+
 @app.callback(invoke_without_command=True)
 def _root(
     ctx: typer.Context,
@@ -46,6 +72,15 @@ def _root(
     url: str | None = typer.Option(None, help="Socket.IO 服务器URL，例如 https://host:port"),
     auth: str | None = typer.Option(None, help="认证参数，形如 key:value,foo:bar"),
     headers: str | None = typer.Option(None, help="请求头参数，形如 key:value,foo:bar"),
+    computer_factory: str | None = typer.Option(
+        None,
+        "--computer-factory",
+        help=(
+            "指定用于构建 Computer 的导入路径 (模块:属性 或 模块.属性)。\n"
+            "例如 my_pkg.my_mod:build_computer 或 my_pkg.my_mod.MySubComputer。\n"
+            "不支持以 '.' 开头的相对导入；模块解析相对于运行 a2c-computer 时的工作目录可导入包环境。"
+        ),
+    ),
     no_color: bool = typer.Option(
         False,
         "--no-color",
@@ -73,6 +108,7 @@ def _root(
             url=url,
             auth=auth,
             headers=headers,
+            computer_factory=computer_factory,
             config=None,
             inputs=None,
         )
@@ -99,6 +135,7 @@ def _run_impl(
     url: str | None,
     auth: str | None,
     headers: str | None,
+    computer_factory: str | None,
     config: str | None,
     inputs: str | None,
 ) -> None:
@@ -109,7 +146,26 @@ def _run_impl(
 
     async def _amain() -> None:
         # 初始化空配置，后续通过交互动态维护 / init with empty config, then manage dynamically
-        comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=auto_connect, auto_reconnect=auto_reconnect)
+        # 解析工厂：默认使用 Computer 构造函数；若提供 --computer-factory，则动态导入。
+        comp_factory_obj: Any = Computer
+        if computer_factory:
+            try:
+                comp_factory_obj = resolve_import_target(computer_factory)
+            except Exception as e:  # pragma: no cover
+                console.print(f"[red]解析 --computer-factory 失败: {e} / Failed to resolve computer factory: {e}[/red]")
+                comp_factory_obj = Computer
+
+        # 类型提示：comp_factory_obj 应满足 ComputerFactory，可是运行时仅作 best-effort 校验
+        if not callable(comp_factory_obj):  # pragma: no cover
+            console.print("[red]计算机构造目标不可调用，将回退到默认 Computer[/red]")
+            comp_factory_obj = Computer
+
+        comp = comp_factory_obj(
+            inputs=set(),
+            mcp_servers=set(),
+            auto_connect=auto_connect,
+            auto_reconnect=auto_reconnect,
+        )
         async with comp:
             init_client: SMCPComputerClient | None = None
             if url:
@@ -173,6 +229,15 @@ def run(
     url: str | None = typer.Option(None, help="Socket.IO 服务器URL，例如 https://host:port"),
     auth: str | None = typer.Option(None, help="认证参数，形如 key:value,foo:bar"),
     headers: str | None = typer.Option(None, help="请求头参数，形如 key:value,foo:bar"),
+    computer_factory: str | None = typer.Option(
+        None,
+        "--computer-factory",
+        help=(
+            "指定用于构建 Computer 的导入路径 (模块:属性 或 模块.属性)。\n"
+            "例如 my_pkg.my_mod:build_computer 或 my_pkg.my_mod.MySubComputer。\n"
+            "不支持以 '.' 开头的相对导入；模块解析相对于运行 a2c-computer 时的工作目录可导入包环境。"
+        ),
+    ),
     config: str | None = typer.Option(
         None,
         "--config",
@@ -196,6 +261,7 @@ def run(
         url=url,
         auth=auth,
         headers=headers,
+        computer_factory=computer_factory,
         config=config,
         inputs=inputs,
     )

@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 from typing import Any
 
@@ -23,6 +24,56 @@ from a2c_smcp_cc.utils import console as console_util
 # 使用全局 Console（引用模块属性，便于后续动态切换）
 # Use a global Console (module attribute reference for dynamic switching)
 console = console_util.console
+
+
+def resolve_import_target(target: str) -> Any:
+    """
+    中文:
+      解析命令行传入的导入目标字符串，返回对应对象（函数/类/可调用等）。
+
+    English:
+      Resolve an import target string from CLI into the referenced object (function/class/callable).
+
+    允许的导入路径格式 Allowed formats:
+      1) module.submodule:attr
+         - 使用冒号分隔模块与属性；attr 可继续包含 "." 以访问多级属性。
+      2) module.submodule.attr
+         - 不含冒号时，视为最后一个点号分隔模块与属性。
+
+    相对路径规则 Relative path rules:
+      - 不支持以 "." 开头的相对导入（例如 ".mymod:factory"）。
+      - 传入的模块路径按照 Python 的导入系统进行解析，起始于当前工作目录的可导入包环境。
+        换言之，相对路径应转换为可导入的包名（确保含有 __init__.py），并从运行 a2c-computer 的工作目录可被 sys.path 找到。
+
+    例如 Examples:
+      - "my_pkg.my_mod:build_computer"
+      - "my_pkg.my_mod.MyComputerSubclass"
+      - "pkg.sub.mod:factories.computer_factory"
+
+    Raises:
+      ValueError: 当字符串没有包含有效的模块与属性分隔时，或以相对导入开头时。
+      ModuleNotFoundError/AttributeError: 导入失败时抛出。
+    """
+    module_name = None
+    attr_path = None
+    if ":" in target:
+        module_name, _, attr_path = target.partition(":")
+    else:
+        # 用最后一个点号拆分模块与属性
+        if "." not in target:
+            raise ValueError(f"无效的导入目标: {target!r}，需要形如 'pkg.mod:attr' 或 'pkg.mod.attr'")
+        module_name, _, attr_path = target.rpartition(".")
+
+    if not module_name or not attr_path or module_name.startswith("."):
+        raise ValueError(
+            f"无效的导入目标: {target!r}，不支持相对导入，必须提供完整模块路径"
+        )
+
+    module = importlib.import_module(module_name)
+    obj: Any = module
+    for part in attr_path.split("."):
+        obj = getattr(obj, part)
+    return obj
 
 
 def parse_kv_pairs(text: str | None) -> dict[str, Any] | None:

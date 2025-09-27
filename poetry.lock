@@ -2263,5 +2263,5 @@ test = ["aiohttp", "inline-snapshot", "polyfactory", "pytest-asyncio", "pytest-c
 
 [metadata]
 lock-version = "2.1"
-python-versions = "^3.11"
-content-hash = "5e024f17e50062da76eecdb394f976ed0c82cabeb379481c2a4d7641d0ee84d9"
+python-versions = ">=3.11,<4.0"
+content-hash = "dde4a3dacfb880de444b01ae8698df76a1eb848e53fb6f19e24b89bf301de10c"

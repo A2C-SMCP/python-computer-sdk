@@ -34,6 +34,7 @@ from a2c_smcp_cc.mcp_clients.model import (
     MCPServerInput as MCPServerInputModel,
 )
 from a2c_smcp_cc.socketio.client import SMCPComputerClient
+from a2c_smcp_cc.socketio.smcp import SMCP_NAMESPACE
 from a2c_smcp_cc.socketio.smcp import MCPServerConfig as SMCPServerConfigDict
 from a2c_smcp_cc.socketio.smcp import MCPServerInput as SMCPServerInputDict
 from a2c_smcp_cc.utils import console as console_util
@@ -70,6 +71,11 @@ def _root(
     auto_connect: bool = typer.Option(True, help="是否自动连接 / Auto connect"),
     auto_reconnect: bool = typer.Option(True, help="是否自动重连 / Auto reconnect"),
     url: str | None = typer.Option(None, help="Socket.IO 服务器URL，例如 https://host:port"),
+    namespace: str = typer.Option(
+        SMCP_NAMESPACE,
+        "--namespace",
+        help="Socket.IO 命名空间（默认: /smcp）/ Namespace to connect (default: /smcp)",
+    ),
     auth: str | None = typer.Option(None, help="认证参数，形如 key:value,foo:bar"),
     headers: str | None = typer.Option(None, help="请求头参数，形如 key:value,foo:bar"),
     computer_factory: str | None = typer.Option(
@@ -106,6 +112,7 @@ def _root(
             auto_connect=auto_connect,
             auto_reconnect=auto_reconnect,
             url=url,
+            namespace=namespace,
             auth=auth,
             headers=headers,
             computer_factory=computer_factory,
@@ -133,6 +140,7 @@ def _run_impl(
     auto_connect: bool,
     auto_reconnect: bool,
     url: str | None,
+    namespace: str | None,
     auth: str | None,
     headers: str | None,
     computer_factory: str | None,
@@ -177,7 +185,8 @@ def _run_impl(
                     auth_dict = None
                     headers_dict = None
                 init_client = SMCPComputerClient(computer=comp)
-                await init_client.connect(url, auth=auth_dict, headers=headers_dict)
+                # 通过 CLI 指定命名空间，确保连接时建立对应 namespace 会话
+                await init_client.connect(url, auth=auth_dict, headers=headers_dict, namespaces=[namespace])
                 console.print("[green]已通过启动参数连接到 Socket.IO / Connected via CLI options[/green]")
 
             # 启动参数加载 inputs 与 servers 配置
@@ -227,6 +236,11 @@ def run(
     auto_connect: bool = typer.Option(True, help="是否自动连接 / Auto connect"),
     auto_reconnect: bool = typer.Option(True, help="是否自动重连 / Auto reconnect"),
     url: str | None = typer.Option(None, help="Socket.IO 服务器URL，例如 https://host:port"),
+    namespace: str = typer.Option(
+        SMCP_NAMESPACE,
+        "--namespace",
+        help="Socket.IO 命名空间（默认: /smcp）/ Namespace to connect (default: /smcp)",
+    ),
     auth: str | None = typer.Option(None, help="认证参数，形如 key:value,foo:bar"),
     headers: str | None = typer.Option(None, help="请求头参数，形如 key:value,foo:bar"),
     computer_factory: str | None = typer.Option(
@@ -259,6 +273,7 @@ def run(
         auto_connect=auto_connect,
         auto_reconnect=auto_reconnect,
         url=url,
+        namespace=namespace,
         auth=auth,
         headers=headers,
         computer_factory=computer_factory,

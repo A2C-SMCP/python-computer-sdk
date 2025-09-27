@@ -69,6 +69,7 @@ def test_run_impl_uses_default_computer_when_no_factory(monkeypatch: pytest.Monk
         auto_connect=True,
         auto_reconnect=True,
         url=None,
+        namespace=None,
         auth=None,
         headers=None,
         computer_factory=None,
@@ -100,6 +101,7 @@ def test_run_impl_uses_resolved_factory(monkeypatch: pytest.MonkeyPatch) -> None
         auto_connect=False,
         auto_reconnect=False,
         url=None,
+        namespace=None,
         auth=None,
         headers=None,
         computer_factory="some.module:factory",
@@ -126,6 +128,7 @@ def test_run_impl_factory_not_callable_fallback(monkeypatch: pytest.MonkeyPatch)
         auto_connect=True,
         auto_reconnect=True,
         url=None,
+        namespace=None,
         auth=None,
         headers=None,
         computer_factory="x.y:bad",
@@ -150,6 +153,7 @@ def test_run_impl_resolve_error_fallback(monkeypatch: pytest.MonkeyPatch) -> Non
         auto_connect=True,
         auto_reconnect=True,
         url=None,
+        namespace=None,
         auth=None,
         headers=None,
         computer_factory="x.y:z",
@@ -274,6 +278,7 @@ def test_run_with_cli_url_auth_headers(monkeypatch: pytest.MonkeyPatch) -> None:
         auto_connect=False,
         auto_reconnect=False,
         url="http://service:1234",
+        namespace=cli_main.SMCP_NAMESPACE,
         auth="token:abc",
         headers="h1:v1,h2:v2",
     )
@@ -284,6 +289,7 @@ def test_run_with_cli_url_auth_headers(monkeypatch: pytest.MonkeyPatch) -> None:
         "url": "http://service:1234",
         "auth": {"token": "abc"},
         "headers": {"h1": "v1", "h2": "v2"},
+        "namespaces": [cli_main.SMCP_NAMESPACE],
     }
 
 
@@ -403,9 +409,18 @@ class FakeSMCPClient:
         FakeSMCPClient.last = self  # type: ignore[attr-defined]
         self.connect_args: dict[str, Any] | None = None
 
-    async def connect(self, url: str, auth: dict[str, Any] | None = None, headers: dict[str, Any] | None = None) -> None:
+    async def connect(
+        self,
+        url: str,
+        auth: dict[str, Any] | None = None,
+        headers: dict[str, Any] | None = None,
+        namespaces: list[str] | None = None,
+    ) -> None:
         self.connected = True
-        self.connect_args = {"url": url, "auth": auth, "headers": headers}
+        args: dict[str, Any] = {"url": url, "auth": auth, "headers": headers}
+        if namespaces is not None:
+            args["namespaces"] = namespaces
+        self.connect_args = args
 
     async def join_office(self, office_id: str, computer_name: str) -> None:
         assert self.connected

@@ -21,7 +21,7 @@ from a2c_smcp_cc.computer import Computer
 from a2c_smcp_cc.mcp_clients.manager import MCPServerManager
 from a2c_smcp_cc.mcp_clients.model import SseServerConfig, StdioServerConfig, StreamableHttpServerConfig, ToolMeta
 from a2c_smcp_cc.socketio.client import SMCPComputerClient
-from a2c_smcp_cc.socketio.smcp import GET_MCP_CONFIG_EVENT, GET_TOOLS_EVENT, SMCP_NAMESPACE, TOOL_CALL_EVENT
+from a2c_smcp_cc.socketio.smcp import GET_CONFIG_EVENT, GET_TOOLS_EVENT, SMCP_NAMESPACE, TOOL_CALL_EVENT
 from a2c_smcp_cc.utils.logger import logger
 from tests.integration_tests.socketio.mock_socketio_server import MockComputerServerNamespace, create_computer_test_socketio
 from tests.integration_tests.socketio.mock_uv_server import UvicornTestServer
@@ -167,13 +167,13 @@ async def test_computer_sends_update_mcp_config(computer, computer_server, basic
     await client.join_office("test_office", "test_computer")
 
     # 发送更新MCP配置事件
-    await client.update_mcp_config()
+    await client.update_config()
 
     # 等待事件处理
     await asyncio.sleep(0.1)
 
     assert computer_server.client_operations_record[client.namespaces[SMCP_NAMESPACE]] == (
-        "server_update_mcp_config",
+        "server_update_config",
         {"computer": client.namespaces[SMCP_NAMESPACE]},
     )
 
@@ -250,8 +250,8 @@ async def test_computer_handles_tool_call_timeout(computer, computer_server, bas
 
 
 @pytest.mark.asyncio
-async def test_computer_handles_get_mcp_config(computer_server: MockComputerServerNamespace, basic_server_port: int):
-    """测试处理获取MCP配置请求 / Handle GET_MCP_CONFIG_EVENT and validate response"""
+async def test_computer_handles_get_config(computer_server: MockComputerServerNamespace, basic_server_port: int):
+    """测试处理获取MCP配置请求 / Handle GET_CONFIG_EVENT and validate response"""
     # 构造具备 mcp_servers 属性的 Computer 替身 / Fake Computer with mcp_servers
     stdio_cfg = StdioServerConfig(
         name="stdio-srv",
@@ -297,11 +297,11 @@ async def test_computer_handles_get_mcp_config(computer_server: MockComputerServ
     )
     await client.join_office("test_office", "test_computer")
 
-    # 通过服务端命名空间的 call，向客户端发起 GET_MCP_CONFIG_EVENT 并等待回调返回
+    # 通过服务端命名空间的 call，向客户端发起 GET_CONFIG_EVENT 并等待回调返回
     # Use server-side namespace.call to request and await client's callback response
     req = {"computer": client.namespaces[SMCP_NAMESPACE], "robot_id": "test_office"}
     resp = await computer_server.call(
-        GET_MCP_CONFIG_EVENT,
+        GET_CONFIG_EVENT,
         req,
         to=client.namespaces[SMCP_NAMESPACE],
         namespace=SMCP_NAMESPACE,

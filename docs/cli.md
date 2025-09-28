@@ -67,7 +67,7 @@ python -m a2c_smcp_cc.cli.main run --auto-connect true --auto-reconnect true
 - socket leave
   - 离开当前 office。
 - notify update
-  - 在已连接并加入 office 的前提下，向服务器发送 `server:update_mcp_config` 事件，通知远端刷新配置。
+  - 在已连接并加入 office 的前提下，向服务器发送 `server:update_config` 事件，通知远端刷新配置。
 - render <json|@file>
   - 测试渲染任意 JSON 结构，内部按需解析其中的 `${input:<id>}` 占位符并打印结果。
 - quit | exit

@@ -17,23 +17,21 @@ SMCP_NAMESPACE = "/smcp"
 # ComputerClient执行
 # 一般data中会明确指定computer的sid用于执行此事件，如果需要多个client执行，一般是通过server:事件触发，广播至房间内的所有Computer
 TOOL_CALL_EVENT = "client:tool_call"
-GET_MCP_CONFIG_EVENT = "client:get_mcp_config"
+GET_CONFIG_EVENT = "client:get_config"
 GET_TOOLS_EVENT = "client:get_tools"
 # 服务端事件 由server:开头的事件服务端执行
 JOIN_OFFICE_EVENT = "server:join_office"
 LEAVE_OFFICE_EVENT = "server:leave_office"
-UPDATE_MCP_CONFIG_EVENT = "server:update_mcp_config"
+UPDATE_CONFIG_EVENT = "server:update_config"
 CANCEL_TOOL_CALL_EVENT = "server:tool_call_cancel"
 # NOTIFY 通知事件  通知事件全部由Server发出（一般由Client触发其它事件，在响应这些事件时，Server发出通知）
 #   1. 比如 AgentClient 发出 server:tool_call_cancel 事件，服务端接收后，发起 notify:tool_call_cancel 通知
 #   2. 比如 ComputerClient 发出 server:join_office 事件，服务端接收后，发起 notify:enter_office 通知
 # AgentClient与ComputerClient选择性接收。因为Notify均由Server发出，因此Server中不需要实现对应接收方法
 CANCEL_TOOL_CALL_NOTIFICATION = "notify:tool_call_cancel"
-ENTER_OFFICE_NOTIFICATION = "notify:enter_office"  # AgentClient必须实现 以此，配合 client:get_mcp_config 与 client:get_tools 更新工具配置
-LEAVE_OFFICE_NOTIFICATION = "notify:leave_office"  # AgentClient必须实现 以此，配合 client:get_mcp_config 与 client:get_tools 更新工具配置
-UPDATE_MCP_CONFIG_NOTIFICATION = (
-    "notify:update_mcp_config"  # AgentClient必须实现 以此，配合 client:get_mcp_config 与 client:get_tools 更新工具配置
-)
+ENTER_OFFICE_NOTIFICATION = "notify:enter_office"  # AgentClient必须实现 以此，配合 client:get_config 与 client:get_tools 更新工具配置
+LEAVE_OFFICE_NOTIFICATION = "notify:leave_office"  # AgentClient必须实现 以此，配合 client:get_config 与 client:get_tools 更新工具配置
+UPDATE_CONFIG_NOTIFICATION = "notify:update_config"  # AgentClient必须实现 以此，配合 client:get_config 与 client:get_tools 更新工具配置
 
 
 class AgentCallData(TypedDict):

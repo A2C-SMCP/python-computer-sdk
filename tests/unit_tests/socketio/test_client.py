@@ -9,7 +9,7 @@ from mcp.client.session_group import SseServerParameters, StreamableHttpParamete
 
 from a2c_smcp_cc.mcp_clients.model import SseServerConfig, StdioServerConfig, StreamableHttpServerConfig, ToolMeta
 from a2c_smcp_cc.socketio.client import SMCPComputerClient
-from a2c_smcp_cc.socketio.smcp import SMCP_NAMESPACE, UPDATE_MCP_CONFIG_EVENT
+from a2c_smcp_cc.socketio.smcp import SMCP_NAMESPACE, UPDATE_CONFIG_EVENT
 
 
 @pytest.mark.asyncio
@@ -46,14 +46,14 @@ async def test_emit_update_mcp_config_only_when_in_office(monkeypatch):
     # 场景1：未加入房间，不应发送
     monkeypatch.setattr(SMCPComputerClient, "emit", fake_emit, raising=False)
     client.office_id = None
-    await SMCPComputerClient.emit_update_mcp_config(client)
+    await SMCPComputerClient.emit_update_config(client)
     assert not sent
 
     # 场景2：已加入房间，应发送 UPDATE_MCP_CONFIG_EVENT
     client.office_id = "office-1"
-    await SMCPComputerClient.emit_update_mcp_config(client)
+    await SMCPComputerClient.emit_update_config(client)
     assert len(sent) == 1
-    assert sent[0][0] == UPDATE_MCP_CONFIG_EVENT
+    assert sent[0][0] == UPDATE_CONFIG_EVENT
     assert sent[0][1] == {"computer": "sid-123"}
 
 
@@ -86,10 +86,10 @@ async def test_on_tool_call_error_handling():
 
 
 @pytest.mark.asyncio
-async def test_on_get_mcp_config_serialization_three_types():
+async def test_on_get_config_serialization_three_types():
     """
-    中文：验证 on_get_mcp_config 对 stdio/sse/streamable_http 三种配置的序列化与强校验
-    English: Verify on_get_mcp_config serialization and strict validation for stdio/sse/streamable_http types
+    中文：验证 on_get_config 对 stdio/sse/streamable_http 三种配置的序列化与强校验
+    English: Verify on_get_config serialization and strict validation for stdio/sse/streamable_http types
     """
     # 构造三种类型配置 / Build three types of server configs
     stdio_cfg = StdioServerConfig(
@@ -129,7 +129,7 @@ async def test_on_get_mcp_config_serialization_three_types():
     client.namespaces[SMCP_NAMESPACE] = "sid-xyz"
 
     req = {"computer": "sid-xyz", "robot_id": "office-1", "req_id": "mock_req"}
-    ret = await client.on_get_mcp_config(req)
+    ret = await client.on_get_config(req)
 
     # 结构校验 / Structure checks
     assert "servers" in ret

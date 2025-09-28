@@ -11,7 +11,7 @@ from mcp.client.session_group import SseServerParameters
 from mcp.types import CallToolResult, Tool
 from transitions import MachineError
 
-from a2c_smcp_cc.mcp_clients.sse_client import SseMCPClient
+from a2c_smcp.computer.mcp_clients.sse_client import SseMCPClient
 
 
 @pytest.mark.asyncio

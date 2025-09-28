@@ -10,10 +10,10 @@ import pytest
 from mcp import StdioServerParameters
 from mcp.client.session_group import SseServerParameters
 
-from a2c_smcp_cc.mcp_clients.model import SseServerConfig, StdioServerConfig
-from a2c_smcp_cc.mcp_clients.sse_client import SseMCPClient
-from a2c_smcp_cc.mcp_clients.stdio_client import StdioMCPClient
-from a2c_smcp_cc.mcp_clients.utils import client_factory
+from a2c_smcp.computer.mcp_clients.model import SseServerConfig, StdioServerConfig
+from a2c_smcp.computer.mcp_clients.sse_client import SseMCPClient
+from a2c_smcp.computer.mcp_clients.stdio_client import StdioMCPClient
+from a2c_smcp.computer.mcp_clients.utils import client_factory
 
 
 @pytest.mark.anyio

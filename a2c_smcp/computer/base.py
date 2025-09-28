@@ -25,7 +25,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Generic, TypeVar
 
-from a2c_smcp_cc.mcp_clients.model import MCPServerConfig, MCPServerInput
+from a2c_smcp.computer.mcp_clients.model import MCPServerConfig, MCPServerInput
 
 S = TypeVar("S")
 

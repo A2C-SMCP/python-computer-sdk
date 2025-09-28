@@ -3,25 +3,25 @@
 本规范描述 A2C Computer CLI 在启动与交互模式下加载/使用的 MCP 配置结构与约束。
 
 - 代码依据
-  - 配置类型定义：[a2c_smcp_cc/socketio/smcp.py](cci:7://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp_cc/socketio/smcp.py:0:0-0:0)
-  - Pydantic 模型：[a2c_smcp_cc/mcp_clients/model.py](cci:7://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp_cc/mcp_clients/model.py:0:0-0:0)
-  - CLI 加载逻辑：[a2c_smcp_cc/cli/main.py](cci:7://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp_cc/cli/main.py:0:0-0:0)、[a2c_smcp_cc/cli/interactive_impl.py](cci:7://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp_cc/cli/interactive_impl.py:0:0-0:0)
+  - 配置类型定义：[a2c_smcp/computer/socketio/smcp.py](cci:7://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp/computer/socketio/smcp.py:0:0-0:0)
+  - Pydantic 模型：[a2c_smcp/computer/mcp_clients/model.py](cci:7://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp/computer/mcp_clients/model.py:0:0-0:0)
+  - CLI 加载逻辑：[a2c_smcp/computer/cli/main.py](cci:7://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp/computer/cli/main.py:0:0-0:0)、[a2c_smcp/computer/cli/interactive_impl.py](cci:7://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp/computer/cli/interactive_impl.py:0:0-0:0)
 - 配置由两部分构成
   - `servers`: MCP Server 列表（支持 `stdio`、`streamable`、`sse`）
   - `inputs`: 动态占位符输入项定义，用于渲染 `${input:<id>}`
 
 ## 一、文件与加载方式
 
-- 启动参数加载（进入交互前执行），入口参见 [a2c_smcp_cc/cli/main.py::_run_impl()](cci:1://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp_cc/cli/main.py:94:0-165:25)
+- 启动参数加载（进入交互前执行），入口参见 [a2c_smcp/computer/cli/main.py::_run_impl()](cci:1://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp/computer/cli/main.py:94:0-165:25)
   - `--config, -c`: 从文件加载 servers 配置。文件可为单对象或对象数组。路径支持 `@path` 或直接路径。
   - `--inputs, -i`: 从文件加载 inputs 定义。文件可为单对象或对象数组。路径支持 `@path` 或直接路径。
-- 交互命令（参见 [a2c_smcp_cc/cli/interactive_impl.py](cci:7://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp_cc/cli/interactive_impl.py:0:0-0:0)）
+- 交互命令（参见 [a2c_smcp/computer/cli/interactive_impl.py](cci:7://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp/computer/cli/interactive_impl.py:0:0-0:0)）
   - `server add <json|@file>`：添加或更新 1 个 Server 配置（交互命令期望单对象；文件为数组请逐条添加）
   - `server rm <name>`：移除指定 Server
   - `start <name>|all` / `stop <name>|all`：启停客户端
   - `inputs load @file`：从文件加载 inputs（需要数组）
   - `inputs add|update <json|@file>`：添加/更新 1 个或多个 inputs（支持数组/单对象）
-  - [inputs value ...](cci:1://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp_cc/cli/main.py:168:0-200:5)：管理 inputs 的运行期解析缓存值
+  - [inputs value ...](cci:1://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp/computer/cli/main.py:168:0-200:5)：管理 inputs 的运行期解析缓存值
   - `mcp`：打印当前内存配置快照（servers + inputs）
 
 ## 二、占位符渲染
@@ -207,7 +207,7 @@ render {"env":"${input:API_TOKEN}"}
 
 ## 七、参考源码
 
-- [a2c_smcp_cc/socketio/smcp.py](cci:7://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp_cc/socketio/smcp.py:0:0-0:0)：SMCP 协议与配置结构（TypedDict）
-- [a2c_smcp_cc/mcp_clients/model.py](cci:7://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp_cc/mcp_clients/model.py:0:0-0:0)：Pydantic 模型（严格校验、冻结）
-- [a2c_smcp_cc/cli/main.py](cci:7://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp_cc/cli/main.py:0:0-0:0)：启动参数、文件加载、初始化逻辑
-- [a2c_smcp_cc/cli/interactive_impl.py](cci:7://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp_cc/cli/interactive_impl.py:0:0-0:0)：交互命令实现（server/inputs 管理、渲染、Socket.IO 操作）
+- [a2c_smcp/computer/socketio/smcp.py](cci:7://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp/computer/socketio/smcp.py:0:0-0:0)：SMCP 协议与配置结构（TypedDict）
+- [a2c_smcp/computer/mcp_clients/model.py](cci:7://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp/computer/mcp_clients/model.py:0:0-0:0)：Pydantic 模型（严格校验、冻结）
+- [a2c_smcp/computer/cli/main.py](cci:7://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp/computer/cli/main.py:0:0-0:0)：启动参数、文件加载、初始化逻辑
+- [a2c_smcp/computer/cli/interactive_impl.py](cci:7://file:///Users/JQQ/PycharmProjects/A2C-SMCP/python-computer-sdk/a2c_smcp/computer/cli/interactive_impl.py:0:0-0:0)：交互命令实现（server/inputs 管理、渲染、Socket.IO 操作）

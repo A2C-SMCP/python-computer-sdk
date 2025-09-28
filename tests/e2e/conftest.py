@@ -67,7 +67,7 @@ def _spawn_cli(*extra_args: str, cwd: str | None = None) -> Iterator[pexpect.spa
         args = [
             sys.executable,
             "-c",
-            "from a2c_smcp_cc.cli.main import main; main()",
+            "from a2c_smcp.computer.cli.main import main; main()",
             "--no-color",
             "run",
         ]

@@ -21,11 +21,11 @@ from prompt_toolkit import PromptSession
 from pydantic import TypeAdapter
 from rich.table import Table
 
-from a2c_smcp_cc.cli.utils import console, parse_kv_pairs, print_mcp_config, print_status, print_tools
-from a2c_smcp_cc.computer import Computer
-from a2c_smcp_cc.mcp_clients.model import MCPServerInput as MCPServerInputModel
-from a2c_smcp_cc.socketio.smcp import MCPServerConfig as SMCPServerConfigDict
-from a2c_smcp_cc.socketio.smcp import MCPServerInput as SMCPServerInputDict
+from a2c_smcp.computer.cli.utils import console, parse_kv_pairs, print_mcp_config, print_status, print_tools
+from a2c_smcp.computer.computer import Computer
+from a2c_smcp.computer.mcp_clients.model import MCPServerInput as MCPServerInputModel
+from a2c_smcp.computer.socketio.smcp import MCPServerConfig as SMCPServerConfigDict
+from a2c_smcp.computer.socketio.smcp import MCPServerInput as SMCPServerInputDict
 
 # 定义上下文管理器类型
 ContextManager = AbstractContextManager[None]

@@ -7,7 +7,7 @@
 import asyncio
 import functools
 
-from a2c_smcp_cc.utils.async_property.proxy import AwaitableOnly
+from a2c_smcp.computer.utils.async_property.proxy import AwaitableOnly
 
 is_coroutine = asyncio.iscoroutinefunction
 

@@ -20,7 +20,7 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
 from rich.table import Table
 
-from a2c_smcp_cc.utils import console as console_util
+from a2c_smcp.computer.utils import console as console_util
 
 
 async def ainput_prompt(

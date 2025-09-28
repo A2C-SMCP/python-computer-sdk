@@ -10,7 +10,7 @@ import pytest
 from mcp.client.session_group import StreamableHttpParameters
 from polyfactory.factories.pydantic_factory import ModelFactory
 
-from a2c_smcp_cc.mcp_clients.http_client import HttpMCPClient
+from a2c_smcp.computer.mcp_clients.http_client import HttpMCPClient
 
 
 @pytest.mark.asyncio
@@ -31,10 +31,10 @@ async def test_abefore_connect_and_on_enter_connected():
     # Patch streamablehttp_client 和 ClientSession
     with (
         patch(
-            "a2c_smcp_cc.mcp_clients.http_client.streamablehttp_client",
+            "a2c_smcp.computer.mcp_clients.http_client.streamablehttp_client",
             new=AsyncMock(return_value=(mock_aread_stream, mock_awrite_stream, None)),
         ),
-        patch("a2c_smcp_cc.mcp_clients.http_client.ClientSession", new=AsyncMock(return_value=mock_session)) as mock_cs,
+        patch("a2c_smcp.computer.mcp_clients.http_client.ClientSession", new=AsyncMock(return_value=mock_session)) as mock_cs,
     ):
         # 构造 client 和 event
         client = HttpMCPClient(params=mock_params)

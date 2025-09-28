@@ -10,10 +10,9 @@
 #   English: Cover CRUD capabilities for current values cache in InputResolver.
 
 import pytest
-from prompt_toolkit import PromptSession
 
-from a2c_smcp_cc.inputs.resolver import InputResolver
-from a2c_smcp_cc.mcp_clients.model import MCPServerPromptStringInput
+from a2c_smcp.computer.inputs.resolver import InputResolver
+from a2c_smcp.computer.mcp_clients.model import MCPServerPromptStringInput
 
 
 @pytest.mark.asyncio

@@ -10,7 +10,7 @@ from mcp import StdioServerParameters
 from mcp.client.session_group import SseServerParameters, StreamableHttpParameters
 from polyfactory.factories.pydantic_factory import ModelFactory
 
-from a2c_smcp_cc.mcp_clients.model import (
+from a2c_smcp.computer.mcp_clients.model import (
     BaseMCPServerConfig,
     MCPServerConfig,
     SseServerConfig,

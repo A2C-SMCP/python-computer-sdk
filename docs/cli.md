@@ -17,7 +17,7 @@ pip install -e .
 
 - 启动 CLI
 ```bash
-python -m a2c_smcp_cc.cli.main run
+python -m a2c_smcp.computer.cli.main run
 # 或（如果配置了 console_scripts）
 a2c-computer run
 ```
@@ -25,7 +25,7 @@ a2c-computer run
 - 常用参数
 ```bash
 # 自动连接 MCP Server（在添加配置时立即尝试启动）和自动重连
-python -m a2c_smcp_cc.cli.main run --auto-connect true --auto-reconnect true
+python -m a2c_smcp.computer.cli.main run --auto-connect true --auto-reconnect true
 ```
 
 启动后将进入交互模式（prompt: `a2c>`），输入 `help` 查看可用命令。
@@ -75,7 +75,7 @@ python -m a2c_smcp_cc.cli.main run --auto-connect true --auto-reconnect true
 
 ## 配置与 Inputs 格式
 
-CLI 使用的是 SMCP 协议同构结构（与 `a2c_smcp_cc/socketio/smcp.py` 中的类型一致）。
+CLI 使用的是 SMCP 协议同构结构（与 `a2c_smcp/computer/socketio/smcp.py` 中的类型一致）。
 
 - Server 配置（示例，stdio 类型）：
 ```json
@@ -227,9 +227,9 @@ server rm my-stdio-server
 ## 参考
 
 - 代码位置
-  - CLI 主入口：`a2c_smcp_cc/cli/main.py`
-  - 计算机核心：`a2c_smcp_cc/computer.py`
-  - Socket.IO SMCP 类型：`a2c_smcp_cc/socketio/smcp.py`
-  - Socket.IO 客户端：`a2c_smcp_cc/socketio/client.py`
-  - 输入渲染：`a2c_smcp_cc/inputs/render.py`
-  - CLI I/O 工具：`a2c_smcp_cc/inputs/cli_io.py`
+  - CLI 主入口：`a2c_smcp/computer/cli/main.py`
+  - 计算机核心：`a2c_smcp/computer/computer.py`
+  - Socket.IO SMCP 类型：`a2c_smcp/computer/socketio/smcp.py`
+  - Socket.IO 客户端：`a2c_smcp/computer/socketio/client.py`
+  - 输入渲染：`a2c_smcp/computer/inputs/render.py`
+  - CLI I/O 工具：`a2c_smcp/computer/inputs/cli_io.py`

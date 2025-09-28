@@ -13,10 +13,10 @@ from polyfactory.factories.pydantic_factory import ModelFactory
 from prompt_toolkit import PromptSession
 from pydantic import ValidationError
 
-from a2c_smcp_cc.computer import Computer
-from a2c_smcp_cc.inputs.resolver import InputResolver
-from a2c_smcp_cc.mcp_clients.manager import MCPServerManager
-from a2c_smcp_cc.mcp_clients.model import (
+from a2c_smcp.computer.computer import Computer
+from a2c_smcp.computer.inputs.resolver import InputResolver
+from a2c_smcp.computer.mcp_clients.manager import MCPServerManager
+from a2c_smcp.computer.mcp_clients.model import (
     MCPServerCommandInput,
     MCPServerConfig,
     MCPServerPickStringInput,
@@ -53,7 +53,7 @@ async def test_aget_available_tools(monkeypatch):
     # 构造mock manager/Build mock manager
     mock_manager = MagicMock(spec=MCPServerManager)
     mock_manager.available_tools.return_value = DummyAsyncIterator([tool])
-    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+    monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
     # 实例化Computer/Instantiate Computer
     computer = Computer()
     await computer.boot_up()
@@ -94,7 +94,7 @@ async def test_aget_available_tools_meta_branches(monkeypatch):
     # 构造mock manager
     mock_manager = MagicMock(spec=MCPServerManager)
     mock_manager.available_tools.return_value = DummyAsyncIterator([tool1, tool2, tool3, tool4, tool5])
-    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+    monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
     computer = Computer()
     await computer.boot_up()
     tools = await computer.aget_available_tools()
@@ -111,7 +111,7 @@ async def test_aget_available_tools_meta_branches(monkeypatch):
 def test_mcp_servers_readonly(monkeypatch):
     # 构造一个不可变配置实例/Build an immutable config instance
     mock_manager = MagicMock(spec=MCPServerManager)
-    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+    monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
     config = StdioServerConfig(server_parameters=StdioServerParameters(command="echo"), name="test")
     computer = Computer(mcp_servers={config})
     servers = computer.mcp_servers
@@ -135,7 +135,7 @@ async def test_boot_up(monkeypatch):
     Test Computer.boot_up method.
     """
     mock_manager = MagicMock(spec=MCPServerManager)
-    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+    monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
     computer = Computer()
     # boot_up 是异步方法
     await computer.boot_up()
@@ -164,7 +164,7 @@ async def test_aenter(monkeypatch):
     Test Computer.__aenter__ method.
     """
     mock_manager = MagicMock(spec=MCPServerManager)
-    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+    monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
 
     async with Computer() as computer:
         assert isinstance(computer, Computer)
@@ -179,7 +179,7 @@ async def test_aexit(monkeypatch):
     Test Computer.__aexit__ method.
     """
     mock_manager = MagicMock(spec=MCPServerManager)
-    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+    monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
     async with Computer() as computer:
         ...
     mock_manager.aclose.assert_called_once()
@@ -203,7 +203,7 @@ async def test_aexecute_tool_auto_apply(monkeypatch):
     # acall_tool直接返回result
     mock_result = MagicMock()
     mock_manager.acall_tool = AsyncMock(return_value=mock_result)
-    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+    monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
     computer = Computer()
     await computer.boot_up()
     result = await computer.aexecute_tool("reqid", "tool", {"a": 1})
@@ -223,7 +223,7 @@ async def test_aexecute_tool_confirm_callback_apply(monkeypatch):
     mock_manager.get_server_config = MagicMock(return_value=mock_server_config)
     mock_result = MagicMock()
     mock_manager.acall_tool = AsyncMock(return_value=mock_result)
-    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+    monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
     # confirm_callback返回True
     computer = Computer(confirm_callback=lambda *_: True)
     await computer.boot_up()
@@ -242,7 +242,7 @@ async def test_aexecute_tool_confirm_callback_reject(monkeypatch):
     mock_server_config = MagicMock()
     mock_server_config.tool_meta = {"tool": MagicMock(auto_apply=False)}
     mock_manager.get_server_config = MagicMock(return_value=mock_server_config)
-    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+    monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
     computer = Computer(confirm_callback=lambda *_: False)
     await computer.boot_up()
     result = await computer.aexecute_tool("reqid", "tool", {"a": 1})
@@ -260,7 +260,7 @@ async def test_aexecute_tool_confirm_callback_timeout(monkeypatch):
     mock_server_config = MagicMock()
     mock_server_config.tool_meta = {"tool": MagicMock(auto_apply=False)}
     mock_manager.get_server_config = MagicMock(return_value=mock_server_config)
-    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+    monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
 
     def raise_timeout(*_):
         raise TimeoutError()
@@ -283,7 +283,7 @@ async def test_aexecute_tool_confirm_callback_exception(monkeypatch):
     mock_server_config = MagicMock()
     mock_server_config.tool_meta = {"tool": MagicMock(auto_apply=False)}
     mock_manager.get_server_config = MagicMock(return_value=mock_server_config)
-    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+    monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
 
     def raise_exc(*_):
         raise RuntimeError("fail")
@@ -306,7 +306,7 @@ async def test_aexecute_tool_no_confirm_callback(monkeypatch):
     mock_server_config = MagicMock()
     mock_server_config.tool_meta = {"tool": MagicMock(auto_apply=False)}
     mock_manager.get_server_config = MagicMock(return_value=mock_server_config)
-    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+    monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
     computer = Computer()
     await computer.boot_up()
     result = await computer.aexecute_tool("reqid", "tool", {"a": 1})
@@ -334,7 +334,7 @@ async def test_aadd_or_aupdate_server_with_raw_dict_uses_inputs_and_validates(mo
     # Arrange manager mock
     mock_manager = MagicMock(spec=MCPServerManager)
     mock_manager.aadd_or_aupdate_server = AsyncMock()
-    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+    monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
 
     # Prepare computer with custom resolver
     resolver = DummyResolver({"cmd": "/bin/echo", "port": "9000"})
@@ -375,7 +375,7 @@ async def test_aadd_or_aupdate_server_with_model_instance(monkeypatch):
     # Arrange manager mock
     mock_manager = MagicMock(spec=MCPServerManager)
     mock_manager.aadd_or_aupdate_server = AsyncMock()
-    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+    monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
 
     # Prepare computer with resolver mapping empty (no placeholders used)
     resolver = DummyResolver({})
@@ -404,7 +404,7 @@ async def test_aadd_or_aupdate_server_missing_input_keeps_placeholder(monkeypatc
     # Arrange manager mock (should be called with placeholder preserved)
     mock_manager = MagicMock(spec=MCPServerManager)
     mock_manager.aadd_or_aupdate_server = AsyncMock()
-    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: mock_manager)
+    monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
 
     # Resolver without required key -> will raise KeyError inside resolver,
     # but renderer will catch and keep original placeholder string
@@ -483,7 +483,7 @@ async def test_boot_up_renders_all_initial_servers(monkeypatch):
         async def ainitialize(self, servers):  # type: ignore[override]
             captured["servers"] = list(servers)
 
-    monkeypatch.setattr("a2c_smcp_cc.computer.MCPServerManager", lambda *a, **kw: SpyManager(spec=MCPServerManager))
+    monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: SpyManager(spec=MCPServerManager))
 
     # Use a dummy resolver to avoid interactive prompt, mapping 'cmd' to path
     resolver = DummyResolver({"cmd": "/bin/echo"})

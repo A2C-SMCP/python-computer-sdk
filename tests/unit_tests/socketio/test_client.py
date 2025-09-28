@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from mcp import StdioServerParameters
 from mcp.client.session_group import SseServerParameters, StreamableHttpParameters
 
-from a2c_smcp_cc.mcp_clients.model import SseServerConfig, StdioServerConfig, StreamableHttpServerConfig, ToolMeta
-from a2c_smcp_cc.socketio.client import SMCPComputerClient
-from a2c_smcp_cc.socketio.smcp import SMCP_NAMESPACE, UPDATE_CONFIG_EVENT
+from a2c_smcp.computer.mcp_clients.model import SseServerConfig, StdioServerConfig, StreamableHttpServerConfig, ToolMeta
+from a2c_smcp.computer.socketio.client import SMCPComputerClient
+from a2c_smcp.computer.socketio.smcp import SMCP_NAMESPACE, UPDATE_CONFIG_EVENT
 
 
 @pytest.mark.asyncio

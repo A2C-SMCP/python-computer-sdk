@@ -30,7 +30,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import Mount, Route
 
-from a2c_smcp_cc.mcp_clients.http_client import HttpMCPClient
+from a2c_smcp.computer.mcp_clients.http_client import HttpMCPClient
 
 STREAMABLE_HTTP_SERVER_NAME = "test_streamable_http_server"
 TEST_SESSION_ID = "test-session-id-12345"

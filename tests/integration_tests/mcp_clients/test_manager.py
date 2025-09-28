@@ -13,8 +13,8 @@ Integration test: MCPServerManager manages multiple protocol clients
 import pytest
 from mcp import Tool
 
-from a2c_smcp_cc.mcp_clients.manager import MCPServerManager, ToolNameDuplicatedError
-from a2c_smcp_cc.mcp_clients.model import SseServerConfig, StdioServerConfig, StreamableHttpServerConfig
+from a2c_smcp.computer.mcp_clients.manager import MCPServerManager, ToolNameDuplicatedError
+from a2c_smcp.computer.mcp_clients.model import SseServerConfig, StdioServerConfig, StreamableHttpServerConfig
 
 
 @pytest.mark.anyio

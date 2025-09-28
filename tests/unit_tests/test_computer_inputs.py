@@ -2,8 +2,8 @@
 # filename: test_computer_inputs.py
 from __future__ import annotations
 
-from a2c_smcp_cc.computer import Computer
-from a2c_smcp_cc.mcp_clients.model import (
+from a2c_smcp.computer.computer import Computer
+from a2c_smcp.computer.mcp_clients.model import (
     MCPServerPickStringInput,
     MCPServerPromptStringInput,
 )

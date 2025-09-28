@@ -11,7 +11,7 @@ from mcp.types import CallToolResult
 from pydantic import TypeAdapter
 from socketio import AsyncNamespace, AsyncServer
 
-from a2c_smcp_cc.socketio.smcp import (
+from a2c_smcp.computer.socketio.smcp import (
     ENTER_OFFICE_NOTIFICATION,
     GET_TOOLS_EVENT,
     LEAVE_OFFICE_NOTIFICATION,
@@ -28,7 +28,7 @@ from a2c_smcp_cc.socketio.smcp import (
     UpdateMCPConfigNotification,
     UpdateMCPConfigReq,
 )
-from a2c_smcp_cc.utils.logger import logger
+from a2c_smcp.computer.utils.logger import logger
 
 
 class MockComputerServerNamespace(AsyncNamespace):

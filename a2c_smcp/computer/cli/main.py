@@ -23,21 +23,21 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
 from pydantic import TypeAdapter
 
-from a2c_smcp_cc.cli.interactive_impl import interactive_loop as _interactive_loop_impl
-from a2c_smcp_cc.cli.utils import (
+from a2c_smcp.computer.cli.interactive_impl import interactive_loop as _interactive_loop_impl
+from a2c_smcp.computer.cli.utils import (
     parse_kv_pairs,
     resolve_import_target,
 )
-from a2c_smcp_cc.computer import Computer
-from a2c_smcp_cc.inputs.resolver import InputResolver
-from a2c_smcp_cc.mcp_clients.model import (
+from a2c_smcp.computer.computer import Computer
+from a2c_smcp.computer.inputs.resolver import InputResolver
+from a2c_smcp.computer.mcp_clients.model import (
     MCPServerInput as MCPServerInputModel,
 )
-from a2c_smcp_cc.socketio.client import SMCPComputerClient
-from a2c_smcp_cc.socketio.smcp import SMCP_NAMESPACE
-from a2c_smcp_cc.socketio.smcp import MCPServerConfig as SMCPServerConfigDict
-from a2c_smcp_cc.socketio.smcp import MCPServerInput as SMCPServerInputDict
-from a2c_smcp_cc.utils import console as console_util
+from a2c_smcp.computer.socketio.client import SMCPComputerClient
+from a2c_smcp.computer.socketio.smcp import SMCP_NAMESPACE
+from a2c_smcp.computer.socketio.smcp import MCPServerConfig as SMCPServerConfigDict
+from a2c_smcp.computer.socketio.smcp import MCPServerInput as SMCPServerInputDict
+from a2c_smcp.computer.utils import console as console_util
 
 app = typer.Typer(add_completion=False, help="A2C Computer CLI")
 # 使用全局 Console（引用模块属性，便于后续动态切换）

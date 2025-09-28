@@ -9,7 +9,7 @@ from collections.abc import Generator
 import pytest
 from mcp.client.session_group import StreamableHttpParameters
 
-from a2c_smcp_cc.mcp_clients.http_client import HttpMCPClient
+from a2c_smcp.computer.mcp_clients.http_client import HttpMCPClient
 
 
 @pytest.mark.anyio

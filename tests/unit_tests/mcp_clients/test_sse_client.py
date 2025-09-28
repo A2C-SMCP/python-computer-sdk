@@ -10,7 +10,7 @@ import pytest
 from mcp.client.session_group import SseServerParameters
 from polyfactory.factories.pydantic_factory import ModelFactory
 
-from a2c_smcp_cc.mcp_clients.sse_client import SseMCPClient
+from a2c_smcp.computer.mcp_clients.sse_client import SseMCPClient
 
 
 @pytest.mark.asyncio
@@ -30,8 +30,8 @@ async def test_abefore_connect_and_on_enter_connected():
 
     # Patch sse_client 和 ClientSession
     with (
-        patch("a2c_smcp_cc.mcp_clients.sse_client.sse_client", new=AsyncMock(return_value=(mock_aread_stream, mock_awrite_stream))),
-        patch("a2c_smcp_cc.mcp_clients.sse_client.ClientSession", new=AsyncMock(return_value=mock_session)) as mock_cs,
+        patch("a2c_smcp.computer.mcp_clients.sse_client.sse_client", new=AsyncMock(return_value=(mock_aread_stream, mock_awrite_stream))),
+        patch("a2c_smcp.computer.mcp_clients.sse_client.ClientSession", new=AsyncMock(return_value=mock_session)) as mock_cs,
     ):
         # 构造 client 和 event
         client = SseMCPClient(params=mock_params)

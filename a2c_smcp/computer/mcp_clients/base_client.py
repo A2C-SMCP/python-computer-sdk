@@ -17,8 +17,8 @@ from pydantic import BaseModel
 from transitions.core import EventData
 from transitions.extensions import AsyncMachine
 
-from a2c_smcp_cc.utils.async_property import async_property
-from a2c_smcp_cc.utils.logger import logger
+from a2c_smcp.computer.utils.async_property import async_property
+from a2c_smcp.computer.utils.logger import logger
 
 
 class STATES(StrEnum):

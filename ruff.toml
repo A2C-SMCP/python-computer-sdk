@@ -16,7 +16,7 @@ extend-ignore = ["UP009", "ANN401"]  # 忽略 UP009 ANN401(Any)
 
 [lint.per-file-ignores]
 "__init__.py" = ["F401"]  # Unused imports
-"a2c_smcp_cc/utils/async_property/*.py" = ["E", "F", "I", "W", "B", "UP", "ANN"]
+"a2c_smcp/computer/utils/async_property/*.py" = ["E", "F", "I", "W", "B", "UP", "ANN"]
 "tests/**/*.py" = ["F811", "F401", "B017", "ANN"]  # Redefinition in test files
 
 [lint.isort]

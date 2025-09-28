@@ -9,7 +9,7 @@ import json
 
 import pytest
 
-from a2c_smcp_cc.inputs.cli_io import ainput_pick, ainput_prompt, arun_command
+from a2c_smcp.computer.inputs.cli_io import ainput_pick, ainput_prompt, arun_command
 
 
 @pytest.mark.asyncio
@@ -19,7 +19,7 @@ async def test_ainput_prompt_returns_default_on_interrupt(monkeypatch):
             raise EOFError()
 
     # patch PromptSession constructor to return dummy
-    import a2c_smcp_cc.inputs.cli_io as cli_io
+    import a2c_smcp.computer.inputs.cli_io as cli_io
 
     monkeypatch.setattr(cli_io, "PromptSession", lambda: DummySession())
 
@@ -33,7 +33,7 @@ async def test_ainput_prompt_uses_default_on_empty(monkeypatch):
         async def prompt_async(self, *args, **kwargs):
             return ""
 
-    import a2c_smcp_cc.inputs.cli_io as cli_io
+    import a2c_smcp.computer.inputs.cli_io as cli_io
 
     monkeypatch.setattr(cli_io, "PromptSession", lambda: DummySession())
 
@@ -47,7 +47,7 @@ async def test_ainput_prompt_returns_value(monkeypatch):
         async def prompt_async(self, *args, **kwargs):
             return "world"
 
-    import a2c_smcp_cc.inputs.cli_io as cli_io
+    import a2c_smcp.computer.inputs.cli_io as cli_io
 
     monkeypatch.setattr(cli_io, "PromptSession", lambda: DummySession())
 
@@ -63,7 +63,7 @@ async def test_ainput_pick_single_happy_path(monkeypatch):
         async def prompt_async(self, *args, **kwargs):
             return next(inputs)
 
-    import a2c_smcp_cc.inputs.cli_io as cli_io
+    import a2c_smcp.computer.inputs.cli_io as cli_io
 
     # silence console printing by replacing console.print with no-op
     monkeypatch.setattr(cli_io, "PromptSession", lambda: DummySession())
@@ -81,7 +81,7 @@ async def test_ainput_pick_multi_with_dedup_and_order(monkeypatch):
         async def prompt_async(self, *args, **kwargs):
             return next(inputs)
 
-    import a2c_smcp_cc.inputs.cli_io as cli_io
+    import a2c_smcp.computer.inputs.cli_io as cli_io
 
     monkeypatch.setattr(cli_io, "PromptSession", lambda: DummySession())
     monkeypatch.setattr(cli_io.console_util.console, "print", lambda *a, **k: None)
@@ -102,7 +102,7 @@ async def test_ainput_pick_default_on_interrupt_and_empty(monkeypatch):
                 raise KeyboardInterrupt()
             return ""
 
-    import a2c_smcp_cc.inputs.cli_io as cli_io
+    import a2c_smcp.computer.inputs.cli_io as cli_io
 
     monkeypatch.setattr(cli_io, "PromptSession", lambda: DummySession())
     monkeypatch.setattr(cli_io.console_util.console, "print", lambda *a, **k: None)

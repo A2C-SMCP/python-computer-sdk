@@ -25,7 +25,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from typing import Any, Generic, TypeVar
 
-from a2c_smcp_cc.mcp_clients.model import (
+from a2c_smcp.computer.mcp_clients.model import (
     MCPServerCommandInput,
     MCPServerInput,
     MCPServerPickStringInput,

@@ -14,7 +14,7 @@ from mcp import ClientSession
 from mcp.types import ListToolsResult
 from transitions.core import MachineError
 
-from a2c_smcp_cc.mcp_clients.base_client import STATES, BaseMCPClient
+from a2c_smcp.computer.mcp_clients.base_client import STATES, BaseMCPClient
 
 
 # 创建测试用的具体客户端实现

@@ -10,7 +10,7 @@ import pytest
 from mcp import StdioServerParameters
 from polyfactory.factories.pydantic_factory import ModelFactory
 
-from a2c_smcp_cc.mcp_clients.stdio_client import StdioMCPClient
+from a2c_smcp.computer.mcp_clients.stdio_client import StdioMCPClient
 
 
 @pytest.mark.asyncio
@@ -30,8 +30,8 @@ async def test_abefore_connect_and_on_enter_connected():
 
     # Patch stdio_client 和 ClientSession
     with (
-        patch("a2c_smcp_cc.mcp_clients.stdio_client.stdio_client", new=AsyncMock(return_value=(mock_stdout, mock_stdin))),
-        patch("a2c_smcp_cc.mcp_clients.stdio_client.ClientSession", new=AsyncMock(return_value=mock_session)) as mock_cs,
+        patch("a2c_smcp.computer.mcp_clients.stdio_client.stdio_client", new=AsyncMock(return_value=(mock_stdout, mock_stdin))),
+        patch("a2c_smcp.computer.mcp_clients.stdio_client.ClientSession", new=AsyncMock(return_value=mock_session)) as mock_cs,
     ):
         # 构造 client 和 event
         client = StdioMCPClient(params=mock_params)

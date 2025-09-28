@@ -17,15 +17,15 @@ from typing import Any
 
 from prompt_toolkit import PromptSession
 
-from a2c_smcp_cc.inputs.base import BaseInputResolver
-from a2c_smcp_cc.inputs.cli_io import ainput_pick, ainput_prompt, arun_command
-from a2c_smcp_cc.mcp_clients.model import (
+from a2c_smcp.computer.inputs.base import BaseInputResolver
+from a2c_smcp.computer.inputs.cli_io import ainput_pick, ainput_prompt, arun_command
+from a2c_smcp.computer.mcp_clients.model import (
     MCPServerCommandInput,
     MCPServerInput,
     MCPServerPickStringInput,
     MCPServerPromptStringInput,
 )
-from a2c_smcp_cc.utils.logger import logger
+from a2c_smcp.computer.utils.logger import logger
 
 
 class InputNotFoundError(KeyError):

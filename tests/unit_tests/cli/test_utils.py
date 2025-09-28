@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from a2c_smcp_cc.cli.utils import parse_kv_pairs, resolve_import_target
+from a2c_smcp.computer.cli.utils import parse_kv_pairs, resolve_import_target
 
 
 class TestParseKvPairs:
@@ -37,11 +37,11 @@ class TestParseKvPairs:
 
 class TestResolveImportTarget:
     def test_resolve_with_colon(self) -> None:
-        obj = resolve_import_target("a2c_smcp_cc.cli.utils:resolve_import_target")
+        obj = resolve_import_target("a2c_smcp.computer.cli.utils:resolve_import_target")
         assert obj is resolve_import_target
 
     def test_resolve_with_dot(self) -> None:
-        obj = resolve_import_target("a2c_smcp_cc.cli.utils.resolve_import_target")
+        obj = resolve_import_target("a2c_smcp.computer.cli.utils.resolve_import_target")
         assert obj is resolve_import_target
 
     def test_relative_import_not_allowed(self) -> None:
@@ -54,4 +54,4 @@ class TestResolveImportTarget:
 
     def test_missing_attribute(self) -> None:
         with pytest.raises(AttributeError):
-            resolve_import_target("a2c_smcp_cc.cli.utils:not_exist_attr")
+            resolve_import_target("a2c_smcp.computer.cli.utils:not_exist_attr")

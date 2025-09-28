@@ -12,7 +12,7 @@ from mcp import StdioServerParameters
 from mcp.types import CallToolResult
 from transitions import MachineError
 
-from a2c_smcp_cc.mcp_clients.stdio_client import StdioMCPClient
+from a2c_smcp.computer.mcp_clients.stdio_client import StdioMCPClient
 
 
 @pytest.mark.asyncio

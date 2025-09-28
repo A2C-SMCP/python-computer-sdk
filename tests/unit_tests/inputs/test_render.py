@@ -9,7 +9,7 @@ import logging
 
 import pytest
 
-from a2c_smcp_cc.inputs.render import ConfigRender
+from a2c_smcp.computer.inputs.render import ConfigRender
 
 
 @pytest.fixture(autouse=True)

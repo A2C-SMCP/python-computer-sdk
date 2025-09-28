@@ -14,8 +14,8 @@ from unittest.mock import MagicMock
 import pytest
 from prompt_toolkit import PromptSession
 
-from a2c_smcp_cc.computer import Computer
-from a2c_smcp_cc.mcp_clients.model import SseServerConfig, StdioServerConfig, ToolMeta
+from a2c_smcp.computer.computer import Computer
+from a2c_smcp.computer.mcp_clients.model import SseServerConfig, StdioServerConfig, ToolMeta
 
 
 @pytest.mark.anyio
@@ -47,7 +47,7 @@ async def test_computer_aexecute_tool_confirm_callback_called(stdio_params):
     测试tool_meta为空时会触发二次确认回调，并保证回调被调用
     Test that when tool_meta is empty, confirm_callback is triggered and called
     """
-    from a2c_smcp_cc.mcp_clients.model import StdioServerConfig
+    from a2c_smcp.computer.mcp_clients.model import StdioServerConfig
 
     # tool_meta为空/No auto_apply
     confirm_mock = MagicMock(return_value=True)

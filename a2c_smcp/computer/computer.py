@@ -34,14 +34,14 @@ from mcp.types import CallToolResult, TextContent
 from prompt_toolkit import PromptSession
 from pydantic import TypeAdapter
 
-from a2c_smcp_cc.base import BaseComputer
-from a2c_smcp_cc.inputs.render import ConfigRender
-from a2c_smcp_cc.inputs.resolver import InputNotFoundError, InputResolver
-from a2c_smcp_cc.mcp_clients.manager import MCPServerManager
-from a2c_smcp_cc.mcp_clients.model import MCPServerConfig, MCPServerInput
-from a2c_smcp_cc.socketio.smcp import SMCPTool
-from a2c_smcp_cc.socketio.types import AttributeValue
-from a2c_smcp_cc.utils.logger import logger
+from a2c_smcp.computer.base import BaseComputer
+from a2c_smcp.computer.inputs.render import ConfigRender
+from a2c_smcp.computer.inputs.resolver import InputNotFoundError, InputResolver
+from a2c_smcp.computer.mcp_clients.manager import MCPServerManager
+from a2c_smcp.computer.mcp_clients.model import MCPServerConfig, MCPServerInput
+from a2c_smcp.computer.socketio.smcp import SMCPTool
+from a2c_smcp.computer.socketio.types import AttributeValue
+from a2c_smcp.computer.utils.logger import logger
 
 
 class Computer(BaseComputer[PromptSession]):

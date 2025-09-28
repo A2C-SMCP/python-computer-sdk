@@ -10,7 +10,7 @@ from mcp import ClientSession
 from mcp.client.session_group import SseServerParameters
 from mcp.client.sse import sse_client
 
-from a2c_smcp_cc.mcp_clients.base_client import BaseMCPClient
+from a2c_smcp.computer.mcp_clients.base_client import BaseMCPClient
 
 
 class SseMCPClient(BaseMCPClient):

@@ -13,8 +13,8 @@ from mcp import StdioServerParameters, Tool
 from mcp.client.session_group import SseServerParameters, StreamableHttpParameters
 from mcp.types import CallToolResult
 
-from a2c_smcp_cc.mcp_clients.manager import MCPServerManager, ToolNameDuplicatedError
-from a2c_smcp_cc.mcp_clients.model import (
+from a2c_smcp.computer.mcp_clients.manager import MCPServerManager, ToolNameDuplicatedError
+from a2c_smcp.computer.mcp_clients.model import (
     MCPClientProtocol,
     MCPServerConfig,
     SseServerConfig,
@@ -66,7 +66,7 @@ def mock_client_factory(config: MCPServerConfig) -> MockMCPClient:
 # Monkey patch客户端工厂函数
 @pytest.fixture(autouse=True)
 def patch_client_factory(monkeypatch):
-    monkeypatch.setattr("a2c_smcp_cc.mcp_clients.manager.client_factory", mock_client_factory)
+    monkeypatch.setattr("a2c_smcp.computer.mcp_clients.manager.client_factory", mock_client_factory)
 
 
 # 创建示例服务器配置
@@ -437,7 +437,7 @@ async def test_arefresh_tool_mapping_duplicate(manager, monkeypatch):
     def always_duplicate_tool(_):
         return MockMCPClient([create_mock_tool("duplicate_tool")])
 
-    monkeypatch.setattr("a2c_smcp_cc.mcp_clients.manager.client_factory", always_duplicate_tool)
+    monkeypatch.setattr("a2c_smcp.computer.mcp_clients.manager.client_factory", always_duplicate_tool)
     manager._servers_config = {config1.name: config1, config2.name: config2}
     manager._active_clients = {config1.name: always_duplicate_tool(config1), config2.name: always_duplicate_tool(config2)}
     with pytest.raises(ToolNameDuplicatedError):
@@ -458,7 +458,7 @@ async def test_astart_client(manager, monkeypatch):
     def always_duplicate_tool(_):
         return MockMCPClient([create_mock_tool("duplicate_tool")])
 
-    monkeypatch.setattr("a2c_smcp_cc.mcp_clients.manager.client_factory", always_duplicate_tool)
+    monkeypatch.setattr("a2c_smcp.computer.mcp_clients.manager.client_factory", always_duplicate_tool)
     await manager.aadd_or_aupdate_server(config1)
     await manager.aadd_or_aupdate_server(config2)
     assert not manager._active_clients
@@ -501,7 +501,7 @@ async def test_astart_all_tool_name_duplicate(manager, monkeypatch):
     def always_duplicate_tool(_):
         return MockMCPClient([create_mock_tool("duplicate_tool")])
 
-    monkeypatch.setattr("a2c_smcp_cc.mcp_clients.manager.client_factory", always_duplicate_tool)
+    monkeypatch.setattr("a2c_smcp.computer.mcp_clients.manager.client_factory", always_duplicate_tool)
     servers = [config1, config2]
     # 因为首次初始化时配置未连接，也就不会检查工具名冲突，因此可以正常初始化
     await manager.ainitialize(servers)
@@ -528,7 +528,7 @@ async def test_aadd_or_aupdate_server_with_duplicate_tool(manager, monkeypatch):
         else:
             return MockMCPClient([create_mock_tool("tool1")])  # 故意返回同名工具
 
-    monkeypatch.setattr("a2c_smcp_cc.mcp_clients.manager.client_factory", duplicate_tool_factory)
+    monkeypatch.setattr("a2c_smcp.computer.mcp_clients.manager.client_factory", duplicate_tool_factory)
 
     # 添加新服务器（会触发工具名冲突）
     config2 = create_server_config("server2")

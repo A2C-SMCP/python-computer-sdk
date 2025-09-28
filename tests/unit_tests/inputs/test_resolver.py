@@ -8,8 +8,8 @@
 import pytest
 from prompt_toolkit import PromptSession
 
-from a2c_smcp_cc.inputs.resolver import InputNotFoundError, InputResolver
-from a2c_smcp_cc.mcp_clients.model import (
+from a2c_smcp.computer.inputs.resolver import InputNotFoundError, InputResolver
+from a2c_smcp.computer.mcp_clients.model import (
     MCPServerCommandInput,
     MCPServerPickStringInput,
     MCPServerPromptStringInput,
@@ -28,7 +28,7 @@ async def test_resolver_prompt_path(monkeypatch):
         assert session is None
         return "typed"
 
-    import a2c_smcp_cc.inputs.resolver as resolver_mod
+    import a2c_smcp.computer.inputs.resolver as resolver_mod
 
     monkeypatch.setattr(resolver_mod, "ainput_prompt", fake_prompt)
 
@@ -45,7 +45,7 @@ async def test_resolver_pick_path_default_fallback(monkeypatch):
         # simulate user returns empty so resolver should use cfg.default
         return ""
 
-    import a2c_smcp_cc.inputs.resolver as resolver_mod
+    import a2c_smcp.computer.inputs.resolver as resolver_mod
 
     monkeypatch.setattr(resolver_mod, "ainput_pick", fake_pick)
 
@@ -64,7 +64,7 @@ async def test_resolver_command_path(monkeypatch):
         assert parse == "raw"
         return "OK"
 
-    import a2c_smcp_cc.inputs.resolver as resolver_mod
+    import a2c_smcp.computer.inputs.resolver as resolver_mod
 
     monkeypatch.setattr(resolver_mod, "arun_command", fake_run)
 
@@ -82,7 +82,7 @@ async def test_resolver_cache_and_clear(monkeypatch):
         calls["n"] += 1
         return "v" + str(calls["n"])
 
-    import a2c_smcp_cc.inputs.resolver as resolver_mod
+    import a2c_smcp.computer.inputs.resolver as resolver_mod
 
     monkeypatch.setattr(resolver_mod, "ainput_prompt", fake_prompt)
 

@@ -12,9 +12,9 @@ import pytest
 from mcp import StdioServerParameters
 from typer.testing import CliRunner
 
-import a2c_smcp_cc.cli.main as cli_main
-from a2c_smcp_cc.cli.main import _interactive_loop
-from a2c_smcp_cc.computer import Computer
+import a2c_smcp.computer.cli.main as cli_main
+from a2c_smcp.computer.cli.main import _interactive_loop
+from a2c_smcp.computer.computer import Computer
 
 
 class FakePromptSession:

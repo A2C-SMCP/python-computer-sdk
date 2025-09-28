@@ -9,8 +9,8 @@ from pathlib import Path
 import pytest
 from mcp import StdioServerParameters
 
-from a2c_smcp_cc.computer import Computer
-from a2c_smcp_cc.mcp_clients.model import StdioServerConfig
+from a2c_smcp.computer.computer import Computer
+from a2c_smcp.computer.mcp_clients.model import StdioServerConfig
 
 
 @pytest.mark.asyncio

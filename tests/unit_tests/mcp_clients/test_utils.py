@@ -12,11 +12,11 @@ Test client_factory factory method to ensure correct client instantiation for ea
 import pytest
 from polyfactory.factories.pydantic_factory import ModelFactory
 
-from a2c_smcp_cc.mcp_clients.http_client import HttpMCPClient
-from a2c_smcp_cc.mcp_clients.model import SseServerConfig, StdioServerConfig, StreamableHttpServerConfig
-from a2c_smcp_cc.mcp_clients.sse_client import SseMCPClient
-from a2c_smcp_cc.mcp_clients.stdio_client import StdioMCPClient
-from a2c_smcp_cc.mcp_clients.utils import client_factory
+from a2c_smcp.computer.mcp_clients.http_client import HttpMCPClient
+from a2c_smcp.computer.mcp_clients.model import SseServerConfig, StdioServerConfig, StreamableHttpServerConfig
+from a2c_smcp.computer.mcp_clients.sse_client import SseMCPClient
+from a2c_smcp.computer.mcp_clients.stdio_client import StdioMCPClient
+from a2c_smcp.computer.mcp_clients.utils import client_factory
 
 
 class StdioServerConfigFactory(ModelFactory[StdioServerConfig]):

@@ -8,7 +8,7 @@ from collections.abc import Awaitable, Callable
 
 from mcp import ClientSession, StdioServerParameters, stdio_client
 
-from a2c_smcp_cc.mcp_clients.base_client import BaseMCPClient
+from a2c_smcp.computer.mcp_clients.base_client import BaseMCPClient
 
 
 class StdioMCPClient(BaseMCPClient):

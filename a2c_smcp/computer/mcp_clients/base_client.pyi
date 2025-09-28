@@ -22,8 +22,7 @@ from pydantic import BaseModel as BaseModel
 from transitions.core import EventData
 from transitions.extensions.asyncio import AsyncMachine, AsyncTransitionConfigDict
 
-from a2c_smcp_cc.utils.async_property import async_property
-from a2c_smcp_cc.utils.logger import logger as logger
+from a2c_smcp.computer.utils import async_property
 
 class STATES(StrEnum):
     initialized = "initialized"

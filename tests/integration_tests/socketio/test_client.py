@@ -17,12 +17,12 @@ from mcp.client.session_group import SseServerParameters, StreamableHttpParamete
 from mcp.types import CallToolResult, TextContent
 from socketio import ASGIApp
 
-from a2c_smcp_cc.computer import Computer
-from a2c_smcp_cc.mcp_clients.manager import MCPServerManager
-from a2c_smcp_cc.mcp_clients.model import SseServerConfig, StdioServerConfig, StreamableHttpServerConfig, ToolMeta
-from a2c_smcp_cc.socketio.client import SMCPComputerClient
-from a2c_smcp_cc.socketio.smcp import GET_CONFIG_EVENT, GET_TOOLS_EVENT, SMCP_NAMESPACE, TOOL_CALL_EVENT
-from a2c_smcp_cc.utils.logger import logger
+from a2c_smcp.computer.computer import Computer
+from a2c_smcp.computer.mcp_clients.manager import MCPServerManager
+from a2c_smcp.computer.mcp_clients.model import SseServerConfig, StdioServerConfig, StreamableHttpServerConfig, ToolMeta
+from a2c_smcp.computer.socketio.client import SMCPComputerClient
+from a2c_smcp.computer.socketio.smcp import GET_CONFIG_EVENT, GET_TOOLS_EVENT, SMCP_NAMESPACE, TOOL_CALL_EVENT
+from a2c_smcp.computer.utils.logger import logger
 from tests.integration_tests.socketio.mock_socketio_server import MockComputerServerNamespace, create_computer_test_socketio
 from tests.integration_tests.socketio.mock_uv_server import UvicornTestServer
 

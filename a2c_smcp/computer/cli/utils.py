@@ -18,8 +18,8 @@ from typing import Any
 
 from rich.table import Table
 
-from a2c_smcp_cc.computer import Computer
-from a2c_smcp_cc.utils import console as console_util
+from a2c_smcp.computer.computer import Computer
+from a2c_smcp.computer.utils import console as console_util
 
 # 使用全局 Console（引用模块属性，便于后续动态切换）
 # Use a global Console (module attribute reference for dynamic switching)

@@ -12,9 +12,9 @@ from typing import Any
 
 import pytest
 
-import a2c_smcp_cc.cli.main as cli_main
-from a2c_smcp_cc.cli.main import _interactive_loop
-from a2c_smcp_cc.computer import Computer
+import a2c_smcp.computer.cli.main as cli_main
+from a2c_smcp.computer.cli.main import _interactive_loop
+from a2c_smcp.computer.computer import Computer
 
 
 class DummyInteractive:
@@ -58,7 +58,7 @@ class FakeComputer:
 
 
 def test_run_impl_uses_default_computer_when_no_factory(monkeypatch: pytest.MonkeyPatch) -> None:
-    from a2c_smcp_cc.cli import main as cli_main
+    from a2c_smcp.computer.cli import main as cli_main
 
     # Patch Computer to our fake and _interactive_loop to a dummy coro
     monkeypatch.setattr(cli_main, "Computer", FakeComputer, raising=True)
@@ -84,7 +84,7 @@ def test_run_impl_uses_default_computer_when_no_factory(monkeypatch: pytest.Monk
 
 
 def test_run_impl_uses_resolved_factory(monkeypatch: pytest.MonkeyPatch) -> None:
-    from a2c_smcp_cc.cli import main as cli_main
+    from a2c_smcp.computer.cli import main as cli_main
 
     # Prepare a factory that returns our FakeComputer
     calls: dict[str, Any] = {"count": 0}
@@ -116,7 +116,7 @@ def test_run_impl_uses_resolved_factory(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_run_impl_factory_not_callable_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    from a2c_smcp_cc.cli import main as cli_main
+    from a2c_smcp.computer.cli import main as cli_main
 
     # Make resolve_import_target return a non-callable
     monkeypatch.setattr(cli_main, "resolve_import_target", lambda s: object(), raising=True)
@@ -140,7 +140,7 @@ def test_run_impl_factory_not_callable_fallback(monkeypatch: pytest.MonkeyPatch)
 
 
 def test_run_impl_resolve_error_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    from a2c_smcp_cc.cli import main as cli_main
+    from a2c_smcp.computer.cli import main as cli_main
 
     def _raise(_: str) -> Any:
         raise ValueError("boom")

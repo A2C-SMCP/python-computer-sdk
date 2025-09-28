@@ -11,10 +11,10 @@ from typing import Any
 
 from mcp.types import CallToolResult, Tool
 
-from a2c_smcp_cc.mcp_clients.model import A2C_TOOL_META, MCPClientProtocol, MCPServerConfig
-from a2c_smcp_cc.mcp_clients.utils import client_factory
-from a2c_smcp_cc.types import SERVER_NAME, TOOL_NAME
-from a2c_smcp_cc.utils.logger import logger
+from a2c_smcp.computer.mcp_clients.model import A2C_TOOL_META, MCPClientProtocol, MCPServerConfig
+from a2c_smcp.computer.mcp_clients.utils import client_factory
+from a2c_smcp.computer.types import SERVER_NAME, TOOL_NAME
+from a2c_smcp.computer.utils.logger import logger
 
 
 class ToolNameDuplicatedError(Exception):

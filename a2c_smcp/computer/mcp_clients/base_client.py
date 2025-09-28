@@ -12,6 +12,7 @@ from enum import StrEnum
 from typing import cast
 
 from mcp import ClientSession, Tool
+from mcp.client.session import MessageHandlerFnT
 from mcp.types import CallToolResult, InitializeResult
 from pydantic import BaseModel
 from transitions.core import EventData
@@ -90,16 +91,27 @@ class A2CAsyncMachine(AsyncMachine):
 
 
 class BaseMCPClient(ABC):
-    def __init__(self, params: BaseModel, state_change_callback: Callable[[str, str], None | Awaitable[None]] | None = None) -> None:
+    def __init__(
+        self,
+        params: BaseModel,
+        state_change_callback: Callable[[str, str], None | Awaitable[None]] | None = None,
+        message_handler: MessageHandlerFnT | None = None
+    ) -> None:
         """
         基类初始化
 
         Attributes:
             params (BaseModel): MCP Server启动参数
             state_change_callback (Callable[[str, str], None | Awaitable[None]]): 状态变化回调，兼容同步与异步
+            message_handler (Callable[..., Awaitable[None]] | None):
+                自定义消息处理回调，符合 MCP ClientSession 的 message_handler 要求；若提供，则在构建 ClientSession 时传入。
+                Custom message handler callback compatible with MCP ClientSession's message_handler; if provided, it will be passed when creating the ClientSession.
         """
         self.params = params
         self._state_change_callback = state_change_callback
+        # 私有属性：用于处理 ServerNotification（如 listChanged）的通用回调；在创建 ClientSession 时传入
+        # Private attribute: general callback to handle ServerNotification (e.g., listChanged); forwarded to ClientSession on creation
+        self._message_handler = message_handler
         self._aexit_stack = AsyncExitStack()
         self._async_session: ClientSession | None = None
         self._session_keep_alive_task: asyncio.Task | None = None

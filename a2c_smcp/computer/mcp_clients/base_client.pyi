@@ -14,6 +14,7 @@ from typing import Any
 
 from mcp import ClientSession
 from mcp import Tool as Tool
+from mcp.client.session import MessageHandlerFnT
 from mcp.types import CallToolResult, InitializeResult
 from pydantic import BaseModel as BaseModel
 from transitions.core import EventData
@@ -37,6 +38,7 @@ class BaseMCPClient(ABC):
     machine: A2CAsyncMachine
     _async_session: ClientSession | None
     _state_change_callback: Callable[[str, str], None | Awaitable[None]] | None
+    _message_handler: MessageHandlerFnT | None
     _session_keep_alive_task: asyncio.Task | None
     _create_session_success_event: asyncio.Event
     _create_session_failure_event: asyncio.Event
@@ -44,7 +46,12 @@ class BaseMCPClient(ABC):
     _initialize_result: InitializeResult | None
     state: STATES
 
-    def __init__(self, params: BaseModel, state_change_callback: Callable[[str, str], None | Awaitable[None]] = None) -> None: ...
+    def __init__(
+        self,
+        params: BaseModel,
+        state_change_callback: Callable[[str, str], None | Awaitable[None]] | None = None,
+        message_handler: MessageHandlerFnT | None = None
+    ) -> None: ...
     async def _trigger_state_change(self, event: EventData) -> None: ...
     @async_property
     async def async_session(self) -> ClientSession: ...

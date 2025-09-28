@@ -44,7 +44,7 @@ async def test_abefore_connect_and_on_enter_connected():
         # 调用 abefore_connect
         await client.aconnect()
         # 断言 ClientSession 被正确初始化
-        mock_cs.assert_called_once_with(mock_aread_stream, mock_awrite_stream)
+        mock_cs.assert_called_once_with(mock_aread_stream, mock_awrite_stream, message_handler=None)
         # 断言 initialize 被调用
         mock_initialize.assert_awaited()
         # 断言 client._async_session 设置正确

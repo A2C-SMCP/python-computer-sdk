@@ -137,6 +137,11 @@ class StreamableHttpServerTest(Server):
                     description="A tool that releases the lock",
                     inputSchema={"type": "object", "properties": {}},
                 ),
+                Tool(
+                    name="trigger_list_changed",
+                    description="Trigger tools/resources/prompts listChanged notifications",
+                    inputSchema={"type": "object", "properties": {}},
+                ),
             ]
 
         @self.call_tool()
@@ -224,6 +229,13 @@ class StreamableHttpServerTest(Server):
                 # Release the lock
                 self._lock.set()
                 return [TextContent(type="text", text="Lock released")]
+            elif name == "trigger_list_changed":
+                # 发送列表变更通知 / send list-changed notifications
+                await ctx.session.send_tool_list_changed()
+                await ctx.session.send_resource_list_changed()
+                await ctx.session.send_prompt_list_changed()
+                return [TextContent(type="text", text="changes triggered")]
+
             elif name == "nonexistent_tool":
                 raise McpError(
                     error=types.ErrorData(code=404, message="OOPS! no tool with that name was found"),
@@ -487,14 +499,26 @@ class SseServerTest(Server):
                     name="test_tool",
                     description="A test tool",
                     inputSchema={"type": "object", "properties": {}},
-                )
+                ),
+                Tool(
+                    name="trigger_list_changed",
+                    description="Trigger tools/resources/prompts listChanged notifications",
+                    inputSchema={"type": "object", "properties": {}},
+                ),
             ]
 
         @self.call_tool()
         async def handle_call_tool(name: str, args: dict) -> list[TextContent]:
-            if name != "test_tool":
+            if name == "test_tool":
+                return [TextContent(type="text", text=f"Called {name}")]
+            elif name == "trigger_list_changed":
+                ctx = self.request_context
+                await ctx.session.send_tool_list_changed()
+                await ctx.session.send_resource_list_changed()
+                await ctx.session.send_prompt_list_changed()
+                return [TextContent(type="text", text="changes triggered")]
+            else:
                 raise McpError(error=ErrorData(code=404, message="OOPS! no tool with that name was found"))
-            return [TextContent(type="text", text=f"Called {name}")]
 
 
 def make_server_app() -> Starlette:

@@ -92,3 +92,50 @@ async def test_invalid_state_operations_basic(basic_server: Generator[None, None
         await client.list_tools()
     with pytest.raises(MachineError):
         await client.adisconnect()
+
+
+@pytest.mark.anyio
+async def test_http_message_handler_receives_list_changed_notifications(
+    basic_server: Generator[None, None, None], http_params: StreamableHttpParameters
+) -> None:
+    """
+    中文: 验证在初始化 HttpMCPClient 时传入 message_handler，能接收 listChanged 通知。
+    英文: Verify that passing message_handler to HttpMCPClient captures listChanged notifications.
+    """
+    received = {"tools": 0, "resources": 0, "prompts": 0}
+
+    async def message_handler(message):
+        from mcp.types import (
+            PromptListChangedNotification,
+            ResourceListChangedNotification,
+            ServerNotification,
+            ToolListChangedNotification,
+        )
+
+        if isinstance(message, ServerNotification):
+            if isinstance(message.root, ToolListChangedNotification):
+                received["tools"] += 1
+            elif isinstance(message.root, ResourceListChangedNotification):
+                received["resources"] += 1
+            elif isinstance(message.root, PromptListChangedNotification):
+                received["prompts"] += 1
+
+    client = HttpMCPClient(http_params, message_handler=message_handler)
+    await client.aconnect()
+
+    # 触发通知 / trigger notifications via server tool
+    result = await client.call_tool("trigger_list_changed", {})
+    assert hasattr(result, "content")
+
+    import anyio
+
+    for _ in range(20):  # wait up to ~2s
+        if received["tools"] >= 1 and received["resources"] >= 1 and received["prompts"] >= 1:
+            break
+        await anyio.sleep(0.1)
+
+    assert received["tools"] >= 1
+    assert received["resources"] >= 1
+    assert received["prompts"] >= 1
+
+    await client.adisconnect()

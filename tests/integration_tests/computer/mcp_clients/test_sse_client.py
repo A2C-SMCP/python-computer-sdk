@@ -47,7 +47,7 @@ async def test_list_tools(sse_server, sse_params: SseServerParameters) -> None:
     client: SseMCPClient = SseMCPClient(sse_params)
     await client.aconnect()
     tools: list[Tool] = await client.list_tools()
-    assert len(tools) == 1
+    assert len(tools) == 2
     assert tools[0].name == "test_tool"
     assert tools[0].description == "A test tool"
     await client.adisconnect()
@@ -145,3 +145,50 @@ async def test_invalid_state_operations(sse_server, sse_params: SseServerParamet
         await client.list_tools()
     with pytest.raises(MachineError):
         await client.adisconnect()
+
+
+@pytest.mark.asyncio
+async def test_sse_message_handler_receives_list_changed_notifications(
+    sse_server, sse_params: SseServerParameters
+) -> None:
+    """
+    中文: 验证在初始化 SseMCPClient 时传入 message_handler，能接收 listChanged 通知。
+    英文: Verify that passing message_handler to SseMCPClient captures listChanged notifications.
+    """
+    received = {"tools": 0, "resources": 0, "prompts": 0}
+
+    async def message_handler(message):
+        from mcp.types import (
+            PromptListChangedNotification,
+            ResourceListChangedNotification,
+            ServerNotification,
+            ToolListChangedNotification,
+        )
+
+        if isinstance(message, ServerNotification):
+            if isinstance(message.root, ToolListChangedNotification):
+                received["tools"] += 1
+            elif isinstance(message.root, ResourceListChangedNotification):
+                received["resources"] += 1
+            elif isinstance(message.root, PromptListChangedNotification):
+                received["prompts"] += 1
+
+    client = SseMCPClient(sse_params, message_handler=message_handler)
+    await client.aconnect()
+
+    # 触发通知 / trigger notifications via server tool
+    result = await client.call_tool("trigger_list_changed", {})
+    assert isinstance(result, CallToolResult) or hasattr(result, "content")
+
+    import anyio
+
+    for _ in range(20):  # wait up to ~2s
+        if received["tools"] >= 1 and received["resources"] >= 1 and received["prompts"] >= 1:
+            break
+        await anyio.sleep(0.1)
+
+    assert received["tools"] >= 1
+    assert received["resources"] >= 1
+    assert received["prompts"] >= 1
+
+    await client.adisconnect()

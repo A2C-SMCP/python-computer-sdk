@@ -11,6 +11,12 @@ from pathlib import Path
 
 import pytest
 from mcp import StdioServerParameters
+from mcp.types import (
+    PromptListChangedNotification,
+    ResourceListChangedNotification,
+    ServerNotification,
+    ToolListChangedNotification,
+)
 from mcp.types import CallToolResult
 from pydantic import BaseModel
 from transitions import MachineError
@@ -248,3 +254,56 @@ async def test_stdio_initialize_result_end_to_end():
 
     # 验证清理 / ensure cleared
     assert client.initialize_result is None
+
+
+@pytest.mark.asyncio
+async def test_stdio_message_handler_receives_list_changed_notifications() -> None:
+    """
+    中文: 验证在初始化 StdioMCPClient 时传入 message_handler，能接收 listChanged 通知。
+    英文: Verify that passing message_handler to StdioMCPClient captures listChanged notifications.
+    """
+    server_py = Path(__file__).resolve().parents[2] / "computer" / "mcp_servers" / "notifications_stdio_server.py"
+    assert server_py.exists(), f"server script not found: {server_py}"
+
+    params = StdioServerParameters(command=sys.executable, args=[str(server_py)])
+
+    received = {"tools": 0, "resources": 0, "prompts": 0}
+
+    async def message_handler(message):
+        from mcp.types import (
+            PromptListChangedNotification,
+            ResourceListChangedNotification,
+            ServerNotification,
+            ToolListChangedNotification,
+        )
+
+        if isinstance(message, ServerNotification):
+            if isinstance(message.root, ToolListChangedNotification):
+                received["tools"] += 1
+            elif isinstance(message.root, ResourceListChangedNotification):
+                received["resources"] += 1
+            elif isinstance(message.root, PromptListChangedNotification):
+                received["prompts"] += 1
+
+    client = StdioMCPClient(params, message_handler=message_handler)
+
+    await client.aconnect()
+    await client._create_session_success_event.wait()
+
+    # 触发通知 / trigger notifications
+    result = await client.call_tool("trigger_changes", {})
+    assert result.content and getattr(result.content[0], "type", None) == "text"
+
+    import anyio
+
+    # 等待异步消息处理 / wait up to ~2s
+    for _ in range(20):
+        if received["tools"] >= 1 and received["resources"] >= 1 and received["prompts"] >= 1:
+            break
+        await anyio.sleep(0.1)
+
+    assert received["tools"] >= 1
+    assert received["resources"] >= 1
+    assert received["prompts"] >= 1
+
+    await client.adisconnect()

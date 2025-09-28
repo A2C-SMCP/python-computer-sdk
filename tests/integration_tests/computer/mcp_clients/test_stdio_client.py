@@ -5,11 +5,14 @@
 # @Email   : jqq1716@gmail.com
 # @Software: PyCharm
 # filename: test_std_mcp_client.py
+import sys
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 from mcp import StdioServerParameters
 from mcp.types import CallToolResult
+from pydantic import BaseModel
 from transitions import MachineError
 
 from a2c_smcp.computer.mcp_clients.stdio_client import StdioMCPClient
@@ -170,3 +173,78 @@ async def test_error_recovery(
 
     # 清理 Cleanup
     await client.adisconnect()
+
+
+@pytest.mark.asyncio
+async def test_stdio_tools_list_and_call():
+    """
+    中文: 连接带工具的服务器，列出工具并调用 echo。
+    英文: Connect to server with tools, list tools and call echo.
+    """
+    server_py = Path(__file__).resolve().parents[2] / "computer" / "mcp_servers" / "tool_stdio_server.py"
+    assert server_py.exists(), f"server script not found: {server_py}"
+
+    params = StdioServerParameters(command=sys.executable, args=[str(server_py)])
+
+    client = StdioMCPClient(params)
+
+    # 连接 / connect
+    await client.aconnect()
+    await client._create_session_success_event.wait()
+
+    # 初始化结果检查 / initialize_result
+    assert client.initialize_result is not None
+    assert client.initialize_result.serverInfo.name == "tool-itest-server"
+    assert client.initialize_result.capabilities.tools, "tools配置非空"
+    assert not client.initialize_result.capabilities.tools.listChanged, "工具列表未开始变化通知"
+
+    # 获取工具列表 / list tools
+    tools = await client.list_tools()
+    names = {t.name for t in tools}
+    assert "echo" in names
+
+    # 调用工具 / call tool
+    result = await client.call_tool("echo", {"text": "hello"})
+    # CallToolResult.content 是 list[ContentBlock]，期望第一条为 TextContent("echo: hello")
+    assert result.content and getattr(result.content[0], "type", None) == "text"
+    assert getattr(result.content[0], "text", None) == "echo: hello"
+
+    # 断开 / disconnect
+    await client.adisconnect()
+    await client._async_session_closed_event.wait()
+    assert client.initialize_result is None
+
+
+class DummyParams(BaseModel):
+    pass
+
+
+@pytest.mark.asyncio
+async def test_stdio_initialize_result_end_to_end():
+    """
+    中文: 通过真实stdio子进程建立连接，校验 initialize_result 的赋值与清理。
+    英文: Establish real stdio connection via subprocess and validate initialize_result set and cleared.
+    """
+    # 服务器脚本路径 / server script path
+    server_py = Path(__file__).resolve().parents[2] / "computer" / "mcp_servers" / "minimal_stdio_server.py"
+    assert server_py.exists(), f"server script not found: {server_py}"
+
+    # 构建 StdioServerParameters，使用当前解释器运行脚本 / use current interpreter to run script
+    params = StdioServerParameters(command=sys.executable, args=[str(server_py)])
+
+    client = StdioMCPClient(params)
+
+    # 连接 / connect
+    await client.aconnect()
+    await client._create_session_success_event.wait()
+
+    # 验证初始化结果存在且包含服务器信息 / ensure initialize_result present with server info
+    assert client.initialize_result is not None
+    assert client.initialize_result.serverInfo.name == "itest-server"
+
+    # 断开 / disconnect
+    await client.adisconnect()
+    await client._async_session_closed_event.wait()
+
+    # 验证清理 / ensure cleared
+    assert client.initialize_result is None

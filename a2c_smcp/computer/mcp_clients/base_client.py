@@ -12,7 +12,7 @@ from enum import StrEnum
 from typing import cast
 
 from mcp import ClientSession, Tool
-from mcp.types import CallToolResult
+from mcp.types import CallToolResult, InitializeResult
 from pydantic import BaseModel
 from transitions.core import EventData
 from transitions.extensions import AsyncMachine
@@ -106,6 +106,9 @@ class BaseMCPClient(ABC):
         self._create_session_success_event = asyncio.Event()
         self._create_session_failure_event = asyncio.Event()
         self._async_session_closed_event = asyncio.Event()
+        # 私有属性：初始化结果（用于后续能力/元信息使用）；断开连接时需清理
+        # Private attribute: InitializeResult cached for later capabilities/meta usage; must be cleared on disconnect
+        self._initialize_result: InitializeResult | None = None
 
         # 初始化异步状态机
         self.machine = A2CAsyncMachine(
@@ -144,6 +147,14 @@ class BaseMCPClient(ABC):
         if self._async_session is None:
             await self.aconnect()
         return cast(ClientSession, self._async_session)
+
+    @property
+    def initialize_result(self) -> InitializeResult | None:
+        """
+        初始化结果只读访问（可能为None，表示未初始化或已清理）
+        Read-only access for InitializeResult (may be None if not initialized or already cleaned)
+        """
+        return self._initialize_result
 
     @abstractmethod
     async def _create_async_session(self) -> ClientSession:
@@ -194,6 +205,9 @@ class BaseMCPClient(ABC):
             await self._aexit_stack.aclose()
             # 清理session
             self._async_session = None
+            # 清理初始化结果，确保会话真正关闭时协议初始化态一并清理
+            # Cleanup InitializeResult to align with actual session teardown
+            self._initialize_result = None
             self._async_session_closed_event.set()
 
     # region 状态转换回调函数基类实现
@@ -217,7 +231,9 @@ class BaseMCPClient(ABC):
         # 等待会话创建成功
         await self._create_session_success_event.wait()
         # 初始化client_session
-        await (await self.async_session).initialize()
+        # 存储初始化返回结果，供后续使用
+        # Store InitializeResult for later use
+        self._initialize_result = await (await self.async_session).initialize()
 
     async def aafter_connect(self, event: EventData) -> None:
         """连接后操作（可重写）"""

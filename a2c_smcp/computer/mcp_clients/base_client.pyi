@@ -13,11 +13,8 @@ from enum import StrEnum
 from typing import Any
 
 from mcp import ClientSession
-from mcp import StdioServerParameters as StdioServerParameters
 from mcp import Tool as Tool
-from mcp.client.session_group import SseServerParameters as SseServerParameters
-from mcp.client.session_group import StreamableHttpParameters as StreamableHttpParameters
-from mcp.types import CallToolResult as CallToolResult
+from mcp.types import CallToolResult, InitializeResult
 from pydantic import BaseModel as BaseModel
 from transitions.core import EventData
 from transitions.extensions.asyncio import AsyncMachine, AsyncTransitionConfigDict
@@ -44,6 +41,7 @@ class BaseMCPClient(ABC):
     _create_session_success_event: asyncio.Event
     _create_session_failure_event: asyncio.Event
     _async_session_closed_event: asyncio.Event
+    _initialize_result: InitializeResult | None
     state: STATES
 
     def __init__(self, params: BaseModel, state_change_callback: Callable[[str, str], None | Awaitable[None]] = None) -> None: ...
@@ -52,6 +50,8 @@ class BaseMCPClient(ABC):
     async def async_session(self) -> ClientSession: ...
     @abstractmethod
     async def _create_async_session(self) -> ClientSession: ...
+    @property
+    def initialize_result(self) -> InitializeResult | None: ...
     async def aconnect(self, *args: Any, **kwargs: Any) -> None: ...
     async def aprepare_connect(self, event: EventData) -> None: ...
     async def acan_connect(self, event: EventData) -> bool: ...

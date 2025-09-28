@@ -11,7 +11,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from mcp import ClientSession
-from mcp.types import ListToolsResult
+from mcp.types import Implementation, InitializeResult, ListToolsResult, ServerCapabilities
+from pydantic import BaseModel
 from transitions.core import MachineError
 
 from a2c_smcp.computer.mcp_clients.base_client import STATES, BaseMCPClient
@@ -58,6 +59,48 @@ class TestMCPClient(BaseMCPClient):
     async def on_enter_disconnected(self, event):
         self.on_enter_called = True
         await super().on_enter_disconnected(event)
+
+
+# ------------------------------
+# InitializeResult 相关的辅助类 / Helpers for InitializeResult related tests
+# ------------------------------
+
+class DummyParams(BaseModel):
+    """
+    中文: 伪造的参数模型，用于构造客户端实例。
+    英文: Dummy parameter model used to construct client instance.
+    """
+    value: int = 1
+
+
+class FakeClientSession:
+    """
+    中文: 伪造的 ClientSession，仅实现 initialize() 用于返回固定的 InitializeResult。
+    英文: Fake ClientSession implementing initialize() to return a fixed InitializeResult.
+    """
+
+    def __init__(self) -> None:
+        self.initialized = False
+
+    async def initialize(self) -> InitializeResult:
+        self.initialized = True
+        return InitializeResult(
+            protocolVersion="2025-06-18",
+            capabilities=ServerCapabilities(),
+            serverInfo=Implementation(name="fake", version="1.0.0"),
+            instructions="test",
+        )
+
+
+class InitializeResultTestClient(BaseMCPClient):
+    """
+    中文: 用于测试的 BaseMCPClient 子类，返回 FakeClientSession，避免与现有 TestMCPClient 命名冲突。
+    英文: Test subclass of BaseMCPClient returning a FakeClientSession, avoiding name conflict with TestMCPClient.
+    """
+
+    async def _create_async_session(self):
+        # 这里不做额外上下文，仅返回伪造 session / No extra context, just return fake session
+        return FakeClientSession()
 
 
 # pytest fixture 创建测试客户端
@@ -292,3 +335,58 @@ async def test_enter_error_state_releases_resources(client):
     # 目前 aerror 经过优化与迭代，不再显式调用 aclose 方法，而是根据目前的任务状态动态判断调用。
     client_instance.aexit_stack.aclose.assert_not_called()
     assert client_instance.state == STATES.error
+
+
+# ------------------------------
+# InitializeResult 相关测试 / Tests for InitializeResult logic
+# ------------------------------
+
+@pytest.mark.asyncio
+async def test_initialize_result_set_and_cleared_on_disconnect():
+    """
+    中文: 连接后应设置 initialize_result；断开后应清理为 None。
+    英文: After connect, initialize_result should be set; after disconnect, it should be cleared to None.
+    """
+    client = InitializeResultTestClient(DummyParams())
+
+    # 连接 / connect
+    await client.aconnect()
+
+    # 等待会话创建成功 / wait for session creation
+    await client._create_session_success_event.wait()
+
+    # 验证初始化结果存在 / ensure initialize_result is present
+    assert client.initialize_result is not None
+    assert client.initialize_result.serverInfo.name == "fake"
+
+    # 断开 / disconnect
+    await client.adisconnect()
+
+    # 等待会话真正关闭 / wait for actual session teardown
+    await client._async_session_closed_event.wait()
+
+    # 验证初始化结果被清理 / ensure initialize_result is cleared
+    assert client.initialize_result is None
+
+
+@pytest.mark.asyncio
+async def test_initialize_result_cleared_on_error():
+    """
+    中文: 出错流程中也应清理 initialize_result。
+    英文: initialize_result should be cleared in error path as well.
+    """
+    client = InitializeResultTestClient(DummyParams())
+
+    # 连接 / connect
+    await client.aconnect()
+    await client._create_session_success_event.wait()
+    assert client.initialize_result is not None
+
+    # 触发错误 / trigger error (will cancel keep-alive and teardown session)
+    await client.aerror()
+
+    # 等待会话真正关闭 / wait for actual session teardown
+    await client._async_session_closed_event.wait()
+
+    # 应被清理 / should be cleared
+    assert client.initialize_result is None

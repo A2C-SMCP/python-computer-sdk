@@ -10,7 +10,7 @@ from pydantic import TypeAdapter
 from socketio import AsyncClient
 
 from a2c_smcp.computer.computer import Computer
-from a2c_smcp.computer.socketio.smcp import (
+from a2c_smcp.smcp import (
     GET_CONFIG_EVENT,
     GET_TOOLS_EVENT,
     JOIN_OFFICE_EVENT,
@@ -28,7 +28,7 @@ from a2c_smcp.computer.socketio.smcp import (
     ToolCallReq,
     UpdateMCPConfigReq,
 )
-from a2c_smcp.computer.socketio.smcp import (
+from a2c_smcp.smcp import (
     MCPServerConfig as SMCPServerConfigDict,
 )
 

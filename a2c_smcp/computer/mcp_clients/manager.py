@@ -11,7 +11,7 @@ from typing import Any
 
 from mcp.types import CallToolResult, Tool
 
-from a2c_smcp.computer.mcp_clients.model import A2C_TOOL_META, MCPClientProtocol, MCPServerConfig
+from a2c_smcp.computer.mcp_clients.model import A2C_TOOL_META, MCPClientProtocol, MCPServerConfig, ToolMeta
 from a2c_smcp.computer.mcp_clients.utils import client_factory
 from a2c_smcp.computer.types import SERVER_NAME, TOOL_NAME
 from a2c_smcp.computer.utils.logger import logger
@@ -263,8 +263,9 @@ class MCPServerManager:
                 tools = await client.list_tools()
                 for t in tools:
                     original_tool_name = t.name
-                    # 获取工具元数据
-                    tool_meta = (config.tool_meta or {}).get(original_tool_name)
+                    # 获取合并后的工具元数据（浅合并，具体配置优先，其次使用默认配置）
+                    # Get merged tool meta (shallow merge: specific overrides default)
+                    tool_meta = self._merged_tool_meta(config, original_tool_name)
 
                     # 确定最终显示的工具名（优先使用别名）
                     display_name: str = tool_meta.alias if tool_meta and tool_meta.alias else original_tool_name
@@ -340,9 +341,9 @@ class MCPServerManager:
         if not client:
             raise RuntimeError(f"Server '{server_name}' for tool '{tool_name}' is not active")
 
-        # 获取工具元数据
+        # 获取合并后的工具元数据
         config = self._servers_config[server_name]
-        tool_meta = (config.tool_meta or {}).get(tool_name)
+        tool_meta = self._merged_tool_meta(config, tool_name)
 
         # 执行工具调用
         try:
@@ -397,10 +398,31 @@ class MCPServerManager:
 
                 tool = next((t for t in tools if t.name == original_tool_name), None)
                 if tool:
-                    a2c_meta = config.tool_meta.get(original_tool_name)
+                    a2c_meta = self._merged_tool_meta(config, original_tool_name)
                     if a2c_meta:
                         if tool.meta is None:
                             tool.meta = {A2C_TOOL_META: a2c_meta}
                         else:
                             tool.meta.update({A2C_TOOL_META: a2c_meta})
                     yield tool
+
+    @staticmethod
+    def _merged_tool_meta(config: MCPServerConfig, tool_name: TOOL_NAME) -> ToolMeta | None:
+        """
+        浅层合并工具元数据：优先使用具体 tool_meta，若字段缺失则回落到 default_tool_meta。
+        Shallow merge ToolMeta: prefer per-tool meta; fallback to default for missing root-level fields.
+        """
+        specific = (config.tool_meta or {}).get(tool_name)
+        default = getattr(config, "default_tool_meta", None)
+        if specific is None and default is None:
+            return None
+        if specific is None:
+            return default
+        if default is None:
+            return specific
+        # 仅根级字段浅合并；specific优先
+        merged: dict = {}
+        # Pydantic v2: model_dump 可排除 None，以避免用 None 覆盖
+        merged.update(default.model_dump(exclude_none=True))
+        merged.update(specific.model_dump(exclude_none=True))
+        return ToolMeta(**merged)

@@ -8,7 +8,7 @@ from mcp.client.session_group import SseServerParameters, StreamableHttpParamete
 
 from a2c_smcp.computer.mcp_clients.model import SseServerConfig, StdioServerConfig, StreamableHttpServerConfig, ToolMeta
 from a2c_smcp.computer.socketio.client import SMCPComputerClient
-from a2c_smcp.computer.socketio.smcp import SMCP_NAMESPACE, UPDATE_CONFIG_EVENT
+from a2c_smcp.smcp import SMCP_NAMESPACE, UPDATE_CONFIG_EVENT
 
 
 @pytest.mark.asyncio

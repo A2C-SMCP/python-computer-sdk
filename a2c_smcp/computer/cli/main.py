@@ -34,10 +34,10 @@ from a2c_smcp.computer.mcp_clients.model import (
     MCPServerInput as MCPServerInputModel,
 )
 from a2c_smcp.computer.socketio.client import SMCPComputerClient
-from a2c_smcp.computer.socketio.smcp import SMCP_NAMESPACE
-from a2c_smcp.computer.socketio.smcp import MCPServerConfig as SMCPServerConfigDict
-from a2c_smcp.computer.socketio.smcp import MCPServerInput as SMCPServerInputDict
 from a2c_smcp.computer.utils import console as console_util
+from a2c_smcp.smcp import SMCP_NAMESPACE
+from a2c_smcp.smcp import MCPServerConfig as SMCPServerConfigDict
+from a2c_smcp.smcp import MCPServerInput as SMCPServerInputDict
 
 app = typer.Typer(add_completion=False, help="A2C Computer CLI")
 # 使用全局 Console（引用模块属性，便于后续动态切换）

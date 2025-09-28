@@ -153,3 +153,34 @@ def test_tool_meta_ret_mapper():
     mapper = {"field": "mapped_field", "nested": {"key": "value"}}
     tool_meta = ToolMeta(alias=None, auto_apply=None, ret_object_mapper=mapper)
     assert tool_meta.ret_object_mapper == mapper
+
+
+def test_server_config_with_default_tool_meta_only():
+    """测试仅设置 default_tool_meta 时模型可创建并持有该字段"""
+    cfg = StdioServerConfig(
+        name="server_default_only",
+        disabled=False,
+        forbidden_tools=[],
+        tool_meta={},
+        default_tool_meta=ToolMeta(auto_apply=True, alias=None),
+        server_parameters=ModelFactory.create_factory(StdioServerParameters).build(),
+    )
+    assert isinstance(cfg.default_tool_meta, ToolMeta)
+    assert cfg.default_tool_meta.auto_apply is True
+
+
+def test_server_config_tool_meta_overrides_default():
+    """测试 tool_meta 的根级字段浅覆盖 default_tool_meta"""
+    default = ToolMeta(auto_apply=False, alias=None, ret_object_mapper={"a": 1})
+    per_tool = {"t": ToolMeta(auto_apply=True)}
+    cfg = SseServerConfig(
+        name="server_with_default",
+        disabled=False,
+        forbidden_tools=[],
+        tool_meta=per_tool,
+        default_tool_meta=default,
+        server_parameters=ModelFactory.create_factory(SseServerParameters).build(),
+    )
+    # 验证模型层面字段存在
+    assert cfg.tool_meta["t"].auto_apply is True
+    assert cfg.default_tool_meta.ret_object_mapper == {"a": 1}

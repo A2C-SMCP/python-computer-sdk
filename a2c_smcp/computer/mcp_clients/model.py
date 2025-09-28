@@ -38,6 +38,9 @@ class BaseMCPServerConfig(BaseModel):
         default_factory=list, title="禁用工具列表", description="禁用的工具列表，因为一个mcp可能有非常多工具，有些工具用户需要禁用。"
     )
     tool_meta: dict[TOOL_NAME, ToolMeta] = Field(default_factory=dict, title="工具元数据", description="工具元数据，用于描述工具的基本信息")
+    # 默认工具元数据（可选）。当某个具体工具未在 tool_meta 中提供专门配置时，使用该默认配置。
+    # Default tool metadata (optional). Used when a specific tool has no explicit entry in tool_meta.
+    default_tool_meta: ToolMeta | None = Field(default=None)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", arbitrary_types_allowed=False, frozen=True)
     """配置字段在初始化完成后不允许修改"""

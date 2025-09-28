@@ -14,7 +14,7 @@ import pytest
 from mcp import Tool
 
 from a2c_smcp.computer.mcp_clients.manager import MCPServerManager, ToolNameDuplicatedError
-from a2c_smcp.computer.mcp_clients.model import SseServerConfig, StdioServerConfig, StreamableHttpServerConfig
+from a2c_smcp.computer.mcp_clients.model import SseServerConfig, StdioServerConfig, StreamableHttpServerConfig, ToolMeta
 
 
 @pytest.mark.anyio
@@ -48,6 +48,22 @@ async def test_manager_available_tools(stdio_params, sse_params, sse_server):
     tools = [tool async for tool in manager.available_tools()]
     assert isinstance(tools, list)
     assert any(isinstance(t, Tool) for t in tools)
+
+
+@pytest.mark.anyio
+async def test_manager_default_tool_meta_injection(stdio_params, sse_params, sse_server):
+    """
+    集成测试：当未配置单工具的元数据时，应回落 default_tool_meta 并通过 available_tools 注入到 Tool.meta。
+    Integration: default_tool_meta should be applied to Tool.meta when per-tool meta is missing.
+    """
+    manager = MCPServerManager(auto_connect=False)
+    stdio_cfg = StdioServerConfig(name="stdio_server", server_parameters=stdio_params, default_tool_meta=ToolMeta(auto_apply=True))
+    await manager.ainitialize([stdio_cfg])
+    await manager.astart_all()
+    tools = [tool async for tool in manager.available_tools()]
+    assert tools, "Should list at least one tool"
+    # 所有工具应该包含注入的 a2c_tool_meta.auto_apply == True 因为目前这些工具没有自定义元数据
+    assert all(getattr(t.meta.get("a2c_tool_meta"), "auto_apply", False) is True for t in tools)
 
 
 @pytest.mark.anyio

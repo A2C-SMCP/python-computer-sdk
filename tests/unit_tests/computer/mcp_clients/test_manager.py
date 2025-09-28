@@ -70,7 +70,13 @@ def patch_client_factory(monkeypatch):
 
 
 # 创建示例服务器配置
-def create_server_config(name: str, disabled: bool = False, forbidden_tools: list = None, tool_meta: dict = None) -> MCPServerConfig:
+def create_server_config(
+    name: str,
+    disabled: bool = False,
+    forbidden_tools: list = None,
+    tool_meta: dict = None,
+    default_tool_meta: ToolMeta | None = None,
+) -> MCPServerConfig:
     forbidden_tools = forbidden_tools or []
     tool_meta = tool_meta or {}
     if "sse" in name:
@@ -79,6 +85,7 @@ def create_server_config(name: str, disabled: bool = False, forbidden_tools: lis
             disabled=disabled,
             forbidden_tools=forbidden_tools,
             tool_meta=tool_meta,
+            default_tool_meta=default_tool_meta,
             server_parameters=MagicMock(spec=SseServerParameters),
         )
     elif "http" in name:
@@ -87,6 +94,7 @@ def create_server_config(name: str, disabled: bool = False, forbidden_tools: lis
             disabled=disabled,
             forbidden_tools=forbidden_tools,
             tool_meta=tool_meta,
+            default_tool_meta=default_tool_meta,
             server_parameters=MagicMock(spec=StreamableHttpParameters),
         )
     else:
@@ -95,6 +103,7 @@ def create_server_config(name: str, disabled: bool = False, forbidden_tools: lis
             disabled=disabled,
             forbidden_tools=forbidden_tools,
             tool_meta=tool_meta,
+            default_tool_meta=default_tool_meta,
             server_parameters=MagicMock(spec=StdioServerParameters),
         )
 
@@ -297,6 +306,46 @@ async def test_get_available_tools(manager):
     assert len(tools) == 2
     tool1 = next(t for t in tools if t.name == "tool1")
     assert tool1.meta["a2c_tool_meta"].auto_apply
+
+
+@pytest.mark.asyncio
+async def test_default_tool_meta_applies_when_missing_per_tool(manager):
+    """当未提供 per-tool 配置时，应回落使用 default_tool_meta。
+    When per-tool meta is missing, default_tool_meta should be applied.
+    """
+    servers = [create_server_config("server1", default_tool_meta=ToolMeta(auto_apply=True))]
+    await manager.ainitialize(servers)
+    await manager.astart_all()
+
+    # 检查 available_tools 注入
+    tools = []
+    async for tool in manager.available_tools():
+        tools.append(tool)
+    t1 = next(t for t in tools if t.name == "tool1")
+    assert t1.meta["a2c_tool_meta"].auto_apply is True
+
+    # 检查 aexecute_tool 返回元数据注入
+    ret = await manager.aexecute_tool("tool1", {})
+    assert ret.meta["a2c_tool_meta"].auto_apply is True
+
+
+@pytest.mark.asyncio
+async def test_per_tool_overrides_default(manager):
+    """per-tool 配置应覆盖 default_tool_meta 的根级字段。
+    Per-tool meta should override default_tool_meta root-level fields.
+    """
+    servers = [
+        create_server_config(
+            "server1",
+            tool_meta={"tool1": ToolMeta(auto_apply=False)},
+            default_tool_meta=ToolMeta(auto_apply=True),
+        )
+    ]
+    await manager.ainitialize(servers)
+    await manager.astart_all()
+
+    ret = await manager.aexecute_tool("tool1", {})
+    assert ret.meta["a2c_tool_meta"].auto_apply is False
 
 
 @pytest.mark.asyncio

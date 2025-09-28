@@ -39,9 +39,9 @@ from a2c_smcp.computer.inputs.render import ConfigRender
 from a2c_smcp.computer.inputs.resolver import InputNotFoundError, InputResolver
 from a2c_smcp.computer.mcp_clients.manager import MCPServerManager
 from a2c_smcp.computer.mcp_clients.model import MCPServerConfig, MCPServerInput
-from a2c_smcp.computer.socketio.smcp import SMCPTool
 from a2c_smcp.computer.socketio.types import AttributeValue
 from a2c_smcp.computer.utils.logger import logger
+from a2c_smcp.smcp import SMCPTool
 
 
 class Computer(BaseComputer[PromptSession]):

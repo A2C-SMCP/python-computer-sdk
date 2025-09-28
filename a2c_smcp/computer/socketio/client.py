@@ -42,6 +42,8 @@ class SMCPComputerClient(AsyncClient):
     def __init__(self, *args: Any, computer: Computer, **kwargs: Any) -> None:  # noqa: E112
         super().__init__(*args, **kwargs)
         self.computer = computer
+        # 将客户端以 weakref 方式绑定回 Computer，避免循环强引用
+        self.computer.socketio_client = self
         self.on(TOOL_CALL_EVENT, self.on_tool_call, namespace=SMCP_NAMESPACE)
         self.on(GET_TOOLS_EVENT, self.on_get_tools, namespace=SMCP_NAMESPACE)
         self.on(GET_CONFIG_EVENT, self.on_get_config, namespace=SMCP_NAMESPACE)

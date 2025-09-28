@@ -12,12 +12,12 @@ from pathlib import Path
 import pytest
 from mcp import StdioServerParameters
 from mcp.types import (
+    CallToolResult,
     PromptListChangedNotification,
     ResourceListChangedNotification,
     ServerNotification,
     ToolListChangedNotification,
 )
-from mcp.types import CallToolResult
 from pydantic import BaseModel
 from transitions import MachineError
 

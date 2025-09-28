@@ -25,4 +25,3 @@ SMCP协议数据结构与事件的定义，主要集中在：
 ---
 
 当前封装中 @a2c_smcp/computer/mcp_clients/base_client.py 是 MCP Client封装基类，这里面有个重点，因为我们使用了transitions库进行状态管理，因此外界不好代码补全，因此我添加了 @a2c_smcp/computer/mcp_clients/base_client.pyi 类型定义文件。如果是对这个基类有能力上的变动，需要记住 ** 同步修改 pyi 文件**
-

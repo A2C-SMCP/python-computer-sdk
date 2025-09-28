@@ -105,7 +105,8 @@ class BaseMCPClient(ABC):
             state_change_callback (Callable[[str, str], None | Awaitable[None]]): 状态变化回调，兼容同步与异步
             message_handler (Callable[..., Awaitable[None]] | None):
                 自定义消息处理回调，符合 MCP ClientSession 的 message_handler 要求；若提供，则在构建 ClientSession 时传入。
-                Custom message handler callback compatible with MCP ClientSession's message_handler; if provided, it will be passed when creating the ClientSession.
+                Custom message handler callback compatible with MCP ClientSession's message_handler; if provided,
+                    it will be passed when creating the ClientSession.
         """
         self.params = params
         self._state_change_callback = state_change_callback

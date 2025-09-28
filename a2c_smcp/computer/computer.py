@@ -26,8 +26,9 @@ All classes and methods use Google style docstrings (bilingual: Chinese and Engl
 """
 
 import json
+import weakref
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any, Optional
 
 from mcp import Tool
 from mcp.types import CallToolResult, TextContent
@@ -42,6 +43,10 @@ from a2c_smcp.computer.mcp_clients.model import MCPServerConfig, MCPServerInput
 from a2c_smcp.computer.socketio.types import AttributeValue
 from a2c_smcp.computer.utils.logger import logger
 from a2c_smcp.smcp import SMCPTool
+
+if TYPE_CHECKING:
+    # 仅用于类型检查，避免运行时引入依赖/循环引用
+    from socketio import AsyncClient
 
 
 class Computer(BaseComputer[PromptSession]):
@@ -82,6 +87,31 @@ class Computer(BaseComputer[PromptSession]):
         # English: Lazy input resolver and renderer (on-demand inputs, keep config immutable)
         self._input_resolver = input_resolver or InputResolver(self._inputs)
         self._config_render = ConfigRender()
+        # 通过 weakref 存储 Socket.IO 客户端，避免与客户端互相强引用导致循环与内存泄露
+        # Hold Socket.IO client via weakref to avoid strong reference cycle
+        self._socketio_client_ref: weakref.ReferenceType[AsyncClient] | None = None
+
+    @property
+    def socketio_client(self) -> Optional["AsyncClient"]:
+        """
+        获取当前绑定的 Socket.IO AsyncClient，如果已被销毁则返回 None。
+        Get the currently bound Socket.IO AsyncClient; returns None if GC'ed.
+        """
+        return self._socketio_client_ref() if self._socketio_client_ref is not None else None
+
+    # ------------------------
+    # Socket.IO 客户端引用（weakref）/ Weak reference to Socket.IO client
+    # ------------------------
+    @socketio_client.setter
+    def socketio_client(self, client: Optional["AsyncClient"]) -> None:
+        """
+        设置（或清空）当前绑定的 Socket.IO AsyncClient 引用（以 weakref 方式存储）。
+        Set (or clear) the bound Socket.IO AsyncClient reference (stored as weakref).
+
+        Args:
+            client (AsyncClient | None): 要绑定的客户端，None 表示清空。
+        """
+        self._socketio_client_ref = weakref.ref(client) if client is not None else None
 
     async def boot_up(self, *, session: PromptSession | None = None) -> None:
         """

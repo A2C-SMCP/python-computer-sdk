@@ -8,7 +8,8 @@
 最后修改日期: 2025/9/28 / last modified at: 2025/9/28
 版权: 2023 JQQ. All rights reserved. / copyright: 2023 JQQ. All rights reserved.
 依赖: anyio, mcp / dependencies: anyio, mcp
-描述: 启动一个最小的基于 stdio 的 MCP 服务器，仅用于握手与初始化测试。/ description: Start a minimal stdio-based MCP server for handshake/initialize tests.
+描述: 启动一个最小的基于 stdio 的 MCP 服务器，仅用于握手与初始化测试。/ description: Start a minimal stdio-based MCP server
+    for handshake/initialize tests.
 """
 
 import anyio

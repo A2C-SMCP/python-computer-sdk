@@ -13,25 +13,16 @@
 from __future__ import annotations
 
 import re
-import time
 
 import pytest
 
+from tests.e2e.utils import ANSI, expect_prompt_stable
+
 pexpect = pytest.importorskip("pexpect", reason="e2e tests require pexpect; install with `pip install pexpect`.")
 
-# 中文: ANSI 控制序列匹配与去除工具，避免 prompt_toolkit 的控制序列影响断言
-# English: ANSI control-sequence helpers to avoid prompt_toolkit artifacts breaking assertions
-ANSI = r"(?:\x1b\[[0-?]*[ -/]*[@-~])*"
-PROMPT_RE = re.compile(ANSI + r"a2c>" + ANSI)
+# 中文: 帮助标题的匹配，沿用 ANSI 感知的模式以避免误匹配
+# English: Help title regex using ANSI-aware pattern to avoid mismatches
 HELP_TITLE_RE = re.compile(ANSI + r".*可用命令 / Commands.*", re.S)
-
-
-def strip_ansi(s: str) -> str:
-    """
-    中文: 去除 ANSI 控制序列，返回纯文本。
-    English: Strip ANSI control sequences and return plain text.
-    """
-    return re.sub(ANSI, "", s)
 
 
 @pytest.mark.e2e
@@ -42,12 +33,9 @@ def test_enter_does_nothing(cli_proc: pexpect.spawn) -> None:
     """
     child = cli_proc
 
-    # 发送空回车 / send empty Enter
+    # 发送空回车并等待稳定提示符 / send empty Enter then wait for stable prompt
     child.sendline("")
-    child.expect(PROMPT_RE)
-
-    # 获取这次 expect 之前的输出内容 / capture output before the prompt
-    output = strip_ansi(child.before or "")
+    output = expect_prompt_stable(child, quiet=0.3, max_wait=10.0)
 
     # 不应出现帮助标题 / should not contain help title
     assert "可用命令 / Commands" not in output
@@ -64,12 +52,9 @@ def test_help_shows_table(cli_proc: pexpect.spawn) -> None:
 
     # 请求帮助 / ask for help
     child.sendline("help")
-    # 先等待帮助标题出现，再等待提示符，避免 child.before 为空 / wait for help title first, then the prompt
+    # 先等待帮助标题出现，再等待稳定提示符，避免抓空 / wait help title then stable prompt
     child.expect(HELP_TITLE_RE)
-    # 给渲染/注册留一点时间 / allow a short time for render/registration
-    time.sleep(1.0)
-    child.expect(PROMPT_RE)
-    output = strip_ansi(child.before or "")
+    output = expect_prompt_stable(child, quiet=0.3, max_wait=10.0)
 
     assert "server add <json|@file>" in output
     assert "socket connect" in output
@@ -77,8 +62,5 @@ def test_help_shows_table(cli_proc: pexpect.spawn) -> None:
     # 再用 ? 验证一次 / verify with ? again
     child.sendline("?")
     child.expect(HELP_TITLE_RE)
-    # 给渲染/注册留一点时间 / allow a short time for render/registration
-    time.sleep(1.0)
-    child.expect(PROMPT_RE)
-    output2 = strip_ansi(child.before or "")
+    output2 = expect_prompt_stable(child, quiet=0.3, max_wait=10.0)
     assert "server add <json|@file>" in output2

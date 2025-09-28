@@ -13,7 +13,6 @@
 from __future__ import annotations
 
 import os
-import re
 import shutil
 import signal
 import sys
@@ -21,6 +20,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 import pytest
+
+from tests.e2e.utils import PROMPT_RE, expect_prompt_stable
 
 pexpect = pytest.importorskip("pexpect", reason="e2e tests require pexpect; install with `pip install pexpect`.")
 
@@ -32,20 +33,30 @@ def _spawn_cli(*extra_args: str, cwd: str | None = None) -> Iterator[pexpect.spa
     English: Spawn the CLI interactive process and ensure cleanup on exit. You can specify child process working directory via `cwd`;
         defaults to project root.
     """
+    print("spawn cli...")
     env = os.environ.copy()
     # 确保 Python 输出不被缓冲，便于 pexpect 捕获 / Unbuffered Python output for stable pexpect reads
-    env.setdefault("PYTHONUNBUFFERED", "1")
+    env["PYTHONUNBUFFERED"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
     # 降低 prompt_toolkit 的控制序列噪音（如 CPR），提升匹配稳定性
     # Reduce prompt_toolkit control sequences to stabilize matching
-    env.setdefault("PROMPT_TOOLKIT_NO_CPR", "1")
-    env.setdefault("PROMPT_TOOLKIT_DISABLE_BRACKETED_PASTE", "1")
+    env["PROMPT_TOOLKIT_NO_CPR"] = "1"
+    env["PROMPT_TOOLKIT_DISABLE_BRACKETED_PASTE"] = "1"
+    env["PROMPT_TOOLKIT_COMPLETE_STYLE"] = "column"
+    env["PROMPT_TOOLKIT_EDITING_MODE"] = "emacs"
+    env["PROMPT_TOOLKIT_MOUSE_SUPPORT"] = "0"
+    env["PROMPT_TOOLKIT_ENABLE_SUSPEND"] = "0"
     # 使用最简终端，促使 prompt_toolkit 降级，减少 ANSI 控制序列
     # Use dumb TERM to reduce advanced terminal features
-    env.setdefault("TERM", "dumb")
+    env["TERM"] = "dumb"  # 使用最简单的终端类型
     # 禁用分页与固定列宽，进一步减少输出差异 / Disable pager and fix width to reduce variability
-    env.setdefault("PAGER", "cat")
-    env.setdefault("COLUMNS", "120")
-    env.setdefault("NO_COLOR", "1")
+    env["PAGER"] = "cat"
+    env["COLUMNS"] = "120"
+    env["LINES"] = "24"
+    env["NO_COLOR"] = "1"
+    # 强制使用UTF-8编码 / Force UTF-8 encoding
+    env["LC_ALL"] = "en_US.UTF-8"
+    env["LANG"] = "en_US.UTF-8"
     # 关闭颜色与复杂渲染，便于断言 / Disable colors for stable assertions
     # 优先使用已安装的 console script；否则回退到 python -c 调用 main()
     # Prefer console script if available; fallback to python -c main()
@@ -53,6 +64,7 @@ def _spawn_cli(*extra_args: str, cwd: str | None = None) -> Iterator[pexpect.spa
     if console_script:
         args = [console_script, "--no-color", "run"]
     else:
+        print("a2c-computer not found in shell")
         args = [
             sys.executable,
             "-c",
@@ -69,10 +81,11 @@ def _spawn_cli(*extra_args: str, cwd: str | None = None) -> Iterator[pexpect.spa
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     spawn_cwd = cwd or project_root
 
-    child = pexpect.spawn(args[0], args[1:], env=env, encoding="utf-8", timeout=60, cwd=spawn_cwd)
+    print("a2c-computer starting...")
     # 保证每次发送前有一个时延保持稳定
-    child.delaybeforesend = 0.03
+    child = pexpect.spawn(args[0], args[1:], env=env, encoding="utf-8", timeout=60, cwd=spawn_cwd)
     # 控制窗口大小，减少 CPR 请求 / Set winsize to reduce CPR
+    child.delaybeforesend = 0.1
     try:
         child.setwinsize(24, 120)
     except Exception:
@@ -94,11 +107,6 @@ def _spawn_cli(*extra_args: str, cwd: str | None = None) -> Iterator[pexpect.spa
                 pass
 
 
-# 允许先出现横幅或直接出现提示符 / Accept either banner or prompt first
-ANSI = r"(?:\x1b\[[0-?]*[ -/]*[@-~])*"
-PROMPT_RE = re.compile(ANSI + r"a2c>" + ANSI)
-
-
 @pytest.fixture()
 def cli_proc() -> Iterator[pexpect.spawn]:
     """
@@ -106,6 +114,7 @@ def cli_proc() -> Iterator[pexpect.spawn]:
     English: Provide a CLI process ready at `a2c>` prompt.
     """
     with _spawn_cli() as child:
+        print("a2c-computer started up")
         child.expect([r"Enter interactive mode, type 'help' for commands", PROMPT_RE])
         # 若匹配到横幅，则继续等待提示符 / If banner matched, then wait for prompt
         if (
@@ -118,10 +127,13 @@ def cli_proc() -> Iterator[pexpect.spawn]:
         # 等待提示符，并在必要时发送空回车触发刷新 / Wait for prompt, poke with empty enter if needed
         for _ in range(5):
             try:
-                child.expect(PROMPT_RE)
+                print("waiting for [a2c>]...")
+                expect_prompt_stable(child, quiet=0.5, max_wait=5.0)
                 break
             except pexpect.TIMEOUT:
                 child.sendline("")
         else:
             child.expect(PROMPT_RE)
+        child.sendline("")
+        expect_prompt_stable(child, quiet=0.5, max_wait=12.0)
         yield child

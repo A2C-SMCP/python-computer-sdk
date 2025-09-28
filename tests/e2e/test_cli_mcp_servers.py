@@ -13,47 +13,29 @@
 from __future__ import annotations
 
 import json
-import time
 from pathlib import Path
 
 import pytest
 
+from tests.e2e.utils import expect_prompt_stable, strip_ansi
+
 pexpect = pytest.importorskip("pexpect", reason="e2e tests require pexpect; install with `pip install pexpect`.")
-
-
-def _wait_for_prompt(child: pexpect.spawn, timeout: float = 10.0) -> None:
-    """等待返回到 a2c> 提示符。"""
-    child.expect("a2c> ", timeout=timeout)
 
 
 def _assert_tools_contains(child: pexpect.spawn, tool_name: str, retries: int = 5, delay: float = 0.8) -> None:
     """轮询 tools 输出，直到包含指定工具或重试耗尽。"""
-    for _ in range(retries):
-        child.sendline("tools")
-        _wait_for_prompt(child)
-        output = (child.before or "").strip()
-        if tool_name in output:
-            return
-        time.sleep(delay)
     # 最后一次失败时断言
     child.sendline("tools")
-    _wait_for_prompt(child)
-    output = (child.before or "").strip()
+    output = expect_prompt_stable(child, quiet=max(0.3, delay), max_wait=12.0)
+    output = strip_ansi(output)
     assert tool_name in output, f"tools 未包含 {tool_name}. 输出:\n{output}"
 
 
 def _assert_status_has_server(child: pexpect.spawn, server_name: str, retries: int = 5, delay: float = 0.8) -> None:
     """轮询 status 输出，直到出现指定 server 名称或重试耗尽。"""
-    for _ in range(retries):
-        child.sendline("status")
-        _wait_for_prompt(child)
-        output = (child.before or "").strip()
-        if server_name in output:
-            return
-        time.sleep(delay)
     child.sendline("status")
-    _wait_for_prompt(child)
-    output = (child.before or "").strip()
+    output = expect_prompt_stable(child, quiet=max(0.3, delay), max_wait=12.0)
+    output = strip_ansi(output)
     assert server_name in output, f"status 未出现 {server_name}. 输出:\n{output}"
 
 
@@ -91,10 +73,11 @@ def test_add_server_via_config_file(cli_proc: pexpect.spawn, tmp_path: Path) -> 
 
     # 2) 添加配置（@file）
     child.sendline(f"server add @{cfg_path}")
-    _wait_for_prompt(child)
+    # 中文: 等待稳定提示符，确保 add 输出结束 / English: wait for stable prompt to ensure add finished
+    expect_prompt_stable(child, quiet=0.5, max_wait=15.0)
     # 后台启动有一定延迟，显式 start all 以确保启动
     child.sendline("start all")
-    _wait_for_prompt(child)
+    expect_prompt_stable(child, quiet=0.5, max_wait=15.0)
 
     # 3) 校验 status/tools
     _assert_status_has_server(child, "e2e-test", retries=8, delay=0.8)
@@ -121,10 +104,10 @@ def test_add_server_via_inline_json_and_check(cli_proc: pexpect.spawn) -> None:
 
     # 1) 添加配置（inline JSON）
     child.sendline(f"server add {inline_json}")
-    _wait_for_prompt(child)
+    expect_prompt_stable(child, quiet=0.5, max_wait=15.0)
     # 显式启动
     child.sendline("start all")
-    _wait_for_prompt(child)
+    expect_prompt_stable(child, quiet=0.5, max_wait=15.0)
 
     # 2) 校验 status/tools
     _assert_status_has_server(child, "e2e-test-inline", retries=8, delay=0.8)

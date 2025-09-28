@@ -12,21 +12,13 @@
 
 from __future__ import annotations
 
-import re
 import time
 
 import pytest
 
+from tests.e2e.utils import expect_prompt_stable
+
 pexpect = pytest.importorskip("pexpect", reason="e2e tests require pexpect; install with `pip install pexpect`.")
-
-# 中文: ANSI 控制序列匹配与去除工具，避免 prompt_toolkit 的控制序列影响断言
-# English: ANSI control-sequence helpers to avoid prompt_toolkit artifacts breaking assertions
-ANSI = r"(?:\x1b\[[0-?]*[ -/]*[@-~])*"
-PROMPT_RE = re.compile(ANSI + r"a2c>" + ANSI)
-
-
-def strip_ansi(s: str) -> str:
-    return re.sub(ANSI, "", s)
 
 
 @pytest.mark.e2e
@@ -42,71 +34,50 @@ def test_inputs_resolve_then_server_start(cli_proc: pexpect.spawn) -> None:
       3) start all
       4) status 包含 e2e-inputs-test，tools 包含 hello
     """
+    print("[test_start] test_inputs_resolve_then_server_start")
     child = cli_proc
 
     # 1) 加载 inputs 定义 / load inputs definitions
     child.sendline("inputs load @tests/e2e/configs/inputs_basic.json")
-    # 给渲染/注册留一点时间 / allow a short time for render/registration
-    time.sleep(1.0)
-    child.expect(PROMPT_RE)
+    expect_prompt_stable(child, quiet=0.3, max_wait=10.0)
 
     # 2) 添加引用 ${input:SCRIPT} 的 server / add server that references ${input:SCRIPT}
     child.sendline("server add @tests/e2e/configs/server_using_input.json")
-    # 给渲染/注册留一点时间 / allow a short time for render/registration
-    time.sleep(1.0)
     # 输入一个回车，表示使用默认值
     child.sendline("\n")
-    # 给渲染/注册留一点时间 / allow a short time for render/registration
-    time.sleep(1.0)
-    child.expect(PROMPT_RE)
+    expect_prompt_stable(child, quiet=0.3, max_wait=10.0)
 
     # 3) 启动所有服务 / start all servers
     child.sendline("start all")
     # 给渲染/注册留一点时间 / allow a short time for render/registration
     time.sleep(1.0)
-    child.expect(PROMPT_RE)
+    # 中文: 等待“稳定提示符”，保证启动完成且提示符后无残留日志 / wait for stable prompt to ensure no trailing logs
+    # English: Wait for a stable prompt so there are no trailing logs after the prompt
+    expect_prompt_stable(child, quiet=0.5, max_wait=15.0)
 
     # 4) 轮询校验 status/tools / poll for status/tools
-    def _assert_contains(cmd: str, needle: str, retries: int = 12, delay: float = 1.0, pre_wait: float = 0.0) -> None:
+    def _assert_contains(cmd: str, needle: str, retries: int = 1, delay: float = 1.0) -> None:
         """
         中文: 在 e2e 交互中对输出进行轮询断言。为缓解提示符与表格输出的时序竞态，允许在发送命令后先短暂等待再匹配提示符。
         English: Poll-and-assert helper for e2e. To mitigate prompt vs. output racing, optionally wait a bit after
                  sending the command before expecting the prompt.
         """
-
-        # 先尝试把缓冲区中可能已到达的提示符“吃掉”，避免下一次 expect 命中旧提示符，导致拿到上一次命令的输出
-        # Drain any already-buffered prompt(s) so that the next expect waits for the prompt after our command
-        def _drain_to_prompt() -> None:
-            for _ in range(3):
-                try:
-                    child.expect(PROMPT_RE, timeout=0.2)
-                except pexpect.TIMEOUT:  # type: ignore[name-defined]
-                    break
-
-        for _ in range(retries):
-            # 清空到最新提示符，确保接下来等待的是本次命令产生的提示符
-            _drain_to_prompt()
+        out: str = ""
+        for attempt in range(1, retries + 1):
+            print(f"a2c>{cmd} [attempt {attempt}/{retries}]")
             child.sendline(cmd)
-            # 中文: 在某些环境中，Rich 输出和 prompt 重绘存在时序竞争；先小睡片刻有助于让输出先于提示符写入 pty。
-            # English: In some envs, Rich output vs prompt redraw race; a short pre-wait helps output land before prompt.
-            if pre_wait > 0:
-                time.sleep(pre_wait)
-            child.expect(PROMPT_RE)
+            # 给渲染/注册留一点时间 / allow a short time for render/registration
             time.sleep(delay)
-            out = strip_ansi((child.before or "").strip())
+            out = expect_prompt_stable(child, quiet=0.5, max_wait=15.0)
+            print(out)
             if needle in out:
                 return
-        # 最后再打一遍用于调试 / one more time for debug output
-        _drain_to_prompt()
-        child.sendline(cmd)
-        # 给渲染/注册留一点时间 / allow a short time for render/registration
-        time.sleep(1.0)
-        child.expect(PROMPT_RE)
-        out = strip_ansi((child.before or "").strip())
+            if attempt < retries:
+                time.sleep(delay)
         assert needle in out, f"`{cmd}` 未包含 {needle}. 输出:\n{out}"
 
-    _assert_contains("status", "e2e-inputs-test", retries=3, delay=0.8, pre_wait=0.6)
-    time.sleep(2)
+    _assert_contains("status", "e2e-inputs-test", retries=1, delay=0.8)
+    time.sleep(1.0)
     # 中文: tools 输出涉及列举远端工具，首次枚举易受竞态影响；提高重试次数并在发送命令后预等待以增强稳定性
     # English: tools listing can race on first enumeration; increase retries and add pre-wait for stability
-    _assert_contains("tools", "hello", retries=3, delay=1.0, pre_wait=0.6)
+    _assert_contains("tools", "hello", retries=1, delay=1.0)

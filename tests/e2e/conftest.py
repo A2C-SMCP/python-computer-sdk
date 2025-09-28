@@ -57,18 +57,6 @@ def _spawn_cli(*extra_args: str, cwd: str | None = None) -> Iterator[pexpect.spa
     # 强制使用UTF-8编码 / Force UTF-8 encoding
     env["LC_ALL"] = "en_US.UTF-8"
     env["LANG"] = "en_US.UTF-8"
-    # 关闭颜色与复杂渲染，便于断言 / Disable colors for stable assertions
-    # 针对CI环境的额外配置 / Additional config for CI environments
-    if os.getenv("CI"):
-        # GitHub Actions 特定配置 / GitHub Actions specific config
-        env["RICH_FORCE_TERMINAL"] = "0"  # 强制Rich使用非终端模式
-        env["RICH_WIDTH"] = "120"  # 固定Rich输出宽度
-        env["RICH_NO_COLOR"] = "1"  # 禁用Rich颜色
-        env["FORCE_COLOR"] = "0"  # 全局禁用颜色
-        env["TERM"] = "xterm"  # 使用更兼容的终端类型
-        # 增加更严格的缓冲控制 / Stricter buffer control
-        env["PYTHONSTDOUT"] = "line"
-        env["PYTHONSTDERR"] = "line"
     # 优先使用已安装的 console script；否则回退到 python -c 调用 main()
     # Prefer console script if available; fallback to python -c main()
     console_script = shutil.which("a2c-computer")

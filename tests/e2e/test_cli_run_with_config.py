@@ -21,6 +21,8 @@ from contextlib import contextmanager
 
 import pytest
 
+from tests.e2e.utils import strip_ansi
+
 pexpect = pytest.importorskip("pexpect", reason="e2e tests require pexpect; install with `pip install pexpect`.")
 
 
@@ -28,10 +30,6 @@ pexpect = pytest.importorskip("pexpect", reason="e2e tests require pexpect; inst
 # 与 conftest/test_cli_interactive 保持一致，确保在包含控制序列/光标移动的终端下也能稳定匹配提示符
 ANSI = r"(?:\x1b\[[0-?]*[ -/]*[@-~])*"
 PROMPT_RE = re.compile(ANSI + r"a2c>" + ANSI)
-
-
-def strip_ansi(s: str) -> str:
-    return re.sub(ANSI, "", s)
 
 
 @contextmanager

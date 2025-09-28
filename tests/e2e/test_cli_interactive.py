@@ -16,7 +16,7 @@ import re
 
 import pytest
 
-from tests.e2e.utils import ANSI, expect_prompt_stable
+from tests.e2e.utils import ANSI, PROMPT_RE, expect_prompt_stable, strip_ansi
 
 pexpect = pytest.importorskip("pexpect", reason="e2e tests require pexpect; install with `pip install pexpect`.")
 
@@ -53,8 +53,9 @@ def test_help_shows_table(cli_proc: pexpect.spawn) -> None:
     # 请求帮助 / ask for help
     child.sendline("help")
     # 先等待帮助标题出现，再等待稳定提示符，避免抓空 / wait help title then stable prompt
-    child.expect(HELP_TITLE_RE)
-    output = expect_prompt_stable(child, quiet=0.3, max_wait=10.0)
+    child.expect(HELP_TITLE_RE, timeout=5)
+    child.expect(PROMPT_RE, timeout=5)
+    output = strip_ansi((child.before or "").strip())
 
     assert "server add <json|@file>" in output
     assert "socket connect" in output
@@ -62,5 +63,6 @@ def test_help_shows_table(cli_proc: pexpect.spawn) -> None:
     # 再用 ? 验证一次 / verify with ? again
     child.sendline("?")
     child.expect(HELP_TITLE_RE)
-    output2 = expect_prompt_stable(child, quiet=0.3, max_wait=10.0)
+    child.expect(PROMPT_RE, timeout=5)
+    output2 = strip_ansi((child.before or "").strip())
     assert "server add <json|@file>" in output2

@@ -149,7 +149,7 @@ async def test_manager_disabled_tool(stdio_params, sse_params, sse_server):
             await manager.aexecute_tool(tools[0].name, {})
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_manager_stop_all(stdio_params, sse_params, sse_server):
     """
     测试关闭所有客户端
@@ -164,6 +164,38 @@ async def test_manager_stop_all(stdio_params, sse_params, sse_server):
     await manager.astop_all()
     for client in manager._active_clients.values():
         assert client.state != "connected"
+
+
+@pytest.mark.anyio
+async def test_manager_propagates_message_handler_to_clients(stdio_params, sse_params, sse_server):
+    """集成测试：验证 Manager 能将 message_handler 透传到真实 Client。
+    Integration: Verify Manager forwards message_handler to real clients.
+    """
+    async def dummy_handler(*args, **kwargs):
+        return None
+
+    manager = MCPServerManager(auto_connect=False, message_handler=dummy_handler)
+    stdio_cfg = StdioServerConfig(name="stdio_server", server_parameters=stdio_params)
+    sse_cfg = SseServerConfig(name="sse_server", server_parameters=sse_params)
+    await manager.ainitialize([stdio_cfg, sse_cfg])
+    await manager.astart_all()
+
+    # BaseMCPClient 在实例上保存为 _message_handler
+    for name, client in manager._active_clients.items():
+        assert getattr(client, "_message_handler", None) is dummy_handler, f"Client {name} did not receive message_handler"
+
+
+@pytest.mark.anyio
+async def test_manager_message_handler_none_results_in_none_on_clients(stdio_params, sse_params, sse_server):
+    """集成测试：当未提供 message_handler 时，真实客户端也应为 None。"""
+    manager = MCPServerManager(auto_connect=False)
+    stdio_cfg = StdioServerConfig(name="stdio_server", server_parameters=stdio_params)
+    sse_cfg = SseServerConfig(name="sse_server", server_parameters=sse_params)
+    await manager.ainitialize([stdio_cfg, sse_cfg])
+    await manager.astart_all()
+
+    for client in manager._active_clients.values():
+        assert getattr(client, "_message_handler", "__missing__") is None
 
 
 @pytest.mark.anyio

@@ -9,6 +9,7 @@ from collections import defaultdict
 from collections.abc import AsyncGenerator, Iterable
 from typing import Any
 
+from mcp.client.session import MessageHandlerFnT
 from mcp.types import CallToolResult, Tool
 
 from a2c_smcp.computer.mcp_clients.model import A2C_TOOL_META, MCPClientProtocol, MCPServerConfig, ToolMeta
@@ -31,7 +32,12 @@ class MCPServerManager:
     # TODO call_tool的时候需要启动子任务对call_tool进行包装，以便进行超时控制与动态取消。实现超时控制与动态取消后，才可以响应服务端取消任务
     """
 
-    def __init__(self, auto_connect: bool = False, auto_reconnect: bool = True) -> None:
+    def __init__(
+        self,
+        auto_connect: bool = False,
+        auto_reconnect: bool = True,
+        message_handler: MessageHandlerFnT | None = None,
+    ) -> None:
         # 存储所有服务器配置
         self._servers_config: dict[SERVER_NAME, MCPServerConfig] = {}
         # 存储活动客户端 {server_name: client}
@@ -46,6 +52,8 @@ class MCPServerManager:
         self._auto_reconnect: bool = auto_reconnect
         # 自动连接标志
         self._auto_connect: bool = auto_connect
+        # 自定义消息处理器，透传到各具体Client
+        self._message_handler: MessageHandlerFnT | None = message_handler
         # 内部锁防止并发修改
         self._lock = asyncio.Lock()
 
@@ -197,8 +205,8 @@ class MCPServerManager:
         if server_name in self._active_clients:
             return  # 已经启动
 
-        # 伪代码：根据配置类型创建客户端
-        client = client_factory(config)
+        # 根据配置类型创建客户端
+        client = client_factory(config, message_handler=self._message_handler)
         await client.aconnect()
         self._active_clients[server_name] = client
         try:

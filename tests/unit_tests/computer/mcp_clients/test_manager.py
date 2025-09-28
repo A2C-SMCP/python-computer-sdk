@@ -30,7 +30,7 @@ SERVER_NAME = str
 
 # 模拟BaseMCPClient
 class MockMCPClient:
-    def __init__(self, tools: list[Tool] = None, ret_meta: dict | None = None):
+    def __init__(self, tools: list[Tool] = None, ret_meta: dict | None = None, message_handler=None):
         self.tools = tools or []
         self.aconnect = AsyncMock()
         self.adisconnect = AsyncMock()
@@ -40,6 +40,8 @@ class MockMCPClient:
         call_ret.meta = ret_meta
         self.call_tool = AsyncMock(return_value=call_ret)
         self.state = "connected"
+        # 保存透传进来的 message_handler，便于测试断言
+        self.message_handler = message_handler
 
 
 def create_mock_tool(name: str, meta: dict | None = None) -> Tool:
@@ -50,17 +52,17 @@ def create_mock_tool(name: str, meta: dict | None = None) -> Tool:
 
 
 # 模拟client_factory函数
-def mock_client_factory(config: MCPServerConfig) -> MockMCPClient:
+def mock_client_factory(config: MCPServerConfig, message_handler=None) -> MockMCPClient:
     # 简化处理：根据配置名称返回不同的工具列表
     if "server1" in config.name:
-        return MockMCPClient([create_mock_tool("tool1", meta={"test": "meta"}), create_mock_tool("tool2")])
+        return MockMCPClient([create_mock_tool("tool1", meta={"test": "meta"}), create_mock_tool("tool2")], message_handler=message_handler)
     elif "server2" in config.name:
-        return MockMCPClient([create_mock_tool("tool3"), create_mock_tool("tool4")], ret_meta={"test": "ret_meta"})
+        return MockMCPClient([create_mock_tool("tool3"), create_mock_tool("tool4")], ret_meta={"test": "ret_meta"}, message_handler=message_handler)
     elif "alias_server" in config.name:
-        return MockMCPClient([create_mock_tool("tool5")])
+        return MockMCPClient([create_mock_tool("tool5")], message_handler=message_handler)
     elif "duplicate_server" in config.name:
-        return MockMCPClient([create_mock_tool("duplicate_tool")])
-    return MockMCPClient()
+        return MockMCPClient([create_mock_tool("duplicate_tool")], message_handler=message_handler)
+    return MockMCPClient(message_handler=message_handler)
 
 
 # Monkey patch客户端工厂函数
@@ -390,6 +392,41 @@ async def test_meta_data_injection(manager):
     assert result.meta["a2c_tool_meta"].ret_object_mapper == {"result": "data"}
 
 
+@pytest.mark.asyncio
+async def test_manager_propagates_message_handler_to_clients():
+    """验证 Manager 能将 message_handler 透传到具体 Client。
+    Verify Manager forwards message_handler to concrete clients.
+    """
+    # 定义一个占位回调
+    async def dummy_handler(*args, **kwargs):
+        return None
+
+    mgr = MCPServerManager(message_handler=dummy_handler)
+    await mgr.enable_auto_reconnect()
+
+    servers = [create_server_config("server1"), create_server_config("sse_server")]
+    await mgr.ainitialize(servers)
+    await mgr.astart_all()
+
+    # 校验每个激活客户端都收到了相同的回调实例
+    for name, client in mgr._active_clients.items():
+        assert getattr(client, "message_handler", None) is dummy_handler, f"Client {name} did not receive message_handler"
+
+
+@pytest.mark.asyncio
+async def test_manager_message_handler_none_results_in_none_on_clients():
+    """当未提供 message_handler 时，客户端应为 None。"""
+    mgr = MCPServerManager()  # 不传入 handler
+    await mgr.enable_auto_reconnect()
+
+    servers = [create_server_config("server1")]
+    await mgr.ainitialize(servers)
+    await mgr.astart_all()
+
+    client = mgr._active_clients["server1"]
+    assert getattr(client, "message_handler", None) is None
+
+
 # 覆盖 _add_server_config 的 RuntimeError 分支
 # Test _add_server_config RuntimeError branch
 @pytest.mark.asyncio
@@ -483,8 +520,8 @@ async def test_arefresh_tool_mapping_duplicate(manager, monkeypatch):
     config2 = create_server_config("duplicate_server2")
     # 强制都只返回同名工具 duplicate_tool
 
-    def always_duplicate_tool(_):
-        return MockMCPClient([create_mock_tool("duplicate_tool")])
+    def always_duplicate_tool(_, message_handler=None):
+        return MockMCPClient([create_mock_tool("duplicate_tool")], message_handler=message_handler)
 
     monkeypatch.setattr("a2c_smcp.computer.mcp_clients.manager.client_factory", always_duplicate_tool)
     manager._servers_config = {config1.name: config1, config2.name: config2}
@@ -504,8 +541,8 @@ async def test_astart_client(manager, monkeypatch):
     config2 = create_server_config("duplicate_server2")
     # 强制都只返回同名工具 duplicate_tool
 
-    def always_duplicate_tool(_):
-        return MockMCPClient([create_mock_tool("duplicate_tool")])
+    def always_duplicate_tool(_, message_handler=None):
+        return MockMCPClient([create_mock_tool("duplicate_tool")], message_handler=message_handler)
 
     monkeypatch.setattr("a2c_smcp.computer.mcp_clients.manager.client_factory", always_duplicate_tool)
     await manager.aadd_or_aupdate_server(config1)
@@ -547,8 +584,8 @@ async def test_astart_all_tool_name_duplicate(manager, monkeypatch):
     config2 = create_server_config("dup_server2")
 
     # 两个 server 都返回同名工具 duplicate_tool
-    def always_duplicate_tool(_):
-        return MockMCPClient([create_mock_tool("duplicate_tool")])
+    def always_duplicate_tool(_, message_handler=None):
+        return MockMCPClient([create_mock_tool("duplicate_tool")], message_handler=message_handler)
 
     monkeypatch.setattr("a2c_smcp.computer.mcp_clients.manager.client_factory", always_duplicate_tool)
     servers = [config1, config2]
@@ -571,11 +608,11 @@ async def test_aadd_or_aupdate_server_with_duplicate_tool(manager, monkeypatch):
     await manager.astart_all()
 
     # 模拟工具名重复的情况
-    def duplicate_tool_factory(config: MCPServerConfig) -> Any:
+    def duplicate_tool_factory(config: MCPServerConfig, message_handler=None) -> Any:
         if config.name == "server1":
-            return MockMCPClient([create_mock_tool("tool1")])
+            return MockMCPClient([create_mock_tool("tool1")], message_handler=message_handler)
         else:
-            return MockMCPClient([create_mock_tool("tool1")])  # 故意返回同名工具
+            return MockMCPClient([create_mock_tool("tool1")], message_handler=message_handler)  # 故意返回同名工具
 
     monkeypatch.setattr("a2c_smcp.computer.mcp_clients.manager.client_factory", duplicate_tool_factory)
 

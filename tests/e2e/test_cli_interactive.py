@@ -20,9 +20,10 @@ from tests.e2e.utils import ANSI, PROMPT_RE, expect_prompt_stable, strip_ansi
 
 pexpect = pytest.importorskip("pexpect", reason="e2e tests require pexpect; install with `pip install pexpect`.")
 
-# 中文: 帮助标题的匹配，沿用 ANSI 感知的模式以避免误匹配
+# 中文: 帮助标题的匹配，沿用 ANSI 感知的模式以避免误匹配 re.S(或re.DOTALL) 模式下 . 将匹配包括换行模式符在内的任意字符。因此必须强制关闭
+# re.S 否则会拦截正常输出
 # English: Help title regex using ANSI-aware pattern to avoid mismatches
-HELP_TITLE_RE = re.compile(ANSI + r".*可用命令 / Commands.*", re.S)
+HELP_TITLE_RE = re.compile(ANSI + r".*可用命令 / Commands.*")
 
 
 @pytest.mark.e2e

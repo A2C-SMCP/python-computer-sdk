@@ -16,7 +16,7 @@ import re
 
 import pytest
 
-from tests.e2e.utils import ANSI, PROMPT_RE, expect_prompt_stable, strip_ansi
+from tests.e2e.computer.utils import ANSI, PROMPT_RE, expect_prompt_stable, strip_ansi
 
 pexpect = pytest.importorskip("pexpect", reason="e2e tests require pexpect; install with `pip install pexpect`.")
 

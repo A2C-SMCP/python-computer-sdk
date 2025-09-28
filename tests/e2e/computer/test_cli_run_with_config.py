@@ -21,7 +21,7 @@ from contextlib import contextmanager
 
 import pytest
 
-from tests.e2e.utils import strip_ansi
+from tests.e2e.computer.utils import strip_ansi
 
 pexpect = pytest.importorskip("pexpect", reason="e2e tests require pexpect; install with `pip install pexpect`.")
 
@@ -54,7 +54,7 @@ def _spawn_cli_with_args(*extra_args: str):
     # 计算与设置工作目录 / Compute and set working directory
     # 默认将工作目录设置为项目根目录（本文件位于 tests/e2e/conftest.py，向上两级即为项目根）
     # By default, set cwd to project root (this file lives at tests/e2e/conftest.py; go up two levels)
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
     child = pexpect.spawn(args[0], args[1:], env=env, encoding="utf-8", timeout=25, cwd=project_root)
     try:
         child.setwinsize(24, 120)
@@ -111,12 +111,12 @@ def _assert_status(child: pexpect.spawn, server: str, retries: int = 8, delay: f
 @pytest.mark.e2e
 def test_run_with_config_param_loads_server() -> None:
     """
-    启动参数包含 --config @tests/e2e/configs/server_direct_execution.json，应能加载并启动服务：
+    启动参数包含 --config @tests/e2e/computer/configs/server_direct_execution.json，应能加载并启动服务：
     - 进入 a2c> 后检查 status 含 e2e-test
     - tools 中包含 hello
     若自动启动存在延迟，调用一次 start all 作为补偿
     """
-    cfg_arg = "--config=@tests/e2e/configs/server_direct_execution.json"
+    cfg_arg = "--config=@tests/e2e/computer/configs/server_direct_execution.json"
     with _spawn_cli_with_args(cfg_arg) as child:
         # 等横幅/提示符
         try:

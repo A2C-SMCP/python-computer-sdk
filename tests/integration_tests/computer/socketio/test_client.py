@@ -23,8 +23,8 @@ from a2c_smcp.computer.mcp_clients.model import SseServerConfig, StdioServerConf
 from a2c_smcp.computer.socketio.client import SMCPComputerClient
 from a2c_smcp.computer.socketio.smcp import GET_CONFIG_EVENT, GET_TOOLS_EVENT, SMCP_NAMESPACE, TOOL_CALL_EVENT
 from a2c_smcp.computer.utils.logger import logger
-from tests.integration_tests.socketio.mock_socketio_server import MockComputerServerNamespace, create_computer_test_socketio
-from tests.integration_tests.socketio.mock_uv_server import UvicornTestServer
+from tests.integration_tests.computer.socketio.mock_socketio_server import MockComputerServerNamespace, create_computer_test_socketio
+from tests.integration_tests.computer.socketio.mock_uv_server import UvicornTestServer
 
 
 @pytest.fixture

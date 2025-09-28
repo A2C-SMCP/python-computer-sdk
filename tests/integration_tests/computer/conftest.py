@@ -587,8 +587,8 @@ def track_state() -> tuple[Callable[[str, str], None], list[tuple[str, str]]]:
     return callback, state_history
 
 
-TEST_DIR: Path = Path(__file__).parent.parent
-MCP_SERVER_SCRIPT: Path = TEST_DIR / "integration_tests" / "mcp_servers" / "direct_execution.py"
+TEST_DIR: Path = Path(__file__).parent.parent.parent
+MCP_SERVER_SCRIPT: Path = TEST_DIR / "integration_tests" / "computer" / "mcp_servers" / "direct_execution.py"
 
 
 @pytest.fixture

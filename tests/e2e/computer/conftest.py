@@ -21,7 +21,7 @@ from contextlib import contextmanager
 
 import pytest
 
-from tests.e2e.utils import PROMPT_RE, expect_prompt_stable
+from tests.e2e.computer.utils import PROMPT_RE, expect_prompt_stable
 
 pexpect = pytest.importorskip("pexpect", reason="e2e tests require pexpect; install with `pip install pexpect`.")
 
@@ -77,7 +77,7 @@ def _spawn_cli(*extra_args: str, cwd: str | None = None) -> Iterator[pexpect.spa
     # 计算与设置工作目录 / Compute and set working directory
     # 默认将工作目录设置为项目根目录（本文件位于 tests/e2e/conftest.py，向上两级即为项目根）
     # By default, set cwd to project root (this file lives at tests/e2e/conftest.py; go up two levels)
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
     spawn_cwd = cwd or project_root
 
     print("a2c-computer starting...")

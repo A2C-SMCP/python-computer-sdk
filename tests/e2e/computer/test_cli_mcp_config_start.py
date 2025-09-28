@@ -5,7 +5,7 @@
 版权: 2023 JQQ. All rights reserved.
 依赖: pytest, pexpect
 描述:
-  中文: 使用固定的配置文件 tests/e2e/configs/server_direct_execution.json 来添加并启动 stdio MCP Server，然后校验 status 与 tools。
+  中文: 使用固定的配置文件 tests/e2e/computer/configs/server_direct_execution.json 来添加并启动 stdio MCP Server，然后校验 status 与 tools。
   English: Use fixed config file to add/start stdio MCP Server and assert status/tools.
 """
 
@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.e2e.utils import expect_prompt_stable, strip_ansi
+from tests.e2e.computer.utils import expect_prompt_stable, strip_ansi
 
 pexpect = pytest.importorskip("pexpect", reason="e2e tests require pexpect; install with `pip install pexpect`.")
 
@@ -40,7 +40,7 @@ def _assert_status_has(child: pexpect.spawn, server_name: str, retries: int = 10
 def test_start_via_known_config_file(cli_proc: pexpect.spawn) -> None:
     """
     使用固定的配置文件路径添加并启动 direct_execution 服务器，然后验证状态与工具：
-    - server add @tests/e2e/configs/server_direct_execution.json
+    - server add @tests/e2e/computer/configs/server_direct_execution.json
     - start all
     - status 包含 e2e-test
     - tools 包含 hello
@@ -48,7 +48,7 @@ def test_start_via_known_config_file(cli_proc: pexpect.spawn) -> None:
     child = cli_proc
 
     # 添加服务器配置 / Add server configuration
-    child.sendline("server add @tests/e2e/configs/server_direct_execution.json")
+    child.sendline("server add @tests/e2e/computer/configs/server_direct_execution.json")
     # 等待稳定提示符，确保 add 的输出完全结束 / wait for stable prompt to ensure add output finished
     expect_prompt_stable(child, quiet=0.5, max_wait=15.0)
 

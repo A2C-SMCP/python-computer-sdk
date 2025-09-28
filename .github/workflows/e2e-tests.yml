@@ -48,7 +48,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pypoetry
-          key: ${{ runner.os }}-pypoetry-${{ hashFiles('**/poetry.lock') }}
+          key: ${{ runner.os }}-pypoetry-${{ hashFiles('**/poetry.lock', '**/pyproject.toml') }}-v2
           restore-keys: |
             ${{ runner.os }}-pypoetry-
 
@@ -56,14 +56,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .venv
-          key: ${{ runner.os }}-venv-3.11-${{ hashFiles('**/poetry.lock') }}
+          key: ${{ runner.os }}-venv-3.11-${{ hashFiles('**/poetry.lock', '**/pyproject.toml') }}-v2
           restore-keys: |
             ${{ runner.os }}-venv-
 
       - name: Install dependencies
         run: |
           poetry --version
-          poetry install --no-interaction --with dev,test,cli
+          # 同步安装：确保 dev/test/cli 组正确安装；避免缓存导致的缺失 / Sync install to ensure dev/test/cli groups are installed; avoid cache-induced misses
+          poetry install --no-interaction --with dev,test,cli --sync
 
       - name: Run e2e tests
         run: |

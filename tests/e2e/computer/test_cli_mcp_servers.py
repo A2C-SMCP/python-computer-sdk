@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.e2e.utils import expect_prompt_stable, strip_ansi
+from tests.e2e.computer.utils import expect_prompt_stable, strip_ansi
 
 pexpect = pytest.importorskip("pexpect", reason="e2e tests require pexpect; install with `pip install pexpect`.")
 
@@ -60,7 +60,7 @@ def test_add_server_via_config_file(cli_proc: pexpect.spawn, tmp_path: Path) -> 
         "server_parameters": {
             "command": "python",
             "args": [
-                "tests/integration_tests/mcp_servers/direct_execution.py",
+                "tests/integration_tests/computer/mcp_servers/direct_execution.py",
             ],
             "env": None,
             "cwd": None,
@@ -98,7 +98,7 @@ def test_add_server_via_inline_json_and_check(cli_proc: pexpect.spawn) -> None:
     inline_json = (
         '{"name": "e2e-test-inline", "type": "stdio", "disabled": false, "forbidden_tools": [], '
         '"tool_meta": {}, "server_parameters": {"command": "python", "args": '
-        ' ["tests/integration_tests/mcp_servers/direct_execution.py"], "env": null, "cwd": null, '
+        ' ["tests/integration_tests/computer/mcp_servers/direct_execution.py"], "env": null, "cwd": null, '
         ' "encoding": "utf-8", "encoding_error_handler": "strict"}}'
     )
 

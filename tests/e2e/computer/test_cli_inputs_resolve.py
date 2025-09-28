@@ -16,7 +16,7 @@ import time
 
 import pytest
 
-from tests.e2e.utils import expect_prompt_stable
+from tests.e2e.computer.utils import expect_prompt_stable
 
 pexpect = pytest.importorskip("pexpect", reason="e2e tests require pexpect; install with `pip install pexpect`.")
 
@@ -29,8 +29,8 @@ def test_inputs_resolve_then_server_start(cli_proc: pexpect.spawn) -> None:
              correctly and start.
 
     步骤 Steps:
-      1) inputs load @tests/e2e/configs/inputs_basic.json
-      2) server add @tests/e2e/configs/server_using_input.json
+      1) inputs load @tests/e2e/computer/configs/inputs_basic.json
+      2) server add @tests/e2e/computer/configs/server_using_input.json
       3) start all
       4) status 包含 e2e-inputs-test，tools 包含 hello
     """
@@ -38,11 +38,11 @@ def test_inputs_resolve_then_server_start(cli_proc: pexpect.spawn) -> None:
     child = cli_proc
 
     # 1) 加载 inputs 定义 / load inputs definitions
-    child.sendline("inputs load @tests/e2e/configs/inputs_basic.json")
+    child.sendline("inputs load @tests/e2e/computer/configs/inputs_basic.json")
     expect_prompt_stable(child, quiet=0.3, max_wait=10.0)
 
     # 2) 添加引用 ${input:SCRIPT} 的 server / add server that references ${input:SCRIPT}
-    child.sendline("server add @tests/e2e/configs/server_using_input.json")
+    child.sendline("server add @tests/e2e/computer/configs/server_using_input.json")
     # 输入一个回车，表示使用默认值
     child.sendline("\n")
     expect_prompt_stable(child, quiet=0.3, max_wait=10.0)

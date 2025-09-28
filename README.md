@@ -1,2 +1,2 @@
-# python-computer-sdk
-The official Python Computer Client SDK for A2C-SMCP
+# python-sdk
+The official Python Client SDK for A2C-SMCP

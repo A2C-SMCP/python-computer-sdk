@@ -189,6 +189,121 @@ class TestSMCPNamespace:
         assert error is None
         smcp_namespace.leave_room.assert_called_once_with("test_sid", "office_123")
 
+    @pytest.mark.asyncio
+    async def test_enter_room_agent_constraints_and_duplicate(self, smcp_namespace, mock_server):
+        """覆盖 agent 进入房间的约束：
+        - 已在其他房间 -> 抛错
+        - 已在同一房间 -> 警告并返回（不重复加入）
+        - 房间内已存在 agent -> 抛错
+        """
+        smcp_namespace.server = mock_server
+
+        # 1) agent 已在其他房间
+        session = {"role": "agent", "office_id": "roomA"}
+        smcp_namespace.get_session = AsyncMock(return_value=session)
+        smcp_namespace.save_session = AsyncMock()
+        smcp_namespace.emit = AsyncMock()
+
+        with pytest.raises(ValueError):
+            await smcp_namespace.enter_room("sid1", "roomB")
+
+        # 2) agent 未在任何房间，但房间内已有 agent
+        session2 = {"role": "agent"}
+        smcp_namespace.get_session = AsyncMock(return_value=session2)
+        # 房间已有一个 agent 参与者
+        mock_server.manager.get_participants.return_value = ["sidAgent"]
+
+        async def _get_session_for_existing(_sid):
+            return {"role": "agent"}
+
+        smcp_namespace.get_session = AsyncMock(side_effect=[session2, {"role": "agent"}])
+        with pytest.raises(ValueError):
+            await smcp_namespace.enter_room("sid2", "roomA")
+
+        # 3) agent 已在同一房间 -> 返回（不抛错）
+        session3 = {"role": "agent", "office_id": "roomA"}
+        smcp_namespace.get_session = AsyncMock(return_value=session3)
+        # 调用不会抛出
+        await smcp_namespace.enter_room("sid3", "roomA")
+
+    @pytest.mark.asyncio
+    async def test_enter_room_computer_switch_and_duplicate(self, smcp_namespace, mock_server):
+        """覆盖 computer 切换房间与重复加入同一房间。"""
+        smcp_namespace.server = mock_server
+        # computer 从 roomA 切到 roomB，应先 leave_room(roomA)
+        session = {"role": "computer", "office_id": "roomA"}
+        smcp_namespace.get_session = AsyncMock(return_value=session)
+        smcp_namespace.save_session = AsyncMock()
+        smcp_namespace.emit = AsyncMock()
+        smcp_namespace.leave_room = AsyncMock()
+        await smcp_namespace.enter_room("csid", "roomB")
+        smcp_namespace.leave_room.assert_called_once_with("csid", "roomA")
+
+        # 重复加入同一房间 -> 直接返回
+        session2 = {"role": "computer", "office_id": "roomB"}
+        smcp_namespace.get_session = AsyncMock(return_value=session2)
+        await smcp_namespace.enter_room("csid", "roomB")
+
+    @pytest.mark.asyncio
+    async def test_leave_room_broadcast_and_clear_session(self, smcp_namespace, monkeypatch):
+        """覆盖 leave_room 的广播通知与 session 清理。"""
+        smcp_namespace.emit = AsyncMock()
+        sess = {"role": "computer", "office_id": "roomX"}
+        smcp_namespace.get_session = AsyncMock(return_value=sess)
+        smcp_namespace.save_session = AsyncMock()
+        # 拦截 BaseNamespace.leave_room，避免真实父类逻辑
+        from a2c_smcp.server.base import BaseNamespace
+        monkeypatch.setattr(BaseNamespace, "leave_room", AsyncMock())
+        await smcp_namespace.leave_room("sidX", "roomX")
+        assert "office_id" not in sess
+
+    @pytest.mark.asyncio
+    async def test_on_client_get_tools_and_tool_call_and_updates(self, smcp_namespace, mock_server):
+        """覆盖 get_tools 权限校验、tool_call 与 update/cancel 的广播/调用。"""
+        smcp_namespace.server = mock_server
+
+        # 准备会话：agent 与 computer 在同一房间
+        agent_sid = "a1"
+        comp_sid = "c1"
+        sess_agent = {"role": "agent", "office_id": "room1"}
+        sess_comp = {"role": "computer", "office_id": "room1"}
+
+        smcp_namespace.get_session = AsyncMock(side_effect=lambda sid: (sess_comp if sid == comp_sid else sess_agent))
+        smcp_namespace.call = AsyncMock(return_value={"tools": [], "req_id": "r1"})
+
+        # get_tools 成功
+        ret = await smcp_namespace.on_client_get_tools(agent_sid, {"computer": comp_sid})
+        assert isinstance(ret, dict)
+        assert "tools" in ret
+
+        # tool_call：由 agent 发起，映射到 call
+        smcp_namespace.get_session = AsyncMock(return_value=sess_agent)
+        smcp_namespace.call = AsyncMock(return_value={"ok": True})
+        res = await smcp_namespace.on_client_tool_call(
+            agent_sid,
+            {
+                "robot_id": agent_sid,
+                "req_id": "r2",
+                "computer": comp_sid,
+                "tool_name": "t1",
+                "params": {},
+                "timeout": 5,
+            },
+        )
+        assert res == {"ok": True}
+
+        # update_config：由 computer 发起，广播通知
+        smcp_namespace.get_session = AsyncMock(return_value=sess_comp)
+        smcp_namespace.emit = AsyncMock()
+        await smcp_namespace.on_server_update_config(comp_sid, {"computer": comp_sid})
+        smcp_namespace.emit.assert_awaited()
+
+        # cancel tool call：由 agent 发起，广播通知
+        smcp_namespace.get_session = AsyncMock(return_value=sess_agent)
+        smcp_namespace.emit = AsyncMock()
+        await smcp_namespace.on_server_tool_call_cancel(agent_sid, {"robot_id": agent_sid, "req_id": "r3"})
+        smcp_namespace.emit.assert_awaited()
+
 
 class TestDefaultAuthenticationProvider:
     """默认认证提供者测试类 / Default authentication provider test class"""

@@ -75,11 +75,11 @@ class LeaveOfficeReq(TypedDict):
     office_id: str
 
 
-class UpdateMCPConfigReq(TypedDict):
+class UpdateConfigReq(TypedDict):
     computer: str  # 机器人计算机sid
 
 
-class GetMCPConfigReq(AgentCallData):
+class GetConfigReq(AgentCallData):
     computer: str
 
 

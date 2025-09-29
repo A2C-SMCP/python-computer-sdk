@@ -30,8 +30,9 @@ import weakref
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Optional
 
-from mcp import Tool
-from mcp.types import CallToolResult, TextContent
+from mcp import Tool, types
+from mcp.shared.session import RequestResponder
+from mcp.types import CallToolResult, TextContent, ToolListChangedNotification
 from prompt_toolkit import PromptSession
 from pydantic import TypeAdapter
 
@@ -46,7 +47,7 @@ from a2c_smcp.smcp import SMCPTool
 
 if TYPE_CHECKING:
     # 仅用于类型检查，避免运行时引入依赖/循环引用
-    from socketio import AsyncClient
+    from a2c_smcp.computer.socketio.client import SMCPComputerClient
 
 
 class Computer(BaseComputer[PromptSession]):
@@ -89,10 +90,10 @@ class Computer(BaseComputer[PromptSession]):
         self._config_render = ConfigRender()
         # 通过 weakref 存储 Socket.IO 客户端，避免与客户端互相强引用导致循环与内存泄露
         # Hold Socket.IO client via weakref to avoid strong reference cycle
-        self._socketio_client_ref: weakref.ReferenceType[AsyncClient] | None = None
+        self._socketio_client_ref: weakref.ReferenceType[SMCPComputerClient] | None = None
 
     @property
-    def socketio_client(self) -> Optional["AsyncClient"]:
+    def socketio_client(self) -> Optional["SMCPComputerClient"]:
         """
         获取当前绑定的 Socket.IO AsyncClient，如果已被销毁则返回 None。
         Get the currently bound Socket.IO AsyncClient; returns None if GC'ed.
@@ -103,7 +104,7 @@ class Computer(BaseComputer[PromptSession]):
     # Socket.IO 客户端引用（weakref）/ Weak reference to Socket.IO client
     # ------------------------
     @socketio_client.setter
-    def socketio_client(self, client: Optional["AsyncClient"]) -> None:
+    def socketio_client(self, client: Optional["SMCPComputerClient"]) -> None:
         """
         设置（或清空）当前绑定的 Socket.IO AsyncClient 引用（以 weakref 方式存储）。
         Set (or clear) the bound Socket.IO AsyncClient reference (stored as weakref).
@@ -123,7 +124,11 @@ class Computer(BaseComputer[PromptSession]):
         2. 通过当前类的 _resolve_prompt_string _resolve_pick_string _resolve_command 等方法对 MCPServerInput 做解析拿到最终结果进行替换
         3. 对于 self._mcp_servers 配置的符合变量提取模式但没有提供对应 input 定义时，不做任何处理，使用原值传递。
         """
-        self.mcp_manager = MCPServerManager(auto_connect=self._auto_connect, auto_reconnect=self._auto_reconnect)
+        self.mcp_manager = MCPServerManager(
+            auto_connect=self._auto_connect,
+            auto_reconnect=self._auto_reconnect,
+            message_handler=self._on_manager_change,
+        )
         # 中文: 对每个 Server 配置执行：model_dump -> 按需渲染(遇到占位符才解析 input) -> 重新校验生成不可变对象
         # English: For each server config: model_dump -> on-demand render (resolve inputs only when referenced) ->
         #          model_validate to rebuild immutable object
@@ -151,8 +156,31 @@ class Computer(BaseComputer[PromptSession]):
 
         await self.mcp_manager.ainitialize(validated_servers)
 
+    async def _on_manager_change(
+            self,
+            message: RequestResponder[types.ServerRequest, types.ClientResult] | types.ServerNotification | Exception,
+    ) -> None:
+        """
+        当 MCPServerManager 检测到变化时的回调。
+
+        目前仅处理工具列表变化：若存在 Socket.IO 连接，则向服务端发送 UPDATE_CONFIG_EVENT。
+        其它变化类型暂未实现，打印 Warning 日志。
+        """
+        if isinstance(message.root, ToolListChangedNotification):
+            client = self.socketio_client
+            if client is None:
+                logger.debug("Socket.IO 客户端不存在或已释放，忽略更新上报")
+                return
+            try:
+                # 直接通过事件常量发送
+                await client.emit_update_config()
+            except Exception as e:  # pragma: no cover
+                logger.error(f"上报工具变更失败: {e}")
+        else:
+            logger.warning(f"收到未处理的变化类型: {message}，当前版本仅处理工具列表变化")
+
     async def _arender_and_validate_server(
-        self, server: MCPServerConfig | dict[str, Any], *, session: PromptSession | None = None
+        self, server: MCPServerConfig | dict[str, Any], *, session: PromptSession | None = None,
     ) -> MCPServerConfig:
         """
         动态渲染并校验单个 MCP 服务器配置，支持原始字典或模型实例。
@@ -223,7 +251,11 @@ class Computer(BaseComputer[PromptSession]):
         """
         # 确保 manager 已初始化
         if self.mcp_manager is None:
-            self.mcp_manager = MCPServerManager(auto_connect=self._auto_connect, auto_reconnect=self._auto_reconnect)
+            self.mcp_manager = MCPServerManager(
+                auto_connect=self._auto_connect,
+                auto_reconnect=self._auto_reconnect,
+                message_handler=self._on_manager_change,
+            )
 
         validated = await self._arender_and_validate_server(server, session=session)
         await self.mcp_manager.aadd_or_aupdate_server(validated)
@@ -498,12 +530,12 @@ class Computer(BaseComputer[PromptSession]):
                     apply = self._confirm_callback(req_id, server_name, tool_name, parameters)
                 except TimeoutError:
                     return CallToolResult(
-                        content=[TextContent(text="当前工具需要用户二次确认是否可以调用，当前确认超时。", type="text")], isError=True
+                        content=[TextContent(text="当前工具需要用户二次确认是否可以调用，当前确认超时。", type="text")], isError=True,
                     )
                 except Exception as e:
                     logger.error(f"工具确认回调，调用失败:{e}")
                     return CallToolResult(
-                        content=[TextContent(text=f"在工具调用二次确认时发生异常，异常信息：{e}", type="text")], isError=True
+                        content=[TextContent(text=f"在工具调用二次确认时发生异常，异常信息：{e}", type="text")], isError=True,
                     )
                 if apply:
                     return await self.mcp_manager.acall_tool(server_name, tool_name, parameters, timeout)
@@ -513,8 +545,8 @@ class Computer(BaseComputer[PromptSession]):
                 return CallToolResult(
                     content=[
                         TextContent(
-                            text="当前工具需要调用前进行二次确认，但客户端目前没有实现二次确认回调方法。请联系用户反馈此问题", type="text"
-                        )
+                            text="当前工具需要调用前进行二次确认，但客户端目前没有实现二次确认回调方法。请联系用户反馈此问题", type="text",
+                        ),
                     ],
                     isError=True,
                 )

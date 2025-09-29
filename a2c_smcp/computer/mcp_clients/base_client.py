@@ -95,7 +95,7 @@ class BaseMCPClient(ABC):
         self,
         params: BaseModel,
         state_change_callback: Callable[[str, str], None | Awaitable[None]] | None = None,
-        message_handler: MessageHandlerFnT | None = None
+        message_handler: MessageHandlerFnT | None = None,
     ) -> None:
         """
         基类初始化

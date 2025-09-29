@@ -57,7 +57,11 @@ def mock_client_factory(config: MCPServerConfig, message_handler=None) -> MockMC
     if "server1" in config.name:
         return MockMCPClient([create_mock_tool("tool1", meta={"test": "meta"}), create_mock_tool("tool2")], message_handler=message_handler)
     elif "server2" in config.name:
-        return MockMCPClient([create_mock_tool("tool3"), create_mock_tool("tool4")], ret_meta={"test": "ret_meta"}, message_handler=message_handler)
+        return MockMCPClient(
+            [create_mock_tool("tool3"), create_mock_tool("tool4")],
+            ret_meta={"test": "ret_meta"},
+            message_handler=message_handler,
+        )
     elif "alias_server" in config.name:
         return MockMCPClient([create_mock_tool("tool5")], message_handler=message_handler)
     elif "duplicate_server" in config.name:
@@ -341,7 +345,7 @@ async def test_per_tool_overrides_default(manager):
             "server1",
             tool_meta={"tool1": ToolMeta(auto_apply=False)},
             default_tool_meta=ToolMeta(auto_apply=True),
-        )
+        ),
     ]
     await manager.ainitialize(servers)
     await manager.astart_all()

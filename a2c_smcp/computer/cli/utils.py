@@ -66,7 +66,7 @@ def resolve_import_target(target: str) -> Any:
 
     if not module_name or not attr_path or module_name.startswith("."):
         raise ValueError(
-            f"无效的导入目标: {target!r}，不支持相对导入，必须提供完整模块路径"
+            f"无效的导入目标: {target!r}，不支持相对导入，必须提供完整模块路径",
         )
 
     module = importlib.import_module(module_name)

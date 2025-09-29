@@ -50,7 +50,7 @@ class BaseMCPClient(ABC):
         self,
         params: BaseModel,
         state_change_callback: Callable[[str, str], None | Awaitable[None]] | None = None,
-        message_handler: MessageHandlerFnT | None = None
+        message_handler: MessageHandlerFnT | None = None,
     ) -> None: ...
     async def _trigger_state_change(self, event: EventData) -> None: ...
     @async_property

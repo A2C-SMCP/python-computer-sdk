@@ -330,7 +330,7 @@ class MCPServerManager:
         return server_name, tool_name
 
     async def acall_tool(
-        self, server_name: SERVER_NAME, tool_name: TOOL_NAME, parameters: dict, timeout: float | None = None
+        self, server_name: SERVER_NAME, tool_name: TOOL_NAME, parameters: dict, timeout: float | None = None,
     ) -> CallToolResult:
         """
         触发MCP工具的调用

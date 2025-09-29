@@ -36,7 +36,7 @@ async def run() -> None:
                     "properties": {"text": {"type": "string"}},
                     "required": ["text"],
                 },
-            )
+            ),
         ]
 
     @server.call_tool()

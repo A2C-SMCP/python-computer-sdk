@@ -182,7 +182,7 @@ class StreamableHttpServerTest(Server):
                         types.SamplingMessage(
                             role="user",
                             content=types.TextContent(type="text", text="Server needs client sampling"),
-                        )
+                        ),
                     ],
                     max_tokens=100,
                     related_request_id=ctx.request_id,
@@ -194,7 +194,7 @@ class StreamableHttpServerTest(Server):
                     TextContent(
                         type="text",
                         text=f"Response from sampling: {response}",
-                    )
+                    ),
                 ]
 
             elif name == "wait_for_lock_with_notification":
@@ -256,7 +256,7 @@ def create_app(is_json_response_enabled=False, event_store: EventStore | None = 
 
     # Create the session manager
     security_settings = TransportSecuritySettings(
-        allowed_hosts=["127.0.0.1:*", "localhost:*"], allowed_origins=["http://127.0.0.1:*", "http://localhost:*"]
+        allowed_hosts=["127.0.0.1:*", "localhost:*"], allowed_origins=["http://127.0.0.1:*", "http://localhost:*"],
     )
     session_manager = StreamableHTTPSessionManager(
         app=server,
@@ -525,7 +525,7 @@ def make_server_app() -> Starlette:
     """创建测试 Starlette app，带有 SSE 传输\nCreate test Starlette app with SSE transport"""
     # 配置测试安全设置 Configure security for testing
     security_settings: TransportSecuritySettings = TransportSecuritySettings(
-        allowed_hosts=["127.0.0.1:*", "localhost:*"], allowed_origins=["http://127.0.0.1:*", "http://localhost:*"]
+        allowed_hosts=["127.0.0.1:*", "localhost:*"], allowed_origins=["http://127.0.0.1:*", "http://localhost:*"],
     )
     sse: SseServerTransport = SseServerTransport("/messages/", security_settings=security_settings)
     server: SseServerTest = SseServerTest()
@@ -539,7 +539,7 @@ def make_server_app() -> Starlette:
         routes=[
             Route("/sse", endpoint=handle_sse),
             Mount("/messages/", app=sse.handle_post_message),
-        ]
+        ],
     )
 
     return app

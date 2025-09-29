@@ -26,8 +26,8 @@ from a2c_smcp.smcp import (
     LeaveOfficeNotification,
     LeaveOfficeReq,
     ToolCallReq,
+    UpdateConfigReq,
     UpdateMCPConfigNotification,
-    UpdateMCPConfigReq,
 )
 
 
@@ -169,13 +169,13 @@ class MockComputerServerNamespace(AsyncNamespace):
             return False, f"Internal server error: {str(e)}"
         return True, None
 
-    async def on_server_update_config(self, sid: str, data: UpdateMCPConfigReq) -> None:
+    async def on_server_update_config(self, sid: str, data: UpdateConfigReq) -> None:
         """处理Computer更新MCP配置事件"""
         self.client_operations_record[sid] = ("server_update_config", data)
         logger.info(f"Computer {sid} 更新了MCP配置")
         session = await self.get_session(sid)
         assert session["role"] == "computer", "目前仅支持Computer调用更新MCP配置的操作"
-        update_config = TypeAdapter(UpdateMCPConfigReq).validate_python(data)
+        update_config = TypeAdapter(UpdateConfigReq).validate_python(data)
         await self.emit(
             UPDATE_CONFIG_NOTIFICATION,
             UpdateMCPConfigNotification(computer=update_config["computer"]),

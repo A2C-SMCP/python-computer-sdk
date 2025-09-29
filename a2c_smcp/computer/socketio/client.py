@@ -19,14 +19,14 @@ from a2c_smcp.smcp import (
     TOOL_CALL_EVENT,
     UPDATE_CONFIG_EVENT,
     EnterOfficeReq,
-    GetMCPConfigReq,
+    GetConfigReq,
     GetMCPConfigRet,
     GetToolsReq,
     GetToolsRet,
     LeaveOfficeReq,
     MCPServerInput,
     ToolCallReq,
-    UpdateMCPConfigReq,
+    UpdateConfigReq,
 )
 from a2c_smcp.smcp import (
     MCPServerConfig as SMCPServerConfigDict,
@@ -100,7 +100,7 @@ class SMCPComputerClient(AsyncClient):
         不需要传递当前的配置参数，因为Agnet会通过其它接口进行刷新
         """
         if self.office_id:
-            await self.emit(UPDATE_CONFIG_EVENT, UpdateMCPConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
+            await self.emit(UPDATE_CONFIG_EVENT, UpdateConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
 
     async def update_config(self) -> None:
         """
@@ -108,7 +108,7 @@ class SMCPComputerClient(AsyncClient):
 
         不需要传递当前的配置参数，因为Agnet会通过其它接口进行刷新
         """
-        await self.emit(UPDATE_CONFIG_EVENT, UpdateMCPConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
+        await self.emit(UPDATE_CONFIG_EVENT, UpdateConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
 
     async def on_tool_call(self, data: ToolCallReq) -> CallToolResult:
         """
@@ -121,7 +121,7 @@ class SMCPComputerClient(AsyncClient):
         assert self.namespaces[SMCP_NAMESPACE] == data["computer"], "计算机标识不匹配"
         try:
             ret = await self.computer.aexecute_tool(
-                req_id=data["req_id"], tool_name=data["tool_name"], parameters=data["params"], timeout=data["timeout"]
+                req_id=data["req_id"], tool_name=data["tool_name"], parameters=data["params"], timeout=data["timeout"],
             )
             return ret
         except Exception as e:
@@ -141,7 +141,7 @@ class SMCPComputerClient(AsyncClient):
 
         return GetToolsRet(tools=mcp_tools, req_id=data["req_id"])
 
-    async def on_get_config(self, data: GetMCPConfigReq) -> GetMCPConfigRet:
+    async def on_get_config(self, data: GetConfigReq) -> GetMCPConfigRet:
         """
         获取当前计算机的 MCP 配置（供 Agent 端刷新使用）。
         Get current machine MCP configuration for Agent refresh.
@@ -151,7 +151,7 @@ class SMCPComputerClient(AsyncClient):
         into SMCP protocol defined structure.
 
         Args:
-            data (GetMCPConfigReq): 请求数据。Request payload.
+            data (GetConfigReq): 请求数据。Request payload.
 
         Returns:
             GetMCPConfigRet: SMCP 协议定义的 MCP 配置返回。SMCP formatted MCP configuration.

@@ -41,7 +41,7 @@ def computer() -> Computer:
     mock_computer = MagicMock(spec=Computer)
     mock_computer.mcp_manager = MagicMock(spec=MCPServerManager)
     mock_computer.mcp_manager.aexecute_tool = AsyncMock(
-        return_value=CallToolResult(isError=False, content=[TextContent(text="成功执行", type="text")])
+        return_value=CallToolResult(isError=False, content=[TextContent(text="成功执行", type="text")]),
     )
     mock_computer.aget_available_tools = AsyncMock(return_value=[])
     return mock_computer

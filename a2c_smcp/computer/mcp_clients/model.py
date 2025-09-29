@@ -18,12 +18,12 @@ A2C_TOOL_META: str = "a2c_tool_meta"
 class ToolMeta(BaseModel):
     auto_apply: bool | None = Field(default=None, title="是否自动使用", description="如果设置为False，则调用工具前会触发回调，请求用户批准")
     alias: str | None = Field(
-        default=None, title="工具别名", description="如果不同MCP Server中存在同名工具，允许通过此别名修改，从而解决名称冲突"
+        default=None, title="工具别名", description="如果不同MCP Server中存在同名工具，允许通过此别名修改，从而解决名称冲突",
     )
     # 不同MCP工具返回值并不统一，虽然其满足MCP标准的返回格式，但具体的原始内容命名仍然无法避免出现不一致的情况。通过object_mapper可以方便
     # 前端对其进行转换，以使用标准组件渲染解析。
     ret_object_mapper: dict | None = Field(
-        default=None, title="字段转换映射", description="允许定义一个映射表完成MCPTool工具返回结构映射到自定义结构"
+        default=None, title="字段转换映射", description="允许定义一个映射表完成MCPTool工具返回结构映射到自定义结构",
     )
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", arbitrary_types_allowed=False)
@@ -35,7 +35,7 @@ class BaseMCPServerConfig(BaseModel):
     name: SERVER_NAME  # MCP Server的名称
     disabled: bool = Field(default=False, title="是否禁用", description="是否禁用MCP Server")
     forbidden_tools: list[TOOL_NAME] = Field(
-        default_factory=list, title="禁用工具列表", description="禁用的工具列表，因为一个mcp可能有非常多工具，有些工具用户需要禁用。"
+        default_factory=list, title="禁用工具列表", description="禁用的工具列表，因为一个mcp可能有非常多工具，有些工具用户需要禁用。",
     )
     tool_meta: dict[TOOL_NAME, ToolMeta] = Field(default_factory=dict, title="工具元数据", description="工具元数据，用于描述工具的基本信息")
     # 默认工具元数据（可选）。当某个具体工具未在 tool_meta 中提供专门配置时，使用该默认配置。

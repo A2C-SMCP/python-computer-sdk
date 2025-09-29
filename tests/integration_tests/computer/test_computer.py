@@ -112,7 +112,7 @@ async def test_dynamic_add_with_inputs_and_tool_call(stdio_params) -> None:
             "cmd": cmd,
             "arg0": args[0] if args else "",
             "arg1": args[1] if len(args) > 1 else "",
-        }
+        },
     )
 
     # 初始化 Computer（auto_connect=true 便于动态添加后立即连接）

@@ -59,7 +59,7 @@ async def interactive_loop(
     if not console.is_terminal and not console.no_color:
         console.print(
             "[yellow]检测到控制台可能不支持 ANSI 颜色。若在 PyCharm 中运行，请在 Run/Debug 配置中启用 'Emulate terminal in "
-            "output console'；或者使用 --no-color 关闭彩色输出。[/yellow]"
+            "output console'；或者使用 --no-color 关闭彩色输出。[/yellow]",
         )
 
     while True:

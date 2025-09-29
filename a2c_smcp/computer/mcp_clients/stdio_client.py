@@ -17,7 +17,7 @@ class StdioMCPClient(BaseMCPClient):
         self,
         params: StdioServerParameters,
         state_change_callback: Callable[[str, str], None | Awaitable[None]] | None = None,
-        message_handler: MessageHandlerFnT | None = None
+        message_handler: MessageHandlerFnT | None = None,
     ) -> None:
         """
         初始化STDIO客户端，支持传入自定义 message_handler
@@ -37,6 +37,6 @@ class StdioMCPClient(BaseMCPClient):
         # 如果提供了 message_handler，则一并传入 ClientSession
         # If message_handler is provided, pass it into ClientSession
         client_session = await self._aexit_stack.enter_async_context(
-            ClientSession(stdout, stdin, message_handler=self._message_handler)
+            ClientSession(stdout, stdin, message_handler=self._message_handler),
         )
         return client_session

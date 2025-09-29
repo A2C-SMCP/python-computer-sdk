@@ -11,6 +11,7 @@ select = [
     "B",  # flake8-bugbear
     "UP", # pyupgrade
     "ANN", # flake8-annotations
+    "COM", # flake8-commas: enforce trailing commas in multiline
 ]
 extend-ignore = ["UP009", "ANN401"]  # 忽略 UP009 ANN401(Any)
 
@@ -23,6 +24,7 @@ extend-ignore = ["UP009", "ANN401"]  # 忽略 UP009 ANN401(Any)
 known-first-party = ["a2c_smcp"]
 
 [format]
+preview = true
 quote-style = "double"
 indent-style = "space"
 line-ending = "auto"

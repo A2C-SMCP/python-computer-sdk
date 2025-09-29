@@ -458,7 +458,7 @@ def test_update_inputs_replaces_resolver_and_clears_cache():
             MCPServerPromptStringInput(id="p", description="prompt", default="x"),
             MCPServerPickStringInput(id="k", description="pick", options=["a", "b"], default="a"),
             MCPServerCommandInput(id="c", description="cmd", command="echo hi"),
-        ]
+        ],
     )
 
     # After update, resolver should no longer be DummyResolver

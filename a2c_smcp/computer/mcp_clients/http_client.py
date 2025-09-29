@@ -19,7 +19,7 @@ class HttpMCPClient(BaseMCPClient):
         self,
         params: StreamableHttpParameters,
         state_change_callback: Callable[[str, str], None | Awaitable[None]] | None = None,
-        message_handler: MessageHandlerFnT | None = None
+        message_handler: MessageHandlerFnT | None = None,
     ) -> None:
         """
         初始化HTTP客户端，支持传入自定义 message_handler
@@ -39,11 +39,11 @@ class HttpMCPClient(BaseMCPClient):
         # 需要注意 self.params.model_dump() 的 mode 参数使用默认python，不可以使用json，因为当前Params中有 timedelta，如果使用json会序列化
         # 为str，导致连接报错。
         aread_stream, awrite_stream, _ = await self._aexit_stack.enter_async_context(
-            streamablehttp_client(**self.params.model_dump(mode="python"))
+            streamablehttp_client(**self.params.model_dump(mode="python")),
         )
         # 如果提供了 message_handler，则一并传入 ClientSession
         # If message_handler is provided, pass it into ClientSession
         client_session = await self._aexit_stack.enter_async_context(
-            ClientSession(aread_stream, awrite_stream, message_handler=self._message_handler)
+            ClientSession(aread_stream, awrite_stream, message_handler=self._message_handler),
         )
         return client_session

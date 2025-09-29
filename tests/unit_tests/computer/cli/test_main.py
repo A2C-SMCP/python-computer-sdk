@@ -378,7 +378,7 @@ async def test_inputs_load_and_render(tmp_path: Path, monkeypatch: pytest.Monkey
             [
                 {"id": "VAR1", "type": "promptString", "description": "v", "default": "abc"},
                 {"id": "CHOICE", "type": "pickString", "description": "d", "options": ["x", "y"], "default": "x"},
-            ]
+            ],
         ),
         encoding="utf-8",
     )

@@ -31,7 +31,7 @@ async def run() -> None:
                 name="trigger_changes",
                 description="Trigger tools/resources/prompts listChanged notifications",
                 inputSchema={"type": "object", "properties": {}},
-            )
+            ),
         ]
 
     @server.list_resources()
@@ -55,7 +55,7 @@ async def run() -> None:
 
     async with stdio_server() as (read_stream, write_stream):
         init_opts = server.create_initialization_options(
-            notification_options=NotificationOptions(prompts_changed=True, resources_changed=True, tools_changed=True)
+            notification_options=NotificationOptions(prompts_changed=True, resources_changed=True, tools_changed=True),
         )
         await server.run(read_stream, write_stream, init_opts)
 

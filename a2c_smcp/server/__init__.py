@@ -11,7 +11,7 @@
 from .auth import AuthenticationProvider, DefaultAuthenticationProvider
 from .base import BaseNamespace
 from .namespace import SMCPNamespace
-from .sync_auth import SyncAuthenticationProvider, DefaultSyncAuthenticationProvider
+from .sync_auth import DefaultSyncAuthenticationProvider, SyncAuthenticationProvider
 from .sync_base import SyncBaseNamespace
 from .sync_namespace import SyncSMCPNamespace
 from .types import OFFICE_ID, SID, AgentSession, BaseSession, ComputerSession, Session

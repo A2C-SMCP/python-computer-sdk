@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from transitions.core import EventData
 from transitions.extensions import AsyncMachine
 
-from a2c_smcp.computer.utils.async_property import async_property
+from a2c_smcp.utils.async_property import async_property
 from a2c_smcp.utils.logger import logger
 
 
@@ -111,7 +111,8 @@ class BaseMCPClient(ABC):
         self.params = params
         self._state_change_callback = state_change_callback
         # 私有属性：用于处理 ServerNotification（如 listChanged）的通用回调；在创建 ClientSession 时传入
-        # Private attribute: general callback to handle ServerNotification (e.g., listChanged); forwarded to ClientSession on creation
+        # Private attribute: general callback to handle ServerNotification (e.g., listChanged);
+        # forwarded to ClientSession on creation
         self._message_handler = message_handler
         self._aexit_stack = AsyncExitStack()
         self._async_session: ClientSession | None = None

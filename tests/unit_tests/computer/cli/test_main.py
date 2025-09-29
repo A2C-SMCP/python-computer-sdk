@@ -58,7 +58,6 @@ class FakeComputer:
 
 
 def test_run_impl_uses_default_computer_when_no_factory(monkeypatch: pytest.MonkeyPatch) -> None:
-    from a2c_smcp.computer.cli import main as cli_main
 
     # Patch Computer to our fake and _interactive_loop to a dummy coro
     monkeypatch.setattr(cli_main, "Computer", FakeComputer, raising=True)
@@ -84,8 +83,6 @@ def test_run_impl_uses_default_computer_when_no_factory(monkeypatch: pytest.Monk
 
 
 def test_run_impl_uses_resolved_factory(monkeypatch: pytest.MonkeyPatch) -> None:
-    from a2c_smcp.computer.cli import main as cli_main
-
     # Prepare a factory that returns our FakeComputer
     calls: dict[str, Any] = {"count": 0}
 
@@ -116,8 +113,6 @@ def test_run_impl_uses_resolved_factory(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_run_impl_factory_not_callable_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    from a2c_smcp.computer.cli import main as cli_main
-
     # Make resolve_import_target return a non-callable
     monkeypatch.setattr(cli_main, "resolve_import_target", lambda s: object(), raising=True)
     # Patch Computer fallback to our FakeComputer
@@ -140,8 +135,6 @@ def test_run_impl_factory_not_callable_fallback(monkeypatch: pytest.MonkeyPatch)
 
 
 def test_run_impl_resolve_error_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    from a2c_smcp.computer.cli import main as cli_main
-
     def _raise(_: str) -> Any:
         raise ValueError("boom")
 
@@ -188,6 +181,230 @@ async def test_interactive_help_and_exit(monkeypatch: pytest.MonkeyPatch) -> Non
         "help",
         "exit",
     ]
+    monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
+    monkeypatch.setattr(cli_main, "patch_stdout", lambda raw: no_patch_stdout())
+
+    comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
+    await _interactive_loop(comp)
+
+
+@pytest.mark.asyncio
+async def test_server_add_exception_and_rm_with_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """覆盖 server add 的异常打印分支，以及 rm 时已连接触发 emit 分支。"""
+
+    # server 配置文件
+    server_file = tmp_path / "server.json"
+    server_file.write_text(
+        json.dumps(
+            {
+                "name": "s2",
+                "type": "stdio",
+                "disabled": True,
+                "forbidden_tools": [],
+                "tool_meta": {},
+                "server_parameters": {
+                    "command": "echo",
+                    "args": [],
+                    "env": None,
+                    "cwd": None,
+                    "encoding": "utf-8",
+                    "encoding_error_handler": "strict",
+                },
+            },
+        ),
+        encoding="utf-8",
+    )
+
+    # 指令：先连接，再尝试 add 触发异常，再 rm 触发已连接 emit
+    commands = [
+        "socket connect http://localhost:9001",
+        f"server add @{server_file}",
+        "server rm s2",
+        "exit",
+    ]
+
+    # 准备 comp 与补丁
+    comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
+
+    async def _raise_add(*args: Any, **kwargs: Any) -> None:  # noqa: ANN001
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(comp, "aadd_or_aupdate_server", _raise_add)
+    monkeypatch.setattr(cli_main, "SMCPComputerClient", FakeSMCPClient)
+    monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
+    monkeypatch.setattr(cli_main, "patch_stdout", lambda raw: no_patch_stdout())
+
+    await _interactive_loop(comp)
+
+
+@pytest.mark.asyncio
+async def test_inputs_load_usage_and_success_with_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """覆盖 inputs load 的用法提示与成功路径（含 emit）。"""
+    inputs_file = tmp_path / "inputs.json"
+    inputs_file.write_text(
+        json.dumps(
+            [
+                {"id": "J1", "type": "promptString", "description": "d", "default": "v"},
+            ],
+        ),
+        encoding="utf-8",
+    )
+
+    commands = [
+        "inputs load",  # 触发用法提示
+        "socket connect http://localhost:9002",
+        f"inputs load @{inputs_file}",  # 成功并触发 emit
+        "exit",
+    ]
+
+    monkeypatch.setattr(cli_main, "SMCPComputerClient", FakeSMCPClient)
+    monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
+    monkeypatch.setattr(cli_main, "patch_stdout", lambda raw: no_patch_stdout())
+
+    comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
+    await _interactive_loop(comp)
+
+
+@pytest.mark.asyncio
+async def test_socket_connect_guided_parse_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """覆盖交互式 socket connect 的参数解析失败分支。"""
+    commands = [
+        "socket connect",
+        "http://localhost:9003",
+        "bad_auth_kv",  # 无效，触发 parse_kv_pairs 异常
+        "exit",
+    ]
+
+    monkeypatch.setattr(cli_main, "SMCPComputerClient", FakeSMCPClient)
+    monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
+    monkeypatch.setattr(cli_main, "patch_stdout", lambda raw: no_patch_stdout())
+
+    comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
+    await _interactive_loop(comp)
+
+
+@pytest.mark.asyncio
+async def test_inputs_value_print_json_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """通过让 console.print_json 抛异常覆盖 repr 回退分支。"""
+    import a2c_smcp.computer.cli.utils as cli_utils
+
+    commands = [
+        'inputs add {"id":"Z","type":"promptString","description":"d"}',
+        'inputs value set Z {"x":1}',  # 设置为字典
+        'inputs value get Z',  # 获取时让 print_json 抛错
+        'exit',
+    ]
+
+    def _raise_print_json(*args: Any, **kwargs: Any) -> None:  # noqa: ANN001
+        raise ValueError("no json")
+
+    monkeypatch.setattr(cli_utils.console, "print_json", _raise_print_json, raising=True)
+    monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
+    monkeypatch.setattr(cli_main, "patch_stdout", lambda raw: no_patch_stdout())
+
+    comp = Computer(inputs=set(), mcp_servers=set(), auto_connect=False, auto_reconnect=False)
+    await _interactive_loop(comp)
+
+
+def test_run_impl_inputs_and_servers_single_object(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """覆盖 _run_impl 的 inputs/config 单对象路径。"""
+    # 立即退出的交互
+    monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(["exit"]))
+    monkeypatch.setattr(cli_main, "patch_stdout", lambda raw: no_patch_stdout())
+
+    inputs_file = tmp_path / "i.json"
+    inputs_file.write_text(
+        json.dumps({"id": "SO", "type": "promptString", "description": "d", "default": "a"}),
+        encoding="utf-8",
+    )
+
+    server_file = tmp_path / "s.json"
+    server_file.write_text(
+        json.dumps(
+            {
+                "name": "solo",
+                "type": "stdio",
+                "disabled": True,
+                "forbidden_tools": [],
+                "tool_meta": {},
+                "server_parameters": {
+                    "command": "echo",
+                    "args": [],
+                    "env": None,
+                    "cwd": None,
+                    "encoding": "utf-8",
+                    "encoding_error_handler": "strict",
+                },
+            },
+        ),
+        encoding="utf-8",
+    )
+
+    cli_main._run_impl(
+        auto_connect=False,
+        auto_reconnect=False,
+        url=None,
+        namespace=cli_main.SMCP_NAMESPACE,
+        auth=None,
+        headers=None,
+        computer_factory=None,
+        config=str(server_file),  # 单对象
+        inputs=str(inputs_file),  # 单对象
+    )
+
+
+@pytest.mark.asyncio
+async def test_cover_remaining_branches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """覆盖 interactive_impl.py 中剩余未命中的分支。"""
+    # 为 inputs update @file 准备文件（列表）
+    upd_file = tmp_path / "upd.json"
+    upd_file.write_text(
+        json.dumps(
+            [
+                {"id": "U1", "type": "promptString", "description": "d"},
+                {"id": "U2", "type": "promptString", "description": "d2"},
+            ],
+        ),
+        encoding="utf-8",
+    )
+
+    # 命令序列
+    commands = [
+        # 添加 server 后立刻 mcp，覆盖 servers 循环
+        '{"cmd":"server add inline"}',  # 占位，下一行是真正的 add
+        'server add {"name":"m1","type":"stdio","disabled":true,"forbidden_tools":[],"tool_meta":{},'
+        '"server_parameters":{"command":"echo","args":[],"env":null,"cwd":null,"encoding":"utf-8","encoding_error_handler":"strict"}}',
+        'mcp',
+        # start/stop 时 manager 未初始化
+        'start one',
+        'stop one',
+        # inputs add 用法
+        'inputs add',
+        # inputs update 用法 + @file 列表
+        'inputs update',
+        f'inputs update @{upd_file}',
+        # inputs rm 用法 + rm 不存在
+        'inputs rm',
+        'inputs rm NOPE',
+        # inputs get 用法
+        'inputs get',
+        # inputs value 顶层用法 + set 缺少参数 + set 不存在 id + get 不存在值
+        'inputs value',
+        'inputs value set',
+        'inputs value set NOPE 1',
+        'inputs value get NOPE',
+        # inputs value 未知子命令
+        'inputs value what',
+        # socket connect 引导但 URL 为空，触发 URL required
+        'socket connect',
+        '',
+        # socket join 带参数但尚未连接
+        'socket join o1 c1',
+        # socket leave 在未连接
+        'socket leave',
+        'exit',
+    ]
+
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(commands))
     monkeypatch.setattr(cli_main, "patch_stdout", lambda raw: no_patch_stdout())
 
@@ -319,8 +536,6 @@ def test_root_no_color_triggers_console_switch(monkeypatch: pytest.MonkeyPatch) 
 
 def test_run_impl_loads_inputs_and_servers_from_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """覆盖 _run_impl 的 inputs/config 文件加载成功路径。"""
-    from a2c_smcp.computer.cli import main as cli_main
-
     # 提供立即退出的交互
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(["exit"]))
     monkeypatch.setattr(cli_main, "patch_stdout", lambda raw: no_patch_stdout())
@@ -376,8 +591,6 @@ def test_run_impl_loads_inputs_and_servers_from_files(tmp_path: Path, monkeypatc
 
 def test_run_impl_cli_params_parse_error(monkeypatch: pytest.MonkeyPatch) -> None:
     """覆盖 _run_impl 在解析 auth/headers 失败时的异常分支。"""
-    from a2c_smcp.computer.cli import main as cli_main
-
     # 立即退出
     monkeypatch.setattr(cli_main, "PromptSession", lambda: FakePromptSession(["exit"]))
     monkeypatch.setattr(cli_main, "patch_stdout", lambda raw: no_patch_stdout())

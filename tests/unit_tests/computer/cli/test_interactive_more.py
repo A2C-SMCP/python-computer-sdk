@@ -8,7 +8,8 @@
 依赖: pytest
 描述:
   中文: 覆盖 `interactive_impl.py` 剩余分支：tools、server @file、socket 已连接/未加入、inputs 变体与 inputs value JSON 文本两类。
-  English: Cover remaining branches in `interactive_impl.py`: tools, server @file, socket already-connected/not-joined, inputs variants, and inputs value JSON vs text.
+  English: Cover remaining branches in `interactive_impl.py`: tools, server @file, socket already-connected/not-joined,
+    inputs variants, and inputs value JSON vs text.
 """
 
 from __future__ import annotations
@@ -88,7 +89,7 @@ async def test_tools_and_inputs_update_single_and_list(tmp_path: Path, monkeypat
             [
                 {"id": "A", "type": "promptString", "description": "d1", "default": "x"},
                 {"id": "B", "type": "pickString", "description": "d2", "options": ["1", "2"], "default": "1"},
-            ]
+            ],
         ),
         encoding="utf-8",
     )
@@ -111,7 +112,7 @@ async def test_tools_and_inputs_update_single_and_list(tmp_path: Path, monkeypat
                     "encoding": "utf-8",
                     "encoding_error_handler": "strict",
                 },
-            }
+            },
         ),
         encoding="utf-8",
     )

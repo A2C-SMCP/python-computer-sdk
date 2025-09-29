@@ -74,7 +74,7 @@ class SyncSMCPNamespace(SyncBaseNamespace):
                         raise ValueError("Agent already in room")
             else:
                 logger.warning(
-                    f"Agent sid: {sid} already in room: {session.get('office_id')}. 正在重复加入房间"
+                    f"Agent sid: {sid} already in room: {session.get('office_id')}. 正在重复加入房间",
                 )
                 return
         else:
@@ -82,7 +82,7 @@ class SyncSMCPNamespace(SyncBaseNamespace):
                 self.leave_room(sid, past_room)
             elif session.get("office_id") == room:
                 logger.warning(
-                    f"Computer sid: {sid} already in room: {session.get('office_id')}. 正在重复加入房间"
+                    f"Computer sid: {sid} already in room: {session.get('office_id')}. 正在重复加入房间",
                 )
                 return
 

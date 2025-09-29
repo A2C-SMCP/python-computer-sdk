@@ -56,7 +56,7 @@ class SMCPNamespace(BaseNamespace):
     async def enter_room(self, sid: SID, room: OFFICE_ID, namespace: str | None = None) -> None:
         """
         客户端加入房间，相较于父方法，添加了对sid的合规校验。维护session中的sid和name字段。
-        Client joins room, adds sid compliance validation compared to parent method. 
+        Client joins room, adds sid compliance validation compared to parent method.
         Maintains 'sid' and 'name' fields in session.
 
         Args:

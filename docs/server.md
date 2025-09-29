@@ -83,6 +83,20 @@ auth_provider = DefaultAuthenticationProvider("admin_secret")
 smcp_namespace = SMCPNamespace(auth_provider)
 ```
 
+#### SyncSMCPNamespace (同步SMCP协议实现)
+
+提供同步版本的SMCP命名空间实现：
+
+```python
+from a2c_smcp.server import SyncSMCPNamespace, DefaultSyncAuthenticationProvider
+
+# 创建同步认证提供者
+auth_provider = DefaultSyncAuthenticationProvider("admin_secret")
+
+# 创建同步SMCP命名空间
+smcp_namespace = SyncSMCPNamespace(auth_provider)
+```
+
 ### 3. 类型定义 / Type Definitions
 
 ```python
@@ -145,6 +159,29 @@ sio = asyncio.run(setup_server())
 # 挂载Socket.IO到FastAPI
 # Mount Socket.IO to FastAPI
 socket_app = socketio.ASGIApp(sio, app)
+```
+
+### 同步基础使用 / Basic Usage (Sync)
+
+```python
+from socketio import Server, WSGIApp
+from a2c_smcp.server import SyncSMCPNamespace, DefaultSyncAuthenticationProvider
+
+# 1. 创建同步认证提供者
+auth_provider = DefaultSyncAuthenticationProvider(
+    admin_secret="your_admin_secret",
+    api_key_name="x-api-key"
+)
+
+# 2. 创建同步SMCP命名空间
+smcp_namespace = SyncSMCPNamespace(auth_provider)
+
+# 3. 创建Socket.IO同步服务器并注册命名空间
+sio = Server(cors_allowed_origins="*")
+sio.register_namespace(smcp_namespace)
+
+# 在WSGI框架中使用（如Flask/Gunicorn）
+app = WSGIApp(sio)
 ```
 
 ### 自定义认证 / Custom Authentication

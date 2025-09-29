@@ -11,6 +11,9 @@
 from .auth import AuthenticationProvider, DefaultAuthenticationProvider
 from .base import BaseNamespace
 from .namespace import SMCPNamespace
+from .sync_auth import SyncAuthenticationProvider, DefaultSyncAuthenticationProvider
+from .sync_base import SyncBaseNamespace
+from .sync_namespace import SyncSMCPNamespace
 from .types import OFFICE_ID, SID, AgentSession, BaseSession, ComputerSession, Session
 from .utils import (
     aget_all_sessions_in_office,
@@ -23,9 +26,15 @@ __all__ = [
     # 认证相关 / Authentication related
     "AuthenticationProvider",
     "DefaultAuthenticationProvider",
+    # 同步认证相关 / Sync authentication
+    "SyncAuthenticationProvider",
+    "DefaultSyncAuthenticationProvider",
     # 基础类 / Base classes
     "BaseNamespace",
     "SMCPNamespace",
+    # 同步基础类 / Sync base classes
+    "SyncBaseNamespace",
+    "SyncSMCPNamespace",
     # 类型定义 / Type definitions
     "OFFICE_ID",
     "SID",

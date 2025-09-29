@@ -17,7 +17,7 @@ import re
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from a2c_smcp.computer.utils.logger import logger
+from a2c_smcp.utils.logger import logger
 
 # 中文: 匹配占位符 ${input:xxx} 的正则
 # English: Regex to match placeholder ${input:xxx}

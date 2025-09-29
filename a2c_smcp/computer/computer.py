@@ -41,9 +41,9 @@ from a2c_smcp.computer.inputs.render import ConfigRender
 from a2c_smcp.computer.inputs.resolver import InputNotFoundError, InputResolver
 from a2c_smcp.computer.mcp_clients.manager import MCPServerManager
 from a2c_smcp.computer.mcp_clients.model import MCPServerConfig, MCPServerInput
-from a2c_smcp.computer.socketio.types import AttributeValue
-from a2c_smcp.computer.utils.logger import logger
 from a2c_smcp.smcp import SMCPTool
+from a2c_smcp.types import AttributeValue
+from a2c_smcp.utils.logger import logger
 
 if TYPE_CHECKING:
     # 仅用于类型检查，避免运行时引入依赖/循环引用

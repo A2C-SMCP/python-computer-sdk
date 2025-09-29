@@ -10,7 +10,7 @@ from mcp.client.session_group import SseServerParameters, StreamableHttpParamete
 from mcp.types import CallToolResult
 from pydantic import BaseModel, ConfigDict, Field
 
-from a2c_smcp.computer.types import SERVER_NAME, TOOL_NAME
+from a2c_smcp.types import SERVER_NAME, TOOL_NAME
 
 A2C_TOOL_META: str = "a2c_tool_meta"
 

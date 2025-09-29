@@ -14,6 +14,7 @@
 
 
 from collections.abc import Mapping, Sequence
+from typing import TypeAlias
 
 AttributeValue = str | bool | int | float | Sequence[str] | Sequence[bool] | Sequence[int] | Sequence[float]
 Attributes = Mapping[str, AttributeValue] | None
@@ -24,3 +25,5 @@ AttributesAsKey = tuple[
     ],
     ...,
 ]
+TOOL_NAME: TypeAlias = str
+SERVER_NAME: TypeAlias = str

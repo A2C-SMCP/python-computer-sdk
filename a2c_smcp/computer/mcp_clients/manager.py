@@ -14,8 +14,8 @@ from mcp.types import CallToolResult, Tool
 
 from a2c_smcp.computer.mcp_clients.model import A2C_TOOL_META, MCPClientProtocol, MCPServerConfig, ToolMeta
 from a2c_smcp.computer.mcp_clients.utils import client_factory
-from a2c_smcp.computer.types import SERVER_NAME, TOOL_NAME
-from a2c_smcp.computer.utils.logger import logger
+from a2c_smcp.types import SERVER_NAME, TOOL_NAME
+from a2c_smcp.utils.logger import logger
 
 
 class ToolNameDuplicatedError(Exception):

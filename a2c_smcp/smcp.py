@@ -8,8 +8,8 @@ from typing import Any, Literal, NotRequired
 
 from typing_extensions import TypedDict
 
-from a2c_smcp.computer.socketio import types
-from a2c_smcp.computer.types import SERVER_NAME, TOOL_NAME
+from a2c_smcp import types
+from a2c_smcp.types import SERVER_NAME, TOOL_NAME
 
 SMCP_NAMESPACE = "/smcp"
 # 除了notify:外的所有事件 服务端必须实现，因为由服务端转换或者执行完毕。而notify:*事件均由Server发出，因此Server不需要实现

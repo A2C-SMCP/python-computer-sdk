@@ -11,7 +11,7 @@ from io import StringIO
 import pytest
 
 # 待测试模块名
-MODULE_NAME = "a2c_smcp.computer.utils.logger"
+MODULE_NAME = "a2c_smcp.utils.logger"
 
 
 @pytest.fixture(autouse=True)

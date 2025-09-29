@@ -205,8 +205,8 @@ class SyncSMCPNamespace(SyncBaseNamespace):
 
     def on_client_get_tools(self, sid: str, data: GetToolsReq) -> GetToolsRet:
         """
-        同步：获取指定Computer的工具列表（此处仅透传请求，具体实现由Client侧返回）
-        Sync: get tools from a specific computer (emit and expect client response via custom mechanism)
+        同步：获取指定Computer的工具列表（使用 Socket.IO 的 call 等待客户端返回）
+        Sync: get tool list of specified Computer using Socket.IO call
         """
         computer_sid = data["computer"]
         session = self.get_session(computer_sid)
@@ -217,7 +217,11 @@ class SyncSMCPNamespace(SyncBaseNamespace):
         agent_office_id = agent_session.get("office_id")
         assert computer_office_id == agent_office_id, "目前仅支持Agent获取自己房间内Computer的工具列表"
 
-        # 同步版本仅转发请求，不等待返回
-        self.emit(GET_TOOLS_EVENT, data, room=data["computer"], skip_sid=sid)
-        # 返回空占位或由上层注入回调机制
-        return TypeAdapter(GetToolsRet).validate_python({"tools": []})
+        client_response = self.call(
+            GET_TOOLS_EVENT,
+            data,
+            to=data["computer"],
+            namespace=SMCP_NAMESPACE,
+        )
+
+        return TypeAdapter(GetToolsRet).validate_python(client_response)

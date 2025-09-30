@@ -15,7 +15,6 @@ from a2c_smcp.server.utils import (
     get_all_sessions_in_office,
     get_computers_in_office,
 )
-from a2c_smcp.smcp import SMCP_NAMESPACE
 
 
 @pytest.mark.asyncio

@@ -88,7 +88,7 @@ class SMCPNamespace(BaseNamespace):
             elif not session.get("office_id"):
                 # 获取房间内所有参与者
                 # Get all participants in the room
-                participants = await self.server.manager.get_participants(SMCP_NAMESPACE, room)
+                participants = self.server.manager.get_participants(SMCP_NAMESPACE, room)
                 logger.debug(f"Room {room} participants: {participants}")
 
                 # 检查房间内是否已有Agent

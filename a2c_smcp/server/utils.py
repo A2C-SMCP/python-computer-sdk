@@ -101,7 +101,7 @@ async def aget_all_sessions_in_office(office_id: OFFICE_ID, sio: AsyncServer) ->
     Returns:
         list[dict]: 所有会话列表 / All session list
     """
-    participants = await sio.manager.get_participants(SMCP_NAMESPACE, office_id)
+    participants = sio.manager.get_participants(SMCP_NAMESPACE, office_id)
     if len(participants) == 0:
         return []
 

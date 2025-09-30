@@ -2,6 +2,7 @@
 """
 测试 a2c_smcp/server/utils.py
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
@@ -62,6 +63,7 @@ def test_get_computers_in_office_sync_paths():
 async def test_aget_and_get_all_sessions_in_office():
     # async
     sio = AsyncMock()
+    sio.manager = MagicMock()
     sio.manager.get_participants.return_value = []
     assert await aget_all_sessions_in_office("r", sio) == []
 

@@ -64,7 +64,7 @@ def mock_server():
     server.app = MagicMock()
     server.app.state = MagicMock()
     server.app.state.agent_id = "test_agent"
-    server.manager = AsyncMock()
+    server.manager = MagicMock()
     return server
 
 
@@ -213,9 +213,6 @@ class TestSMCPNamespace:
         # 房间已有一个 agent 参与者
         mock_server.manager.get_participants.return_value = ["sidAgent"]
 
-        async def _get_session_for_existing(_sid):
-            return {"role": "agent"}
-
         smcp_namespace.get_session = AsyncMock(side_effect=[session2, {"role": "agent"}])
         with pytest.raises(ValueError):
             await smcp_namespace.enter_room("sid2", "roomA")
@@ -253,6 +250,7 @@ class TestSMCPNamespace:
         smcp_namespace.save_session = AsyncMock()
         # 拦截 BaseNamespace.leave_room，避免真实父类逻辑
         from a2c_smcp.server.base import BaseNamespace
+
         monkeypatch.setattr(BaseNamespace, "leave_room", AsyncMock())
         await smcp_namespace.leave_room("sidX", "roomX")
         assert "office_id" not in sess

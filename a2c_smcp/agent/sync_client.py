@@ -10,7 +10,7 @@
 
 from typing import Any
 
-from mcp.types import CallToolResult
+from mcp.types import CallToolResult, TextContent
 from socketio import Client  # type: ignore[import-untyped]
 
 from a2c_smcp.agent.auth import AgentAuthProvider
@@ -174,7 +174,7 @@ class SMCPAgentClient(Client, BaseAgentClient):
         except Exception as e:
             logger.error(f"Tool call failed: {e}")
             return CallToolResult(
-                content=[{"text": f"工具调用失败 / Tool call failed: {str(e)}", "type": "text"}],
+                content=[TextContent(text=f"工具调用失败 / Tool call failed: {str(e)}", type="text")],
                 isError=True,
             )
 

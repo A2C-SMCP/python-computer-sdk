@@ -17,11 +17,9 @@ from a2c_smcp.agent.base import BaseAgentClient
 from a2c_smcp.agent.types import AgentEventHandler
 from a2c_smcp.smcp import (
     EnterOfficeNotification,
-    GetToolsReq,
     GetToolsRet,
     LeaveOfficeNotification,
     SMCPTool,
-    ToolCallReq,
     UpdateMCPConfigNotification,
 )
 

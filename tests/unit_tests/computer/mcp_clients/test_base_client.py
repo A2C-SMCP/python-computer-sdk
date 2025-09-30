@@ -19,7 +19,7 @@ from a2c_smcp.computer.mcp_clients.base_client import STATES, BaseMCPClient
 
 
 # 创建测试用的具体客户端实现
-class TestMCPClient(BaseMCPClient):
+class MockMCPClient(BaseMCPClient):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._async_session = None
@@ -114,7 +114,7 @@ async def client():
         await state_changes.put((from_state, to_state))
 
     # 创建并返回客户端和状态变化队列
-    client = TestMCPClient(params=MagicMock(), state_change_callback=state_change_callback)
+    client = MockMCPClient(params=MagicMock(), state_change_callback=state_change_callback)
     return client, state_changes
 
 
@@ -285,7 +285,7 @@ async def test_failed_connection(client, mocker):
     client_instance, state_changes = client
 
     # 模拟连接条件检查失败
-    mocker.patch.object(TestMCPClient, "acan_connect", AsyncMock(return_value=False))
+    mocker.patch.object(MockMCPClient, "acan_connect", AsyncMock(return_value=False))
 
     # 触发连接
     await client_instance.aconnect()

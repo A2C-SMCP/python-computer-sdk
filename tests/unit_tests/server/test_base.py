@@ -65,7 +65,7 @@ async def test_on_connect_auth_failed(ns):
 
 
 @pytest.mark.asyncio
-async def test_on_disconnect_and_trigger_event_translate(ns):
+async def test_on_disconnect_and_trigger_event_translate(ns, monkeypatch):
     ns.server = AsyncMock()
     # rooms: 包含自身房间与其它房间
     ns.rooms = MagicMock(return_value=["sid3", "roomA", "roomB"])  # 自身房间名等于 sid
@@ -77,7 +77,7 @@ async def test_on_disconnect_and_trigger_event_translate(ns):
     # trigger_event 将 : 替换为 _，并调用父类 AsyncNamespace.trigger_event
     from socketio import AsyncNamespace
     parent = AsyncMock()
-    # monkeypatch 全局父类方法
-    AsyncNamespace.trigger_event = parent  # type: ignore[assignment]
+    # 使用 monkeypatch 临时替换，避免污染全局，影响后续集成测试的事件分发
+    monkeypatch.setattr(AsyncNamespace, "trigger_event", parent, raising=True)
     await ns.trigger_event("server:join_office", 1, 2)
     parent.assert_awaited_with("server_join_office", 1, 2)

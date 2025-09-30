@@ -75,7 +75,7 @@ async def test_computer_join_and_leave_office(computer, computer_server: MockCom
     )
 
     # 验证动作状态
-    await asyncio.sleep(0.1)  # 等待事件处理，交出一下控制权
+    await asyncio.sleep(0.5)  # 等待事件处理，交出一下控制权
     logger.info(f"client sid: {client.namespaces[SMCP_NAMESPACE]}")
     assert computer_server.client_operations_record[client.namespaces[SMCP_NAMESPACE]] == ("connect", None)
 
@@ -91,7 +91,7 @@ async def test_computer_join_and_leave_office(computer, computer_server: MockCom
 
     # 离开办公室
     await client.leave_office(office_id)
-    await asyncio.sleep(0.1)  # 等待事件处理，交出一下控制权
+    await asyncio.sleep(0.5)  # 等待事件处理，交出一下控制权
     assert computer_server.client_operations_record[client.namespaces[SMCP_NAMESPACE]] == ("leave_room", office_id)
 
     # 验证状态
@@ -142,7 +142,7 @@ async def test_computer_receives_tool_call(computer, computer_server, basic_serv
     }
 
     await computer_server.emit(TOOL_CALL_EVENT, tool_call_req, to=client.namespaces[SMCP_NAMESPACE], namespace=SMCP_NAMESPACE)
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.5)
 
     # 验证工具调用被正确处理
     assert computer.aexecute_tool.called
@@ -170,7 +170,7 @@ async def test_computer_sends_update_mcp_config(computer, computer_server, basic
     await client.update_config()
 
     # 等待事件处理
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.5)
 
     assert computer_server.client_operations_record[client.namespaces[SMCP_NAMESPACE]] == (
         "server_update_config",
@@ -199,7 +199,7 @@ async def test_computer_handles_get_tools_request(computer, computer_server, bas
 
     # 发送获取工具请求（模拟Agent的行为）
     await computer_server.emit(GET_TOOLS_EVENT, get_tools_req, namespace=SMCP_NAMESPACE, to=client.namespaces[SMCP_NAMESPACE])
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.5)
 
     # 验证Computer的方法是否被调用
     assert computer.aget_available_tools.called

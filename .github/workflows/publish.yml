@@ -106,9 +106,6 @@ jobs:
       - name: Publish to PyPI (for final releases, OIDC/Trusted Publishing)
         # 仅当 Release 指向 main 分支且不是预发布时执行 / Only run when the release targets main and is not a prerelease
         if: ${{ github.event.release.prerelease == false && github.event.release.target_commitish == 'main' }}
-        # 使用受保护环境进行正式发布 / Use protected environment for production publish
-        environment:
-          name: PyPI Production
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           # 使用 Trusted Publishing 时无需 password；需在 PyPI 配置 Trusted Publisher

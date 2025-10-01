@@ -77,11 +77,11 @@ class LeaveOfficeReq(TypedDict):
     office_id: str
 
 
-class UpdateConfigReq(TypedDict):
+class UpdateComputerConfigReq(TypedDict):
     computer: str  # 机器人计算机sid
 
 
-class GetConfigReq(AgentCallData):
+class GetComputerConfigReq(AgentCallData):
     computer: str
 
 
@@ -227,8 +227,8 @@ class MCPSSEConfig(BaseMCPServerConfig):
 MCPServerConfig = MCPServerStdioConfig | MCPServerStreamableHttpConfig | MCPSSEConfig
 
 
-class GetMCPConfigRet(TypedDict):
-    """完整的MCP配置文件类型"""
+class GetComputerConfigRet(TypedDict):
+    """完整的Computer配置文件类型"""
 
     inputs: NotRequired[list[MCPServerInput] | None]
     servers: dict[str, MCPServerConfig]

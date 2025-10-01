@@ -20,14 +20,14 @@ from a2c_smcp.smcp import (
     UPDATE_CONFIG_EVENT,
     UPDATE_TOOL_LIST_EVENT,
     EnterOfficeReq,
-    GetConfigReq,
-    GetMCPConfigRet,
+    GetComputerConfigReq,
+    GetComputerConfigRet,
     GetToolsReq,
     GetToolsRet,
     LeaveOfficeReq,
     MCPServerInput,
     ToolCallReq,
-    UpdateConfigReq,
+    UpdateComputerConfigReq,
 )
 from a2c_smcp.smcp import (
     MCPServerConfig as SMCPServerConfigDict,
@@ -101,7 +101,7 @@ class SMCPComputerClient(AsyncClient):
         不需要传递当前的配置参数，因为Agnet会通过其它接口进行刷新
         """
         if self.office_id:
-            await self.emit(UPDATE_CONFIG_EVENT, UpdateConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
+            await self.emit(UPDATE_CONFIG_EVENT, UpdateComputerConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
 
     async def update_config(self) -> None:
         """
@@ -109,7 +109,7 @@ class SMCPComputerClient(AsyncClient):
 
         不需要传递当前的配置参数，因为Agnet会通过其它接口进行刷新
         """
-        await self.emit(UPDATE_CONFIG_EVENT, UpdateConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
+        await self.emit(UPDATE_CONFIG_EVENT, UpdateComputerConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
 
     async def emit_update_tool_list(self) -> None:
         """
@@ -117,7 +117,7 @@ class SMCPComputerClient(AsyncClient):
         When tool list changes, emit event to server; it will broadcast notify:update_tool_list.
         """
         if self.office_id:
-            await self.emit(UPDATE_TOOL_LIST_EVENT, UpdateConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
+            await self.emit(UPDATE_TOOL_LIST_EVENT, UpdateComputerConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
 
     async def on_tool_call(self, data: ToolCallReq) -> CallToolResult:
         """
@@ -153,7 +153,7 @@ class SMCPComputerClient(AsyncClient):
 
         return GetToolsRet(tools=mcp_tools, req_id=data["req_id"])
 
-    async def on_get_config(self, data: GetConfigReq) -> GetMCPConfigRet:
+    async def on_get_config(self, data: GetComputerConfigReq) -> GetComputerConfigRet:
         """
         获取当前计算机的 MCP 配置（供 Agent 端刷新使用）。
         Get current machine MCP configuration for Agent refresh.
@@ -163,10 +163,10 @@ class SMCPComputerClient(AsyncClient):
         into SMCP protocol defined structure.
 
         Args:
-            data (GetConfigReq): 请求数据。Request payload.
+            data (GetComputerConfigReq): 请求数据。Request payload.
 
         Returns:
-            GetMCPConfigRet: SMCP 协议定义的 MCP 配置返回。SMCP formatted MCP configuration.
+            GetComputerConfigRet: SMCP 协议定义的 MCP 配置返回。SMCP formatted MCP configuration.
         """
         # 校验上下文一致性（中英双语）/ Validate context consistency (bilingual)
         assert self.office_id == data["robot_id"], "房间名称与Agent信息名称不匹配"
@@ -187,5 +187,5 @@ class SMCPComputerClient(AsyncClient):
             inputs.append(validated_input)
 
         # 端到端返回强校验（中英双语）/ End-to-end response strict validation (bilingual)
-        ret = TypeAdapter(GetMCPConfigRet).validate_python({"servers": servers, "inputs": inputs})
+        ret = TypeAdapter(GetComputerConfigRet).validate_python({"servers": servers, "inputs": inputs})
         return ret

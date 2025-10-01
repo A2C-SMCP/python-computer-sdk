@@ -32,7 +32,7 @@ from a2c_smcp.smcp import (
     LeaveOfficeNotification,
     LeaveOfficeReq,
     ToolCallReq,
-    UpdateConfigReq,
+    UpdateComputerConfigReq,
     UpdateMCPConfigNotification,
 )
 from a2c_smcp.utils.logger import logger
@@ -249,19 +249,19 @@ class SMCPNamespace(BaseNamespace):
             skip_sid=sid,
         )
 
-    async def on_server_update_config(self, sid: str, data: UpdateConfigReq) -> None:
+    async def on_server_update_config(self, sid: str, data: UpdateComputerConfigReq) -> None:
         """
         将事件广播至对应的房间内所有Computer，通知更新MCP配置
         Broadcast event to all Computers in the corresponding room, notifying MCP config update
 
         Args:
             sid (str): 发起者ID，应该是Computer / Initiator ID, should be Computer
-            data (UpdateConfigReq): 更新配置请求数据 / Update config request data
+            data (UpdateComputerConfigReq): 更新配置请求数据 / Update config request data
         """
         session = await self.get_session(sid)
         assert session["role"] == "computer", "目前仅支持Computer调用更新MCP配置的操作"
 
-        update_config = TypeAdapter(UpdateConfigReq).validate_python(data)
+        update_config = TypeAdapter(UpdateComputerConfigReq).validate_python(data)
 
         await self.emit(
             UPDATE_CONFIG_NOTIFICATION,
@@ -270,19 +270,19 @@ class SMCPNamespace(BaseNamespace):
             skip_sid=sid,
         )
 
-    async def on_server_update_tool_list(self, sid: str, data: UpdateConfigReq) -> None:
+    async def on_server_update_tool_list(self, sid: str, data: UpdateComputerConfigReq) -> None:
         """
         将事件广播至对应的房间内其他参与者，通知工具列表更新。
         Broadcast to others in the room to notify tool list update.
 
         Args:
             sid (str): 发起者ID，应为Computer / Initiator ID, should be Computer
-            data (UpdateConfigReq): 载荷复用 UpdateConfigReq，仅需 computer 标识 / Reuse UpdateConfigReq for payload
+            data (UpdateComputerConfigReq): 载荷复用 UpdateConfigReq，仅需 computer 标识 / Reuse UpdateConfigReq for payload
         """
         session = await self.get_session(sid)
         assert session["role"] == "computer", "目前仅支持Computer上报工具列表变更"
 
-        update_req = TypeAdapter(UpdateConfigReq).validate_python(data)
+        update_req = TypeAdapter(UpdateComputerConfigReq).validate_python(data)
 
         await self.emit(
             UPDATE_TOOL_LIST_NOTIFICATION,

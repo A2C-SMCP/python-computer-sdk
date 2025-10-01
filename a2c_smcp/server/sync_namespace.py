@@ -66,9 +66,7 @@ class SyncSMCPNamespace(SyncBaseNamespace):
                 logger.error(f"Agent sid: {sid} already in room: {session.get('office_id')}, can't join room: {room}")
                 raise ValueError("Agent sid already in room")
             elif not session.get("office_id"):
-                participants = self.server.manager.get_participants(SMCP_NAMESPACE, room)
-                logger.debug(f"Room {room} participants: {participants}")
-                for participant_sid, _participant_eio_sid in participants:
+                for participant_sid, _participant_eio_sid in self.server.manager.get_participants(SMCP_NAMESPACE, room):
                     participant_session = self.get_session(participant_sid)
                     if participant_session.get("role") == "agent":
                         raise ValueError("Agent already in room")

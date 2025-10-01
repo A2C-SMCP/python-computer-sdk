@@ -93,7 +93,7 @@ class SMCPNamespace(BaseNamespace):
 
                 # 检查房间内是否已有Agent
                 # Check if there's already an Agent in the room
-                for participant_sid in participants:
+                for participant_sid, _participant_eio_sid in participants:
                     participant_session = await self.get_session(participant_sid)
                     if participant_session.get("role") == "agent":
                         raise ValueError("Agent already in room")

@@ -31,14 +31,12 @@ async def aget_computers_in_office(office_id: OFFICE_ID, sio: AsyncServer) -> li
     # 因此可以直接用office_id获取rooms
     # Here office_id is the room number, but according to SMCP protocol design, room number is also AgentID,
     # and Agent can only exist in a single room in SMCP_NAMESPACE. Therefore, office_id can be used directly to get rooms
-    participants = await sio.manager.get_participants(SMCP_NAMESPACE, office_id)
-    if len(participants) == 0:
-        return []
+    participants = sio.manager.get_participants(SMCP_NAMESPACE, office_id)
 
     computers = []
     # 排除OFFICE_ID实际上就是排除Agent，进而获取到的是Computers
     # Excluding OFFICE_ID actually excludes Agent, thus getting Computers
-    for sid in participants:
+    for sid, _eio_sid in participants:
         if sid != office_id:  # 排除Agent自身 / Exclude Agent itself
             try:
                 session = await sio.get_session(sid, namespace=SMCP_NAMESPACE)
@@ -69,13 +67,11 @@ def get_computers_in_office(office_id: OFFICE_ID, sio: Server) -> list[ComputerS
     # Here office_id is the room number, but according to SMCP protocol design, room number is also AgentID,
     # and Agent can only exist in a single room in SMCP_NAMESPACE. Therefore, office_id can be used directly to get rooms
     participants = sio.manager.get_participants(SMCP_NAMESPACE, office_id)
-    if len(participants) == 0:
-        return []
 
     computers = []
     # 排除OFFICE_ID实际上就是排除Agent，进而获取到的是Computers
     # Excluding OFFICE_ID actually excludes Agent, thus getting Computers
-    for sid in participants:
+    for sid, _eio_sid in participants:
         if sid != office_id:  # 排除Agent自身 / Exclude Agent itself
             try:
                 session = sio.get_session(sid, namespace=SMCP_NAMESPACE)
@@ -102,11 +98,9 @@ async def aget_all_sessions_in_office(office_id: OFFICE_ID, sio: AsyncServer) ->
         list[dict]: 所有会话列表 / All session list
     """
     participants = sio.manager.get_participants(SMCP_NAMESPACE, office_id)
-    if len(participants) == 0:
-        return []
 
     sessions = []
-    for sid in participants:
+    for sid, _eio_sid in participants:
         try:
             session = await sio.get_session(sid, namespace=SMCP_NAMESPACE)
             if session:
@@ -131,11 +125,9 @@ def get_all_sessions_in_office(office_id: OFFICE_ID, sio: Server) -> list[dict]:
         list[dict]: 所有会话列表 / All session list
     """
     participants = sio.manager.get_participants(SMCP_NAMESPACE, office_id)
-    if len(participants) == 0:
-        return []
 
     sessions = []
-    for sid in participants:
+    for sid, _eio_sid in participants:
         try:
             session = sio.get_session(sid, namespace=SMCP_NAMESPACE)
             if session:

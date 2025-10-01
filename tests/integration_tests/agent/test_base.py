@@ -15,15 +15,7 @@ from mcp.types import CallToolResult, TextContent
 from a2c_smcp.agent.auth import DefaultAgentAuthProvider
 from a2c_smcp.agent.base import BaseAgentClient
 from a2c_smcp.agent.types import AgentEventHandler
-from a2c_smcp.smcp import (
-    EnterOfficeNotification,
-    GetToolsReq,
-    GetToolsRet,
-    LeaveOfficeNotification,
-    SMCPTool,
-    ToolCallReq,
-    UpdateMCPConfigNotification,
-)
+from a2c_smcp.smcp import EnterOfficeNotification, GetToolsRet, LeaveOfficeNotification, SMCPTool, UpdateMCPConfigNotification
 
 
 class MockAgentClient(BaseAgentClient):

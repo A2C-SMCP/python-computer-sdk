@@ -68,7 +68,7 @@ class SyncSMCPNamespace(SyncBaseNamespace):
             elif not session.get("office_id"):
                 participants = self.server.manager.get_participants(SMCP_NAMESPACE, room)
                 logger.debug(f"Room {room} participants: {participants}")
-                for participant_sid in participants:
+                for participant_sid, _participant_eio_sid in participants:
                     participant_session = self.get_session(participant_sid)
                     if participant_session.get("role") == "agent":
                         raise ValueError("Agent already in room")
@@ -129,9 +129,7 @@ class SyncSMCPNamespace(SyncBaseNamespace):
 
         try:
             if session.get("role") and session["role"] != expected_role:
-                return False, (
-                    f"Role mismatch, expected {expected_role}, but {session['role']} use this sid exists"
-                )
+                return False, (f"Role mismatch, expected {expected_role}, but {session['role']} use this sid exists")
 
             session["role"] = expected_role
             session["name"] = role_info["name"]

@@ -18,6 +18,7 @@ from a2c_smcp.smcp import (
     SMCP_NAMESPACE,
     TOOL_CALL_EVENT,
     UPDATE_CONFIG_EVENT,
+    UPDATE_TOOL_LIST_EVENT,
     EnterOfficeReq,
     GetConfigReq,
     GetMCPConfigRet,
@@ -110,6 +111,14 @@ class SMCPComputerClient(AsyncClient):
         """
         await self.emit(UPDATE_CONFIG_EVENT, UpdateConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
 
+    async def emit_update_tool_list(self) -> None:
+        """
+        工具列表变更时需要触发此事件向信令服务器推送，服务端会广播 notify:update_tool_list。
+        When tool list changes, emit event to server; it will broadcast notify:update_tool_list.
+        """
+        if self.office_id:
+            await self.emit(UPDATE_TOOL_LIST_EVENT, UpdateConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
+
     async def on_tool_call(self, data: ToolCallReq) -> CallToolResult:
         """
         信令服务器通知计算机端，有工具调用请求
@@ -121,7 +130,10 @@ class SMCPComputerClient(AsyncClient):
         assert self.namespaces[SMCP_NAMESPACE] == data["computer"], "计算机标识不匹配"
         try:
             ret = await self.computer.aexecute_tool(
-                req_id=data["req_id"], tool_name=data["tool_name"], parameters=data["params"], timeout=data["timeout"],
+                req_id=data["req_id"],
+                tool_name=data["tool_name"],
+                parameters=data["params"],
+                timeout=data["timeout"],
             )
             return ret
         except Exception as e:

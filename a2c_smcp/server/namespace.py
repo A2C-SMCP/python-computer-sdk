@@ -23,6 +23,7 @@ from a2c_smcp.smcp import (
     SMCP_NAMESPACE,
     TOOL_CALL_EVENT,
     UPDATE_CONFIG_NOTIFICATION,
+    UPDATE_TOOL_LIST_NOTIFICATION,
     AgentCallData,
     EnterOfficeNotification,
     EnterOfficeReq,
@@ -266,6 +267,27 @@ class SMCPNamespace(BaseNamespace):
             UPDATE_CONFIG_NOTIFICATION,
             UpdateMCPConfigNotification(computer=update_config["computer"]),
             room=session["office_id"],
+            skip_sid=sid,
+        )
+
+    async def on_server_update_tool_list(self, sid: str, data: UpdateConfigReq) -> None:
+        """
+        将事件广播至对应的房间内其他参与者，通知工具列表更新。
+        Broadcast to others in the room to notify tool list update.
+
+        Args:
+            sid (str): 发起者ID，应为Computer / Initiator ID, should be Computer
+            data (UpdateConfigReq): 载荷复用 UpdateConfigReq，仅需 computer 标识 / Reuse UpdateConfigReq for payload
+        """
+        session = await self.get_session(sid)
+        assert session["role"] == "computer", "目前仅支持Computer上报工具列表变更"
+
+        update_req = TypeAdapter(UpdateConfigReq).validate_python(data)
+
+        await self.emit(
+            UPDATE_TOOL_LIST_NOTIFICATION,
+            {"computer": update_req["computer"]},
+            room=session.get("office_id"),
             skip_sid=sid,
         )
 

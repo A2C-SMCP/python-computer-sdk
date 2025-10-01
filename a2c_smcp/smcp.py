@@ -23,6 +23,7 @@ GET_TOOLS_EVENT = "client:get_tools"
 JOIN_OFFICE_EVENT = "server:join_office"
 LEAVE_OFFICE_EVENT = "server:leave_office"
 UPDATE_CONFIG_EVENT = "server:update_config"
+UPDATE_TOOL_LIST_EVENT = "server:update_tool_list"
 CANCEL_TOOL_CALL_EVENT = "server:tool_call_cancel"
 # NOTIFY 通知事件  通知事件全部由Server发出（一般由Client触发其它事件，在响应这些事件时，Server发出通知）
 #   1. 比如 AgentClient 发出 server:tool_call_cancel 事件，服务端接收后，发起 notify:tool_call_cancel 通知
@@ -32,6 +33,7 @@ CANCEL_TOOL_CALL_NOTIFICATION = "notify:tool_call_cancel"
 ENTER_OFFICE_NOTIFICATION = "notify:enter_office"  # AgentClient必须实现 以此，配合 client:get_config 与 client:get_tools 更新工具配置
 LEAVE_OFFICE_NOTIFICATION = "notify:leave_office"  # AgentClient必须实现 以此，配合 client:get_config 与 client:get_tools 更新工具配置
 UPDATE_CONFIG_NOTIFICATION = "notify:update_config"  # AgentClient必须实现 以此，配合 client:get_config 与 client:get_tools 更新工具配置
+UPDATE_TOOL_LIST_NOTIFICATION = "notify:update_tool_list"  # AgentClient必须实现 用于通知工具列表更新
 
 
 class AgentCallData(TypedDict):
@@ -254,3 +256,12 @@ class UpdateMCPConfigNotification(TypedDict, total=False):
     """
 
     computer: str  # 被更新的Computer sid
+
+
+class UpdateToolListNotification(TypedDict, total=False):
+    """
+    工具列表更新的通知，需要向房间内其他人广播。
+    Notification of tool list update, should be broadcast to others in the room.
+    """
+
+    computer: str  # 被更新的Computer sid / The computer SID whose tools changed

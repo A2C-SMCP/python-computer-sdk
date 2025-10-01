@@ -163,7 +163,7 @@ class Computer(BaseComputer[PromptSession]):
         """
         当 MCPServerManager 检测到变化时的回调。
 
-        目前仅处理工具列表变化：若存在 Socket.IO 连接，则向服务端发送 UPDATE_CONFIG_EVENT。
+        目前仅处理工具列表变化：若存在 Socket.IO 连接，则向服务端发送 UPDATE_TOOL_LIST_EVENT。
         其它变化类型暂未实现，打印 Warning 日志。
         """
         if isinstance(message.root, ToolListChangedNotification):
@@ -172,8 +172,9 @@ class Computer(BaseComputer[PromptSession]):
                 logger.debug("Socket.IO 客户端不存在或已释放，忽略更新上报")
                 return
             try:
-                # 直接通过事件常量发送
-                await client.emit_update_config()
+                # 直接通过事件常量发送（工具列表更新）
+                # Directly emit tool list update event
+                await client.emit_update_tool_list()
             except Exception as e:  # pragma: no cover
                 logger.error(f"上报工具变更失败: {e}")
         else:

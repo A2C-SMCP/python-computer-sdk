@@ -23,6 +23,7 @@ from a2c_smcp.smcp import (
     SMCP_NAMESPACE,
     TOOL_CALL_EVENT,
     UPDATE_CONFIG_NOTIFICATION,
+    UPDATE_TOOL_LIST_NOTIFICATION,
     AgentCallData,
     EnterOfficeNotification,
     EnterOfficeReq,
@@ -129,7 +130,7 @@ class SyncSMCPNamespace(SyncBaseNamespace):
 
         try:
             if session.get("role") and session["role"] != expected_role:
-                return False, (f"Role mismatch, expected {expected_role}, but {session['role']} use this sid exists")
+                return False, f"Role mismatch, expected {expected_role}, but {session['role']} use this sid exists"
 
             session["role"] = expected_role
             session["name"] = role_info["name"]
@@ -183,6 +184,23 @@ class SyncSMCPNamespace(SyncBaseNamespace):
             UPDATE_CONFIG_NOTIFICATION,
             UpdateMCPConfigNotification(computer=update_config["computer"]),
             room=session["office_id"],
+            skip_sid=sid,
+        )
+
+    def on_server_update_tool_list(self, sid: str, data: UpdateConfigReq) -> None:
+        """
+        同步：广播工具列表更新
+        Sync: broadcast tool list update
+        """
+        session = self.get_session(sid)
+        assert session["role"] == "computer", "目前仅支持Computer上报工具列表变更"
+
+        update_req = TypeAdapter(UpdateConfigReq).validate_python(data)
+
+        self.emit(
+            UPDATE_TOOL_LIST_NOTIFICATION,
+            {"computer": update_req["computer"]},
+            room=session.get("office_id"),
             skip_sid=sid,
         )
 

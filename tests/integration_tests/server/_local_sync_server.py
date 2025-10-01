@@ -6,6 +6,7 @@
 中文：仅供本测试包使用的同步 SMCP 服务端（基于 SyncSMCPNamespace），使用放行认证。
 English: Sync SMCP server for this test package only (based on SyncSMCPNamespace) with permissive auth.
 """
+
 from typing import Any
 
 from socketio import Namespace, Server, WSGIApp
@@ -45,7 +46,7 @@ def create_local_sync_server() -> tuple[Server, Namespace, WSGIApp]:
         cors_allowed_origins="*",
         ping_timeout=60,
         ping_interval=25,
-        async_handlers=False,
+        async_handlers=True,  # 如果想使用 call 方法，则必定需要将此参数设置为True
         always_connect=True,
     )
     ns = LocalSyncSMCPNamespace()

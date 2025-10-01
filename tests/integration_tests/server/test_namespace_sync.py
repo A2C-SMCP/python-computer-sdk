@@ -167,22 +167,36 @@ def test_leave_and_broadcast_sync(startup_and_shutdown_local_sync_server, sync_s
 
 def _run_computer_client_process(port: int, computer_sid_queue: multiprocessing.Queue, error_queue: multiprocessing.Queue) -> None:
     """在独立进程中运行Computer客户端"""
+    computer = Client()
+
+    @computer.on(GET_TOOLS_EVENT, namespace=SMCP_NAMESPACE)
+    def _on_get_tools(data: dict):  # noqa: ANN001
+        return {
+            "tools": [
+                {
+                    "name": "echo",
+                    "description": "echo text",
+                    "params_schema": {"type": "object"},
+                    "return_schema": None,
+                },
+            ],
+            "req_id": data["req_id"],
+        }
+
     try:
-        computer = SimpleClient()
-        computer.connect(f"http://localhost:{port}", namespace=SMCP_NAMESPACE, socketio_path="/socket.io")
+        computer.connect(f"http://localhost:{port}", namespaces=[SMCP_NAMESPACE], socketio_path="/socket.io")
         office_id = "office-sync-s3"
         _join_office(computer, role="computer", office_id=office_id, name="comp-S3")
 
         # 将computer_sid发送给主进程
-        computer_sid_queue.put(computer.sid)
+        computer_sid_queue.put(computer.get_sid(SMCP_NAMESPACE))
 
         # 等待并处理GET_TOOLS_EVENT
-        event = computer.receive(timeout=30)
-        print(f"Computer收到事件: {event}")
-
-        computer.disconnect()
+        computer.wait()
     except Exception as e:
         error_queue.put(f"Computer客户端错误: {str(e)}")
+    finally:
+        computer.disconnect()
 
 
 def _run_agent_client_process(
@@ -217,7 +231,7 @@ def _run_agent_client_process(
         error_queue.put(f"Agent客户端错误: {str(e)}")
 
 
-@pytest.mark.skip
+# @pytest.mark.skip
 def test_get_tools_success_sync(startup_and_shutdown_local_sync_server: Namespace, sync_server_port: int) -> None:
     """测试同步环境下获取工具列表，使用多进程避免GIL阻塞"""
 
@@ -237,7 +251,7 @@ def test_get_tools_success_sync(startup_and_shutdown_local_sync_server: Namespac
     try:
         # 等待获取computer_sid
         try:
-            computer_sid = computer_sid_queue.get(timeout=50)
+            computer_sid = computer_sid_queue.get(timeout=5)
         except Exception:
             # 检查是否有错误
             if not error_queue.empty():
@@ -259,25 +273,22 @@ def test_get_tools_success_sync(startup_and_shutdown_local_sync_server: Namespac
         try:
             # 等待Agent执行结果
             try:
-                result = result_queue.get(timeout=200)
-            except:
+                result = result_queue.get(timeout=20)
+                # 验证结果
+                assert isinstance(result, dict), f"期望返回dict，实际返回: {type(result)}"
+                assert result.get("tools") and result["tools"][0]["name"] == "echo"
+            except Exception:
                 # 检查是否有错误
                 if not error_queue.empty():
                     error_msg = error_queue.get()
                     pytest.fail(f"Agent客户端执行失败: {error_msg}")
                 else:
                     pytest.fail("Agent执行超时")
-
-            # 验证结果
-            assert isinstance(result, dict), f"期望返回dict，实际返回: {type(result)}"
-            assert result.get("tools") and result["tools"][0]["name"] == "echo"
-
         finally:
             # 清理Agent进程
             if agent_process.is_alive():
                 agent_process.terminate()
                 agent_process.join(timeout=2)
-
     finally:
         # 清理Computer进程
         if computer_process.is_alive():

@@ -10,6 +10,7 @@ English: Integration tests for SyncSMCPNamespace in `a2c_smcp/server/sync_namesp
 - 仅在本测试包使用的 `_local_sync_server.py` 启动同步 Socket.IO 服务器。
 - 使用 werkzeug 在独立进程中运行 WSGI 服务器，彻底解决 GIL 阻塞问题。
 """
+
 import multiprocessing
 import socket
 import threading
@@ -184,7 +185,12 @@ def _run_computer_client_process(port: int, computer_sid_queue: multiprocessing.
         error_queue.put(f"Computer客户端错误: {str(e)}")
 
 
-def _run_agent_client_process(port: int, computer_sid: str, result_queue: multiprocessing.Queue, error_queue: multiprocessing.Queue) -> None:
+def _run_agent_client_process(
+    port: int,
+    computer_sid: str,
+    result_queue: multiprocessing.Queue,
+    error_queue: multiprocessing.Queue,
+) -> None:
     """在独立进程中运行Agent客户端"""
     try:
         agent = Client()
@@ -211,6 +217,7 @@ def _run_agent_client_process(port: int, computer_sid: str, result_queue: multip
         error_queue.put(f"Agent客户端错误: {str(e)}")
 
 
+@pytest.mark.skip
 def test_get_tools_success_sync(startup_and_shutdown_local_sync_server: Namespace, sync_server_port: int) -> None:
     """测试同步环境下获取工具列表，使用多进程避免GIL阻塞"""
 

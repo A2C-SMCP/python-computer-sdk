@@ -20,12 +20,13 @@ from a2c_smcp.server.utils import (
 @pytest.mark.asyncio
 async def test_aget_get_computers_in_office_async_paths():
     sio = AsyncMock()
+    sio.manager = MagicMock()
     # 无参与者
     sio.manager.get_participants.return_value = []
     assert await aget_computers_in_office("room1", sio) == []
 
     # 有参与者（包含 Agent 自身 与 一个 Computer 与 一个异常）
-    sio.manager.get_participants.return_value = ["room1", "c1", "bad"]
+    sio.manager.get_participants.return_value = [("room1", "eio_room1"), ("c1", "eio_c1"), ("bad", "eio_bao")]
 
     async def _get_session(sid, namespace=None):  # noqa: ANN001
         if sid == "c1":
@@ -45,7 +46,7 @@ def test_get_computers_in_office_sync_paths():
     assert get_computers_in_office("room1", sio) == []
 
     # 有参与者
-    sio.manager.get_participants.return_value = ["room1", "c1", "x"]
+    sio.manager.get_participants.return_value = [("room1", "eio_room1"), ("c1", "eio_c1"), ("x", "eio_x")]
 
     def _get_session(sid, namespace=None):  # noqa: ANN001
         if sid == "c1":
@@ -66,7 +67,7 @@ async def test_aget_and_get_all_sessions_in_office():
     sio.manager.get_participants.return_value = []
     assert await aget_all_sessions_in_office("r", sio) == []
 
-    sio.manager.get_participants.return_value = ["r", "a", "b"]
+    sio.manager.get_participants.return_value = [("r", "eio_r"), ("a", "eio_a"), ("b", "eio_b")]
 
     async def _get_session(sid, namespace=None):  # noqa: ANN001
         if sid == "a":
@@ -84,7 +85,7 @@ async def test_aget_and_get_all_sessions_in_office():
     sio2.manager.get_participants.return_value = []
     assert get_all_sessions_in_office("r", sio2) == []
 
-    sio2.manager.get_participants.return_value = ["r", "a", "b"]
+    sio2.manager.get_participants.return_value = [("r", "eio_r"), ("a", "eio_a"), ("b", "eio_b")]
 
     def _get_session2(sid, namespace=None):  # noqa: ANN001
         if sid == "a":

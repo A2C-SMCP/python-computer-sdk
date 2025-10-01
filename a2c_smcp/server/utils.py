@@ -31,7 +31,7 @@ async def aget_computers_in_office(office_id: OFFICE_ID, sio: AsyncServer) -> li
     # 因此可以直接用office_id获取rooms
     # Here office_id is the room number, but according to SMCP protocol design, room number is also AgentID,
     # and Agent can only exist in a single room in SMCP_NAMESPACE. Therefore, office_id can be used directly to get rooms
-    participants = await sio.manager.get_participants(SMCP_NAMESPACE, office_id)
+    participants = sio.manager.get_participants(SMCP_NAMESPACE, office_id)
     if len(participants) == 0:
         return []
 

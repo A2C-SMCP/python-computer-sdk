@@ -8,16 +8,18 @@ English: Integration tests for SyncSMCPNamespace in `a2c_smcp/server/sync_namesp
 
 说明：
 - 仅在本测试包使用的 `_local_sync_server.py` 启动同步 Socket.IO 服务器。
-- 使用 werkzeug 在独立线程中运行 WSGI 服务器。
+- 使用 werkzeug 在独立进程中运行 WSGI 服务器，彻底解决 GIL 阻塞问题。
 """
+import multiprocessing
 import socket
 import threading
 import time
 from collections.abc import Generator
+from multiprocessing import synchronize
 from typing import Any
 
 import pytest
-from socketio import Client, Namespace
+from socketio import Client, Namespace, SimpleClient
 from werkzeug.serving import make_server
 
 from a2c_smcp.smcp import (
@@ -44,30 +46,70 @@ def sync_server_port() -> int:
         return s.getsockname()[1]
 
 
-@pytest.fixture
-def startup_and_shutdown_local_sync_server(sync_server_port: int) -> Generator[Namespace, Any, None]:
-    sio, ns, wsgi_app = create_local_sync_server()
-    # 禁用监控任务避免关闭时出错
-    sio.eio.start_service_task = False
-
-    server = make_server("localhost", sync_server_port, wsgi_app, threaded=True)
-
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    time.sleep(0.3)
+def _run_server_process(port: int, ready_event: synchronize.Event) -> None:
+    """在独立进程中运行服务器"""
     try:
-        yield ns
-    finally:
-        server.shutdown()
-        thread.join(timeout=2)
+        sio, ns, wsgi_app = create_local_sync_server()
+        # 禁用监控任务避免关闭时出错
+        sio.eio.start_service_task = False
+
+        server = make_server("localhost", port, wsgi_app, threaded=True)
+
+        # 通知主进程服务器已准备好
+        ready_event.set()
+
+        # 运行服务器
+        server.serve_forever()
+    except Exception as e:
+        print(f"服务器进程错误: {e}")
+        ready_event.set()  # 即使出错也要设置事件，避免主进程无限等待
 
 
-def _join_office(client: Client, role: str, office_id: str, name: str) -> None:
-    ok, err = client.call(
-        JOIN_OFFICE_EVENT,
-        {"role": role, "office_id": office_id, "name": name},
-        namespace=SMCP_NAMESPACE,
+@pytest.fixture
+def startup_and_shutdown_local_sync_server(sync_server_port: int) -> Generator[None, Any, None]:
+    # 创建进程间通信事件
+    ready_event = multiprocessing.Event()
+
+    # 启动服务器进程
+    server_process = multiprocessing.Process(
+        target=_run_server_process,
+        args=(sync_server_port, ready_event),
+        daemon=True,
     )
+    server_process.start()
+
+    # 等待服务器准备好
+    if not ready_event.wait(timeout=5):
+        server_process.terminate()
+        server_process.join(timeout=2)
+        pytest.fail("服务器进程启动超时")
+
+    try:
+        yield
+    finally:
+        # 终止服务器进程
+        if server_process.is_alive():
+            server_process.terminate()
+            server_process.join(timeout=3)
+
+        # 如果进程仍然存活，强制杀死
+        if server_process.is_alive():
+            server_process.kill()
+            server_process.join(timeout=1)
+
+
+def _join_office(client: Client | SimpleClient, role: str, office_id: str, name: str) -> None:
+    ok, err = (
+        client.call(
+            JOIN_OFFICE_EVENT,
+            {"role": role, "office_id": office_id, "name": name},
+            namespace=SMCP_NAMESPACE,
+        )
+        if isinstance(client, Client)
+        else client.call(JOIN_OFFICE_EVENT, {"role": role, "office_id": office_id, "name": name})
+    )
+    if not (ok and err is None):
+        print(f"加入房间失败: role={role}, office_id={office_id}, name={name}, ok={ok}, err={err}")
     assert ok and err is None
 
 
@@ -122,108 +164,118 @@ def test_leave_and_broadcast_sync(startup_and_shutdown_local_sync_server, sync_s
     computer.disconnect()
 
 
-def test_get_tools_success_sync(startup_and_shutdown_local_sync_server: Namespace, sync_server_port: int) -> None:
-    """测试同步环境下获取工具列表，使用多线程避免阻塞"""
+def _run_computer_client_process(port: int, computer_sid_queue: multiprocessing.Queue, error_queue: multiprocessing.Queue) -> None:
+    """在独立进程中运行Computer客户端"""
+    try:
+        computer = SimpleClient()
+        computer.connect(f"http://localhost:{port}", namespace=SMCP_NAMESPACE, socketio_path="/socket.io")
+        office_id = "office-sync-s3"
+        _join_office(computer, role="computer", office_id=office_id, name="comp-S3")
 
-    # 共享数据结构（添加computer_sid字段）
-    shared_data: dict = {
-        "computer_sid": None,
-        "error": None,
-        "lock": threading.Lock(),  # 添加线程锁
-    }
-    # 用于同步的事件
-    computer_ready = threading.Event()
-    call_completed = threading.Event()
+        # 将computer_sid发送给主进程
+        computer_sid_queue.put(computer.sid)
 
-    def run_computer_client():
-        """在独立线程中运行Computer客户端"""
-        computer = Client()
+        # 等待并处理GET_TOOLS_EVENT
+        event = computer.receive(timeout=30)
+        print(f"Computer收到事件: {event}")
 
-        @computer.on(GET_TOOLS_EVENT, namespace=SMCP_NAMESPACE)
-        def _on_get_tools(data: dict):  # noqa: ANN001
-            return {
-                "tools": [
-                    {
-                        "name": "echo",
-                        "description": "echo text",
-                        "params_schema": {"type": "object"},
-                        "return_schema": None,
-                    },
-                ],
-                "req_id": data["req_id"],
-            }
+        computer.disconnect()
+    except Exception as e:
+        error_queue.put(f"Computer客户端错误: {str(e)}")
 
-        try:
-            computer.connect(f"http://localhost:{sync_server_port}", namespaces=[SMCP_NAMESPACE], socketio_path="/socket.io")
-            office_id = "office-sync-s3"
-            _join_office(computer, role="computer", office_id=office_id, name="comp-S3")
 
-            # 安全写入SID
-            with shared_data["lock"]:
-                shared_data["computer_sid"] = computer.get_sid(namespace=SMCP_NAMESPACE)
-
-            computer_ready.set()  # 通知Computer客户端已准备好
-            call_completed.wait(timeout=20)
-        except Exception as e:
-            with shared_data["lock"]:
-                shared_data["error"] = f"Computer客户端错误: {str(e)}"
-            pytest.fail("Computer初始化失败，线程运行异常")
-        finally:
-            try:
-                computer.disconnect()
-            except Exception:
-                pass
-
-    def run_agent_client():
-        """在独立线程中运行Agent客户端"""
+def _run_agent_client_process(port: int, computer_sid: str, result_queue: multiprocessing.Queue, error_queue: multiprocessing.Queue) -> None:
+    """在独立进程中运行Agent客户端"""
+    try:
         agent = Client()
+        agent.connect(f"http://localhost:{port}", namespaces=[SMCP_NAMESPACE], socketio_path="/socket.io")
+        office_id = "office-sync-s3"
+        _join_office(agent, role="agent", office_id=office_id, name="robot-S3")
+
+        # 确保连接稳定后再进行调用
+        time.sleep(0.2)
+
+        # 执行GET_TOOLS调用
+        res = agent.call(
+            GET_TOOLS_EVENT,
+            {"computer": computer_sid, "robot_id": agent.get_sid(SMCP_NAMESPACE), "req_id": "req-sync-1"},
+            namespace=SMCP_NAMESPACE,
+            timeout=15,
+        )
+
+        # 将结果发送给主进程
+        result_queue.put(res)
+
+        agent.disconnect()
+    except Exception as e:
+        error_queue.put(f"Agent客户端错误: {str(e)}")
+
+
+def test_get_tools_success_sync(startup_and_shutdown_local_sync_server: Namespace, sync_server_port: int) -> None:
+    """测试同步环境下获取工具列表，使用多进程避免GIL阻塞"""
+
+    # 创建进程间通信队列
+    computer_sid_queue = multiprocessing.Queue()
+    result_queue = multiprocessing.Queue()
+    error_queue = multiprocessing.Queue()
+
+    # 1. 启动Computer客户端进程并获取computer_sid
+    computer_process = multiprocessing.Process(
+        target=_run_computer_client_process,
+        args=(sync_server_port, computer_sid_queue, error_queue),
+        daemon=True,
+    )
+    computer_process.start()
+
+    try:
+        # 等待获取computer_sid
+        try:
+            computer_sid = computer_sid_queue.get(timeout=50)
+        except Exception:
+            # 检查是否有错误
+            if not error_queue.empty():
+                error_msg = error_queue.get()
+                pytest.fail(f"Computer客户端启动失败: {error_msg}")
+            else:
+                pytest.fail("获取Computer SID超时")
+
+        print(f"获取到Computer SID: {computer_sid}")
+
+        # 2. 启动Agent客户端进程执行工具列表获取
+        agent_process = multiprocessing.Process(
+            target=_run_agent_client_process,
+            args=(sync_server_port, computer_sid, result_queue, error_queue),
+            daemon=True,
+        )
+        agent_process.start()
 
         try:
-            agent.connect(f"http://localhost:{sync_server_port}", namespaces=[SMCP_NAMESPACE], socketio_path="/socket.io")
-            office_id = "office-sync-s3"
-            _join_office(agent, role="agent", office_id=office_id, name="robot-S3")
+            # 等待Agent执行结果
+            try:
+                result = result_queue.get(timeout=200)
+            except:
+                # 检查是否有错误
+                if not error_queue.empty():
+                    error_msg = error_queue.get()
+                    pytest.fail(f"Agent客户端执行失败: {error_msg}")
+                else:
+                    pytest.fail("Agent执行超时")
 
-            if not computer_ready.wait(timeout=2):
-                pytest.fail("Computer客户端连接超时")
+            # 验证结果
+            assert isinstance(result, dict), f"期望返回dict，实际返回: {type(result)}"
+            assert result.get("tools") and result["tools"][0]["name"] == "echo"
 
-            # 检查错误并获取SID
-            with shared_data["lock"]:
-                if shared_data["error"]:
-                    pytest.fail(shared_data["error"])
-                computer_sid = shared_data["computer_sid"]
-
-            if not computer_sid:
-                pytest.fail("未获取到Computer SID")
-
-            # 确保Computer客户端完全连接后再进行调用
-            time.sleep(0.2)
-            # 使用共享的computer_sid执行调用
-            res = agent.call(
-                GET_TOOLS_EVENT,
-                {"computer": computer_sid, "robot_id": agent.get_sid(SMCP_NAMESPACE), "req_id": "req-sync-1"},
-                namespace=SMCP_NAMESPACE,
-                timeout=15,
-            )
-            call_completed.set()
-            assert isinstance(res, dict), f"期望返回dict，实际返回: {type(res)}"
-            assert res.get("tools") and res["tools"][0]["name"] == "echo"
-        except Exception as e:
-            print(f"AgentRun Error: {e}")
-            pytest.fail("AgentRun发生异常")
         finally:
-            agent.disconnect()
+            # 清理Agent进程
+            if agent_process.is_alive():
+                agent_process.terminate()
+                agent_process.join(timeout=2)
 
-    # 启动线程
-    computer_thread = threading.Thread(target=run_computer_client, daemon=True)
-    agent_thread = threading.Thread(target=run_agent_client, daemon=True)
-
-    computer_thread.start()
-    agent_thread.start()
-
-    # 等待完成
-    assert call_completed.wait(timeout=15), "调用未完成"
-    computer_thread.join(timeout=2)
-    agent_thread.join(timeout=2)
+    finally:
+        # 清理Computer进程
+        if computer_process.is_alive():
+            computer_process.terminate()
+            computer_process.join(timeout=2)
 
 
 def test_update_config_broadcast_sync(startup_and_shutdown_local_sync_server, sync_server_port: int) -> None:

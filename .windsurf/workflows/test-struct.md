@@ -24,6 +24,12 @@ e2e 测试
 
 e2e测试用例位于： tests/e2e/ 之内
 
+e2e 测试模式简介：
+
+1. 使用pexpect运行真实的spawn进程。不需要使用mockeypatch，所有的e2e追求完美复现真实场景
+2. computer/agent/server 也需要独立进行e2e测试。
+3. computer中如果需要一些常见的可用的真实MCP Server服务器等，可以从 @tests/e2e/computer/configs 去寻找，常用配置均在此记录。
+
 ---
 
 测试文件创建原则：

@@ -14,8 +14,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import anyio
 import pytest
-from mcp import StdioServerParameters
+from mcp import StdioServerParameters, types
 
 from a2c_smcp.computer.mcp_clients.manager import MCPServerManager
 from a2c_smcp.computer.mcp_clients.model import StdioServerConfig
@@ -55,6 +56,55 @@ async def test_manager_list_windows_aggregates_only_subscribe_server() -> None:
         if len(uris) >= 2:
             assert "/dashboard" in uris[0]
             assert "/main" in uris[1]
+    finally:
+        await manager.astop_all()
+
+
+@pytest.mark.anyio
+async def test_manager_list_windows_triggers_resource_updated_notification() -> None:
+    """
+    中文: Manager 在调用 list_windows 时，客户端会订阅窗口资源；订阅版服务器会立刻发送 ResourceUpdated 通知，
+          因此注入的 message_handler 应该接收到该通知。
+    英文: When Manager.list_windows triggers subscriptions, the subscribe-capable server immediately sends
+          ResourceUpdated notifications; the injected message_handler should receive them.
+    """
+    base = Path(__file__).resolve().parents[2] / "computer" / "mcp_servers"
+    sub_py = base / "resources_subscribe_stdio_server.py"
+    assert sub_py.exists()
+
+    sub_params = StdioServerParameters(command=sys.executable, args=[str(sub_py)])
+
+    received: list[types.ResourceUpdatedNotification] = []
+
+    async def message_handler(message):
+        # 仅记录资源更新通知 / record only ResourceUpdatedNotification
+        if isinstance(message, types.ServerNotification) and isinstance(
+            message.root,
+            types.ResourceUpdatedNotification,
+        ):
+            received.append(message.root)
+
+    manager = MCPServerManager(auto_connect=False, message_handler=message_handler)
+    sub_cfg = StdioServerConfig(name="srv_sub", server_parameters=sub_params)
+
+    await manager.ainitialize([sub_cfg])
+    await manager.astart_all()
+
+    try:
+        # 触发订阅 / trigger subscriptions
+        results = await manager.list_windows()
+        assert results, "should have windows to subscribe"
+        listed_uris = {str(res.uri) for _, res in results}
+
+        # 等待通知到达（最多2秒）/ wait up to 2s for notifications
+        for _ in range(20):
+            if received:
+                break
+            await anyio.sleep(0.1)
+
+        assert received, "expected at least one ResourceUpdatedNotification"
+        # 校验通知中的 URI 合理（属于已订阅的窗口之一）
+        assert any(str(n.params.uri) in listed_uris for n in received)
     finally:
         await manager.astop_all()
 

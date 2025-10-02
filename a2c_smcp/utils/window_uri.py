@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from functools import cached_property
-from typing import Any, Self, TypeGuard
+from typing import Any, Self
 
 from pydantic import AnyUrl, GetCoreSchemaHandler, GetJsonSchemaHandler
 from pydantic.json_schema import JsonSchemaValue
@@ -211,7 +211,7 @@ class WindowURI:
         return str(self._url)
 
 
-def is_window_uri(value: str | AnyUrl | object) -> TypeGuard[str | AnyUrl]:
+def is_window_uri(value: str | AnyUrl | object) -> bool:
     """
     判断给定字符串是否为合法的 WindowURI（window:// 协议）
     Check whether the given string is a valid WindowURI (window:// scheme)

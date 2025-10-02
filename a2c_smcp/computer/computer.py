@@ -31,7 +31,7 @@ import weakref
 from collections import deque
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Optional, TypedDict
+from typing import TYPE_CHECKING, Any, Optional
 
 from mcp import Tool, types
 from mcp.shared.session import RequestResponder
@@ -40,10 +40,12 @@ from prompt_toolkit import PromptSession
 from pydantic import TypeAdapter
 
 from a2c_smcp.computer.base import BaseComputer
+from a2c_smcp.computer.desktop.organize import organize_desktop
 from a2c_smcp.computer.inputs.render import ConfigRender
 from a2c_smcp.computer.inputs.resolver import InputNotFoundError, InputResolver
 from a2c_smcp.computer.mcp_clients.manager import MCPServerManager
 from a2c_smcp.computer.mcp_clients.model import MCPServerConfig, MCPServerInput
+from a2c_smcp.computer.types import ToolCallRecord
 from a2c_smcp.smcp import Desktop, SMCPTool
 from a2c_smcp.types import AttributeValue
 from a2c_smcp.utils.logger import logger
@@ -100,17 +102,8 @@ class Computer(BaseComputer[PromptSession]):
         self._tool_call_history = deque(maxlen=10)
         self._tool_call_history_lock = asyncio.Lock()
 
-    # 中文: 定义工具调用历史记录的结构
-    # English: Define the schema of tool call history record
-    class _ToolCallRecord(TypedDict):
-        timestamp: str
-        req_id: str
-        server: str
-        tool: str
-        parameters: dict
-        timeout: float | None
-        success: bool
-        error: str | None
+    # 工具调用历史类型已抽取到 a2c_smcp/computer/types.py 的 ToolCallRecord 供多处复用
+    # The tool call record type is extracted to ToolCallRecord for reuse across modules
 
     @property
     def socketio_client(self) -> Optional["SMCPComputerClient"]:
@@ -615,16 +608,41 @@ class Computer(BaseComputer[PromptSession]):
 
         return result
 
-    async def get_desktop(self) -> list[Desktop]:
+    async def get_desktop(self, size: int | None = None, window_uri: str | None = None) -> list[Desktop]:
         """
         获取当前Computer的桌面布局信息。桌面内容由各MCP工具的特定Resources组成。
+        Get the desktop layout/content by aggregating MCP window resources.
+
+        Args:
+            size (int | None): 可选，限制返回的桌面窗口组合长度；不填则返回全部。
+                               Optional max number of windows to include; None for all.
+            window_uri (str | None): 可选，若指定则优先获取该 URI 对应的窗口。
+                                     Optional specific WindowURI to fetch; otherwise organize all.
+
+        Returns:
+            list[Desktop]: 桌面组合列表。List of Desktop strings.
         """
-        ...
+        if not self.mcp_manager:
+            logger.warning("MCP 管理器尚未初始化，返回空桌面 / MCP manager not initialized, return empty desktop")
+            return []
+
+        # 1) 从 Manager 拉取窗口资源（含归属 server 元数据）
+        #    Fetch window resources (with owning server name)
+        windows = await self.mcp_manager.list_windows(window_uri)
+
+        # 2) 读取近期工具调用历史，供组织策略使用
+        #    Read recent tool call history for organizing policy
+        history = await self.aget_tool_call_history()
+
+        # 3) 调用抽象组织函数（当前仅定义签名，后续补充实现细则）
+        #    Delegate to organizing policy (signature only for now)
+        desktops = await organize_desktop(windows=windows, size=size, history=history)
+        return desktops
 
     # ------------------------
     # 工具调用历史接口 / Tool call history APIs
     # ------------------------
-    async def _append_tool_history(self, record: "Computer._ToolCallRecord") -> None:
+    async def _append_tool_history(self, record: ToolCallRecord) -> None:
         """
         中文: 追加一条工具调用历史（保持最多10条）。协程安全。
         English: Append one tool call record (keep last 10). Coroutine-safe.
@@ -632,7 +650,7 @@ class Computer(BaseComputer[PromptSession]):
         async with self._tool_call_history_lock:
             self._tool_call_history.append(record)
 
-    async def aget_tool_call_history(self) -> tuple["Computer._ToolCallRecord", ...]:
+    async def aget_tool_call_history(self) -> tuple[ToolCallRecord, ...]:
         """
         中文: 获取只读的工具调用历史（按时间先后，最多10条）。
         English: Get read-only tool call history (chronological, up to 10).

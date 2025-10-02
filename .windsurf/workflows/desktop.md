@@ -29,4 +29,7 @@ a2c-smcp 中 Desktop 本质上是按一定规则将各MCP Server提供的符合w
 1. 最内层的BaseClient (StdioClient/SSEClient/StreamableClient) 级别，负责按window_uri过滤并提供MCP Server提供的窗口信息。同时注册订阅（目前业务逻辑前提是MCP Server必须开启订阅）
 2. 中间层 MCPServerManager 级别，负责管理当前众多Server提供的所有Window信息，管理元数据，比如某个Window归属在哪个server下，因为未来对Windows进行组织（比如排列或者压缩内容时）是需要使用这些元数据的，因此在由最外层触发获取 windows 信息的时候，除了调用Client.list_windows之外，还要维护元数据
 3. 最外层 Computer 级别，负责响应远端Agent/外部的调用，从Manager中拿到windows与元数据信息后，结合自身操作历史，进行一些整合与优化操作，目前版本原则如下：
-    a. 因为获取到的windows比较多，而且可能来自多个MCP Server
+    a. 获取Desktop的时候需要考虑整体的长度，请求的时候需要传入参数指定长度。如果指定了WindowURI，则尝试获取指定的窗口信息，如果没有指定，则按如下原则是组织。
+    b. 因为获取到的windows比较多，而且可能来自多个MCP Server，因此需要根据最操作历史记录对应的MCP Server，倒序优先组织其内容展示
+    c. 同一个MCP Server按priority倒序推入。直到长度满足。
+    d. 如果推入过程中遇到FullScreen为True的Window，则此MCP Server仅填充这一个，如果size还有富余，直接补充下一个MCP Server Windows。

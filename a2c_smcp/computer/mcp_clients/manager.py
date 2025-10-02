@@ -10,7 +10,7 @@ from collections.abc import AsyncGenerator, Iterable
 from typing import Any
 
 from mcp.client.session import MessageHandlerFnT
-from mcp.types import CallToolResult, Tool
+from mcp.types import CallToolResult, Resource, Tool
 
 from a2c_smcp.computer.mcp_clients.model import A2C_TOOL_META, MCPClientProtocol, MCPServerConfig, ToolMeta
 from a2c_smcp.computer.mcp_clients.utils import client_factory
@@ -417,6 +417,33 @@ class MCPServerManager:
                         else:
                             tool.meta.update({A2C_TOOL_META: a2c_meta})
                     yield tool
+
+    async def list_windows(self, window_uri: str | None = None) -> list[tuple[SERVER_NAME, Resource]]:
+        """
+        列出所有活动MCP服务器的窗口资源，并附带其归属的server名称。
+        List window resources from all active MCP servers with owning server name.
+
+        Args:
+            window_uri (str | None): 若提供，则仅返回URI完全匹配的窗口；否则返回所有窗口。
+
+        Returns:
+            list[tuple[SERVER_NAME, Resource]]: [(server_name, resource), ...]
+        """
+        results: list[tuple[SERVER_NAME, Resource]] = []
+        # 不加锁读取活跃客户端快照，避免长时间持锁阻塞 I/O
+        active_snapshot = list(self._active_clients.items())
+        for server_name, client in active_snapshot:
+            try:
+                resources = await client.list_windows()
+            except Exception as e:
+                logger.error(f"Error listing windows for {server_name}: {e}")
+                continue
+
+            for res in resources:
+                if window_uri is not None and str(res.uri) != window_uri:
+                    continue
+                results.append((server_name, res))
+        return results
 
     @staticmethod
     def _merged_tool_meta(config: MCPServerConfig, tool_name: TOOL_NAME) -> ToolMeta | None:

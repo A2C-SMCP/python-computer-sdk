@@ -7,7 +7,7 @@ from typing import ClassVar, Literal, Protocol, TypeAlias, runtime_checkable
 
 from mcp import StdioServerParameters, Tool
 from mcp.client.session_group import SseServerParameters, StreamableHttpParameters
-from mcp.types import CallToolResult
+from mcp.types import CallToolResult, Resource
 from pydantic import BaseModel, ConfigDict, Field
 
 from a2c_smcp.types import SERVER_NAME, TOOL_NAME
@@ -135,3 +135,7 @@ class MCPClientProtocol(Protocol):
     async def call_tool(self, tool_name: str, params: dict) -> CallToolResult:
         """运行指定工具"""
         pass
+
+    async def list_windows(self) -> list[Resource]:
+        """列出当前MCP服务可用的窗口资源列表 / List window resources of the MCP server"""
+        ...

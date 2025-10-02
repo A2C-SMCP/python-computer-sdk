@@ -11,7 +11,7 @@ English: Unit tests for AsyncSMCPAgentClient.
 
 import uuid
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from mcp.types import CallToolResult
@@ -23,8 +23,8 @@ from a2c_smcp.smcp import (
     SMCP_NAMESPACE,
     EnterOfficeNotification,
     LeaveOfficeNotification,
-    UpdateMCPConfigNotification,
     SMCPTool,
+    UpdateMCPConfigNotification,
 )
 
 
@@ -201,6 +201,7 @@ async def test_event_handlers_enter_leave_update(client: AsyncSMCPAgentClient, h
     中文：验证 enter/leave/update 事件分派与后续工具拉取逻辑。
     English: Validate enter/leave/update handlers and tools fetch path.
     """
+
     # mock get_tools_from_computer 返回工具
     # mock get_tools_from_computer to return tools
     async def _mock_get_tools(_: str, timeout: int = 20) -> dict[str, Any]:  # noqa: ARG001

@@ -25,10 +25,13 @@ All classes and methods use Google style docstrings (bilingual: Chinese and Engl
     - a2c_smcp_cc.utils.logger
 """
 
+import asyncio
 import json
 import weakref
+from collections import deque
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Optional
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any, Optional, TypedDict
 
 from mcp import Tool, types
 from mcp.shared.session import RequestResponder
@@ -91,6 +94,23 @@ class Computer(BaseComputer[PromptSession]):
         # 通过 weakref 存储 Socket.IO 客户端，避免与客户端互相强引用导致循环与内存泄露
         # Hold Socket.IO client via weakref to avoid strong reference cycle
         self._socketio_client_ref: weakref.ReferenceType[SMCPComputerClient] | None = None
+
+        # 中文: 工具调用历史（仅保存最近10条），使用 asyncio.Lock 确保跨协程安全
+        # English: Tool call history (keep last 10). Protected by asyncio.Lock for cross-coroutine safety
+        self._tool_call_history = deque(maxlen=10)
+        self._tool_call_history_lock = asyncio.Lock()
+
+    # 中文: 定义工具调用历史记录的结构
+    # English: Define the schema of tool call history record
+    class _ToolCallRecord(TypedDict):
+        timestamp: str
+        req_id: str
+        server: str
+        tool: str
+        parameters: dict
+        timeout: float | None
+        success: bool
+        error: str | None
 
     @property
     def socketio_client(self) -> Optional["SMCPComputerClient"]:
@@ -523,43 +543,99 @@ class Computer(BaseComputer[PromptSession]):
         Returns:
             CallToolResult: MCP协议的标准返回
         """
+        # 中文: 统一记录输出，保证任何返回路径都能记录历史
+        # English: Unify return to ensure we always record call history
         server_name, tool_name = await self.mcp_manager.avalidate_tool_call(tool_name, parameters)
         server_config = self.mcp_manager.get_server_config(server_name)
-        if server_config.tool_meta.get(tool_name) and server_config.tool_meta[tool_name].auto_apply:
-            return await self.mcp_manager.acall_tool(server_name, tool_name, parameters, timeout)
-        else:
-            # 除非明确允许 auto_apply 否则均需要调用二次确认回调进行确认
-            if self._confirm_callback:
-                try:
-                    apply = self._confirm_callback(req_id, server_name, tool_name, parameters)
-                except TimeoutError:
-                    return CallToolResult(
-                        content=[TextContent(text="当前工具需要用户二次确认是否可以调用，当前确认超时。", type="text")],
-                        isError=True,
-                    )
-                except Exception as e:
-                    logger.error(f"工具确认回调，调用失败:{e}")
-                    return CallToolResult(
-                        content=[TextContent(text=f"在工具调用二次确认时发生异常，异常信息：{e}", type="text")],
-                        isError=True,
-                    )
-                if apply:
-                    return await self.mcp_manager.acall_tool(server_name, tool_name, parameters, timeout)
-                else:
-                    return CallToolResult(content=[TextContent(text="工具调用二次确认被拒绝，请稍后再试", type="text")])
+
+        ts = datetime.now(UTC).isoformat()
+        success: bool = False
+        error_msg: str | None = None
+
+        try:
+            if server_config.tool_meta.get(tool_name) and server_config.tool_meta[tool_name].auto_apply:
+                result = await self.mcp_manager.acall_tool(server_name, tool_name, parameters, timeout)
             else:
-                return CallToolResult(
-                    content=[
-                        TextContent(
-                            text="当前工具需要调用前进行二次确认，但客户端目前没有实现二次确认回调方法。请联系用户反馈此问题",
-                            type="text",
-                        ),
-                    ],
-                    isError=True,
-                )
+                # 除非明确允许 auto_apply 否则均需要调用二次确认回调进行确认
+                # Unless auto_apply is explicitly allowed, require confirm callback
+                if self._confirm_callback:
+                    try:
+                        apply = self._confirm_callback(req_id, server_name, tool_name, parameters)
+                    except TimeoutError:
+                        result = CallToolResult(
+                            content=[TextContent(text="当前工具需要用户二次确认是否可以调用，当前确认超时。", type="text")],
+                            isError=True,
+                        )
+                    except Exception as e:
+                        logger.error(f"工具确认回调，调用失败:{e}")
+                        error_msg = str(e)
+                        result = CallToolResult(
+                            content=[TextContent(text=f"在工具调用二次确认时发生异常，异常信息：{e}", type="text")],
+                            isError=True,
+                        )
+                    else:
+                        if apply:
+                            result = await self.mcp_manager.acall_tool(server_name, tool_name, parameters, timeout)
+                        else:
+                            result = CallToolResult(content=[TextContent(text="工具调用二次确认被拒绝，请稍后再试", type="text")])
+                else:
+                    result = CallToolResult(
+                        content=[
+                            TextContent(
+                                text="当前工具需要调用前进行二次确认，但客户端目前没有实现二次确认回调方法。请联系用户反馈此问题",
+                                type="text",
+                            ),
+                        ],
+                        isError=True,
+                    )
+
+            success = not result.isError
+        except Exception as e:  # pragma: no cover
+            # 中文: 兜底异常，转换为错误结果并记录
+            # English: Fallback for unexpected exception; convert to error result and record
+            error_msg = str(e)
+            result = CallToolResult(
+                content=[TextContent(text=f"调用异常: {e}", type="text")],
+                isError=True,
+            )
+            success = False
+        finally:
+            await self._append_tool_history(
+                {
+                    "timestamp": ts,
+                    "req_id": req_id,
+                    "server": server_name,
+                    "tool": tool_name,
+                    "parameters": parameters,
+                    "timeout": timeout,
+                    "success": success,
+                    "error": error_msg,
+                },
+            )
+
+        return result
 
     async def get_desktop(self) -> list[Desktop]:
         """
         获取当前Computer的桌面布局信息。桌面内容由各MCP工具的特定Resources组成。
         """
         ...
+
+    # ------------------------
+    # 工具调用历史接口 / Tool call history APIs
+    # ------------------------
+    async def _append_tool_history(self, record: "Computer._ToolCallRecord") -> None:
+        """
+        中文: 追加一条工具调用历史（保持最多10条）。协程安全。
+        English: Append one tool call record (keep last 10). Coroutine-safe.
+        """
+        async with self._tool_call_history_lock:
+            self._tool_call_history.append(record)
+
+    async def aget_tool_call_history(self) -> tuple["Computer._ToolCallRecord", ...]:
+        """
+        中文: 获取只读的工具调用历史（按时间先后，最多10条）。
+        English: Get read-only tool call history (chronological, up to 10).
+        """
+        async with self._tool_call_history_lock:
+            return tuple(self._tool_call_history)

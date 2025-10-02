@@ -354,12 +354,18 @@ class BaseMCPClient(ABC):
 
     async def list_windows(self) -> list[Resource]:
         """
-        列出当前MCP服务可用的窗口资源列表
+        列出当前MCP服务可用的窗口资源列表。需要注意MCP Server如果想开启桌面模式必须打开 resources/subscribe
+
+        同时开发者需要注意维护好 window:// 状态
 
         Returns:
             list[Resource]: 当前可用的窗口类资源
         """
-        if self.initialize_result and self.initialize_result.capabilities.resources:
+        if (
+            self.initialize_result
+            and self.initialize_result.capabilities.resources
+            and self.initialize_result.capabilities.resources.subscribe
+        ):
             # Get available resources directly from client session
             try:
                 asession = cast(ClientSession, await self.async_session)
@@ -380,9 +386,8 @@ class BaseMCPClient(ABC):
                 # 同一 MCP 内按 priority 降序排序（仅在本客户端内比较）
                 filtered.sort(key=lambda x: x[1], reverse=True)
                 # 如果当前MCP Server开启了 resources 的订阅模式，则将过滤出来的Resources进行订阅
-                if self.initialize_result.capabilities.resources.subscribe:
-                    for r, _ in filtered:
-                        await asession.subscribe_resource(r.uri)
+                for r, _ in filtered:
+                    await asession.subscribe_resource(r.uri)
                 return [r for r, _ in filtered]
             except Exception as e:
                 logger.error(f"Error listing resources for connector {self.params.model_dump(mode='json')}: {e}")

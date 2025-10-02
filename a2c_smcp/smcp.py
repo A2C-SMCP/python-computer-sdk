@@ -273,6 +273,7 @@ class GetDeskTopReq(TypedDict, total=True):
     """
 
     computer: str
+    desktop_size: NotRequired[int]  # 指定希望获取的桌面内容长度。如果不指定，则会全量返回，由调用方进行处理。
 
 
 Desktop: TypeAlias = str

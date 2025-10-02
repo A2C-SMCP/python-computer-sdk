@@ -171,3 +171,84 @@ async def test_dynamic_remove_then_tool_not_found(stdio_params) -> None:
     # 再次调用应报错：工具不存在
     with pytest.raises(ValueError):
         await computer.aexecute_tool("reqid", "hello", {"name": "China"})
+
+
+# -------------------- 新增：工具调用历史集成用例 --------------------
+
+
+@pytest.mark.anyio
+async def test_tool_call_history_records_success_and_order(stdio_params) -> None:
+    """
+    中文：验证 aexecute_tool 成功调用后，历史中包含记录，且字段正确、顺序正确。
+    English: Verify history has records after successful calls with correct fields and order.
+    """
+    cfg = StdioServerConfig(name="hist_stdio", server_parameters=stdio_params, tool_meta={"hello": ToolMeta(auto_apply=True)})
+    computer = Computer(mcp_servers={cfg})
+    await computer.boot_up()
+
+    # 进行两次调用/Two calls
+    r1 = await computer.aexecute_tool("req-1", "hello", {"name": "A"})
+    r2 = await computer.aexecute_tool("req-2", "hello", {"name": "B"})
+    assert r1.content and r2.content
+
+    hist = await computer.aget_tool_call_history()
+    assert len(hist) >= 2
+
+    # 校验最后一条为第二次调用/Last is second call
+    last = hist[-1]
+    assert last["req_id"] == "req-2"
+    assert last["tool"] == "hello"
+    assert last["server"] == "hist_stdio"
+    assert last["parameters"] == {"name": "B"}
+    assert last["timeout"] is None
+    assert last["success"] is True
+    assert isinstance(last["timestamp"], str) and last["timestamp"]
+
+
+@pytest.mark.anyio
+async def test_tool_call_history_maxlen(stdio_params) -> None:
+    """
+    中文：验证历史仅保留最近10条。
+    English: Verify history keeps only last 10 records.
+    """
+    cfg = StdioServerConfig(name="hist_maxlen", server_parameters=stdio_params, tool_meta={"hello": ToolMeta(auto_apply=True)})
+    computer = Computer(mcp_servers={cfg})
+    await computer.boot_up()
+
+    # 执行12次，maxlen=10后应只保留后10次/Execute 12 times, keep last 10
+    for i in range(12):
+        rid = f"req-{i + 1}"
+        await computer.aexecute_tool(rid, "hello", {"name": str(i + 1)})
+
+    hist = await computer.aget_tool_call_history()
+    assert len(hist) == 10
+    # 保留的是 3..12 的 req_id，其中最后一条是 12
+    assert hist[0]["req_id"] == "req-3"
+    assert hist[-1]["req_id"] == "req-12"
+
+
+@pytest.mark.anyio
+async def test_tool_call_history_confirm_callback_exception(stdio_params) -> None:
+    """
+    中文：当确认回调抛出异常时，应记录一条失败的历史记录。
+    English: When confirm callback raises, a failed history record should be stored.
+    """
+
+    def bad_confirm(*_args, **_kwargs):
+        raise RuntimeError("confirm failed")
+
+    cfg = StdioServerConfig(name="hist_confirm_err", server_parameters=stdio_params, tool_meta={})
+    computer = Computer(mcp_servers={cfg}, confirm_callback=bad_confirm)
+    await computer.boot_up()
+
+    result = await computer.aexecute_tool("req-X", "hello", {"name": "Err"})
+    assert result.isError is True
+
+    hist = await computer.aget_tool_call_history()
+    assert len(hist) >= 1
+    last = hist[-1]
+    assert last["req_id"] == "req-X"
+    assert last["tool"] == "hello"
+    assert last["server"] == "hist_confirm_err"
+    assert last["success"] is False
+    assert last["error"] is not None

@@ -330,10 +330,14 @@ class MCPServerManager:
         return server_name, tool_name
 
     async def acall_tool(
-        self, server_name: SERVER_NAME, tool_name: TOOL_NAME, parameters: dict, timeout: float | None = None,
+        self,
+        server_name: SERVER_NAME,
+        tool_name: TOOL_NAME,
+        parameters: dict,
+        timeout: float | None = None,
     ) -> CallToolResult:
         """
-        触发MCP工具的调用
+        触发MCP工具的调用。注意此方法tool_name必须是工具原始名称，如果是alias别名调用，需要使用 aexecute_tool
 
         Args:
             server_name (str): 服务名称
@@ -373,7 +377,7 @@ class MCPServerManager:
             raise RuntimeError(f"Tool execution failed: {e}") from e
 
     async def aexecute_tool(self, tool_name: TOOL_NAME, parameters: dict, timeout: float | None = None) -> CallToolResult:
-        """执行指定工具"""
+        """执行指定工具 与 acall_tool 的区别在于此方法支持使用alias别名进行调用。"""
         server_name, tool_name = await self.avalidate_tool_call(tool_name, parameters)
         return await self.acall_tool(server_name, tool_name, parameters, timeout)
 

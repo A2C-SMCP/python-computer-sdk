@@ -41,7 +41,7 @@ from a2c_smcp.computer.inputs.render import ConfigRender
 from a2c_smcp.computer.inputs.resolver import InputNotFoundError, InputResolver
 from a2c_smcp.computer.mcp_clients.manager import MCPServerManager
 from a2c_smcp.computer.mcp_clients.model import MCPServerConfig, MCPServerInput
-from a2c_smcp.smcp import SMCPTool
+from a2c_smcp.smcp import Desktop, SMCPTool
 from a2c_smcp.types import AttributeValue
 from a2c_smcp.utils.logger import logger
 
@@ -157,8 +157,8 @@ class Computer(BaseComputer[PromptSession]):
         await self.mcp_manager.ainitialize(validated_servers)
 
     async def _on_manager_change(
-            self,
-            message: RequestResponder[types.ServerRequest, types.ClientResult] | types.ServerNotification | Exception,
+        self,
+        message: RequestResponder[types.ServerRequest, types.ClientResult] | types.ServerNotification | Exception,
     ) -> None:
         """
         当 MCPServerManager 检测到变化时的回调。
@@ -181,7 +181,10 @@ class Computer(BaseComputer[PromptSession]):
             logger.warning(f"收到未处理的变化类型: {message}，当前版本仅处理工具列表变化")
 
     async def _arender_and_validate_server(
-        self, server: MCPServerConfig | dict[str, Any], *, session: PromptSession | None = None,
+        self,
+        server: MCPServerConfig | dict[str, Any],
+        *,
+        session: PromptSession | None = None,
     ) -> MCPServerConfig:
         """
         动态渲染并校验单个 MCP 服务器配置，支持原始字典或模型实例。
@@ -531,12 +534,14 @@ class Computer(BaseComputer[PromptSession]):
                     apply = self._confirm_callback(req_id, server_name, tool_name, parameters)
                 except TimeoutError:
                     return CallToolResult(
-                        content=[TextContent(text="当前工具需要用户二次确认是否可以调用，当前确认超时。", type="text")], isError=True,
+                        content=[TextContent(text="当前工具需要用户二次确认是否可以调用，当前确认超时。", type="text")],
+                        isError=True,
                     )
                 except Exception as e:
                     logger.error(f"工具确认回调，调用失败:{e}")
                     return CallToolResult(
-                        content=[TextContent(text=f"在工具调用二次确认时发生异常，异常信息：{e}", type="text")], isError=True,
+                        content=[TextContent(text=f"在工具调用二次确认时发生异常，异常信息：{e}", type="text")],
+                        isError=True,
                     )
                 if apply:
                     return await self.mcp_manager.acall_tool(server_name, tool_name, parameters, timeout)
@@ -546,8 +551,15 @@ class Computer(BaseComputer[PromptSession]):
                 return CallToolResult(
                     content=[
                         TextContent(
-                            text="当前工具需要调用前进行二次确认，但客户端目前没有实现二次确认回调方法。请联系用户反馈此问题", type="text",
+                            text="当前工具需要调用前进行二次确认，但客户端目前没有实现二次确认回调方法。请联系用户反馈此问题",
+                            type="text",
                         ),
                     ],
                     isError=True,
                 )
+
+    async def get_desktop(self) -> list[Desktop]:
+        """
+        获取当前Computer的桌面布局信息。桌面内容由各MCP工具的特定Resources组成。
+        """
+        ...

@@ -4,7 +4,7 @@
 # @Author  : JQQ
 # @Email   : jqq1716@gmail.com
 # @Software: PyCharm
-from typing import Any, Literal, NotRequired
+from typing import Any, Literal, NotRequired, TypeAlias
 
 from typing_extensions import TypedDict
 
@@ -265,3 +265,23 @@ class UpdateToolListNotification(TypedDict, total=False):
     """
 
     computer: str  # 被更新的Computer sid / The computer SID whose tools changed
+
+
+class GetDeskTopReq(TypedDict, total=True):
+    """
+    获取当前Computer的桌面信息。
+    """
+
+    computer: str
+
+
+Desktop: TypeAlias = str
+
+
+class GetDeskTopRet(TypedDict, total=False):
+    """
+    Computer的桌面布局与内容信息。Agent可以通过相应指令来获取。
+    The layout and content on Computer. Agent get it by spec event.
+    """
+
+    desktops: list[Desktop]

@@ -100,6 +100,10 @@ async def interactive_loop(
             help_table.add_row("inputs value rm <id>", "删除指定 id 的值 / remove cached value by id")
             help_table.add_row("inputs value clear [<id>]", "清空全部或指定 id 的缓存 / clear all or one cached value")
             help_table.add_row("tc <json|@file>", "使用与 Socket.IO 一致的 JSON 结构调试工具 / debug tool with Socket.IO-compatible JSON")
+            help_table.add_row(
+                "desktop [size] [window_uri]",
+                "获取当前桌面窗口组合（可选限制条数与指定URI） / get current desktop (optional size and URI)",
+            )
             help_table.add_row("history [n]", "显示最近的工具调用历史（默认最多10条）/ show recent tool call history (default up to 10)")
             help_table.add_row(
                 "socket connect [<url>]",
@@ -135,6 +139,27 @@ async def interactive_loop(
                     servers[cfg.name] = json.loads(json.dumps(cfg.model_dump(mode="json")))
                 inputs = [json.loads(json.dumps(i.model_dump(mode="json"))) for i in comp.inputs]
                 print_mcp_config({"servers": servers, "inputs": inputs})
+
+            elif cmd == "desktop":
+                # 中文: 解析可选参数：size 与 window_uri（顺序不固定，数字视为 size，其它作为 URI）
+                # English: Parse optional args: size and window_uri (order-agnostic; digits -> size, else -> URI)
+                size: int | None = None
+                window_uri: str | None = None
+                for arg in parts[1:]:
+                    if size is None and arg.isdigit():
+                        try:
+                            size = int(arg)
+                        except Exception:
+                            size = None
+                    elif window_uri is None:
+                        window_uri = arg
+
+                try:
+                    desktops = await comp.get_desktop(size=size, window_uri=window_uri)
+                    # 直接以 JSON 输出，便于上层消费 / print as JSON for easy consumption
+                    console.print_json(data=desktops)
+                except Exception as e:
+                    console.print(f"[red]获取桌面失败 / Failed to get desktop: {e}[/red]")
 
             elif cmd == "server" and len(parts) >= 2:
                 sub = parts[1].lower()

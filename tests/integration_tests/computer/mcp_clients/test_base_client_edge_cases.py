@@ -199,9 +199,9 @@ async def test_close_task_handles_non_cancel_error():
     async def evil_task():
         try:
             await asyncio.Event().wait()
-        except asyncio.CancelledError:  # noqa: PIE786
+        except asyncio.CancelledError as e:  # noqa: PIE786
             # 在取消时抛出其他异常 / raise non-cancel after cancel
-            raise RuntimeError("boom-after-cancel")
+            raise RuntimeError("boom-after-cancel") from e
 
     # 生成一个假的客户端以便复用 _close_task / reuse _close_task
     class Dummy(BaseMCPClient):

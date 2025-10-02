@@ -6,7 +6,8 @@
 # @Software: PyCharm
 """
 中文: 提供 Resources 能力，包含分页与混合（含非 window://）资源，用于覆盖分页循环与过滤逻辑。
-英文: MCP Stdio server exposing Resources with pagination and mixed schemes (includes non-window) to cover pagination loop and filtering logic.
+英文: MCP Stdio server exposing Resources with pagination and mixed schemes (includes non-window) to cover pagination
+    loop and filtering logic.
 
 文件名: resources_paged_mixed_stdio_server.py / filename: resources_paged_mixed_stdio_server.py
 作者: JQQ / author: JQQ

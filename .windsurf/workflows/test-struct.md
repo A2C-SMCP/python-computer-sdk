@@ -28,7 +28,7 @@ e2e 测试模式简介：
 
 1. 使用pexpect运行真实的spawn进程。不需要使用mockeypatch，所有的e2e追求完美复现真实场景
 2. computer/agent/server 也需要独立进行e2e测试。
-3. computer中如果需要一些常见的可用的真实MCP Server服务器等，可以从 @tests/e2e/computer/configs 去寻找，常用配置均在此记录。
+3. computer中如果需要一些常见的可用的真实MCP Server服务器等，可以从 @tests/e2e/computer/configs 去寻找，常用配置均在此记录。多数时候你都需要对配置进行一些自定义，因此多数时候可以参考后再自己写一个可用配置，配合tmppath写入临时文件进行测试。
 
 ---
 

@@ -100,6 +100,7 @@ async def interactive_loop(
             help_table.add_row("inputs value rm <id>", "删除指定 id 的值 / remove cached value by id")
             help_table.add_row("inputs value clear [<id>]", "清空全部或指定 id 的缓存 / clear all or one cached value")
             help_table.add_row("tc <json|@file>", "使用与 Socket.IO 一致的 JSON 结构调试工具 / debug tool with Socket.IO-compatible JSON")
+            help_table.add_row("history [n]", "显示最近的工具调用历史（默认最多10条）/ show recent tool call history (default up to 10)")
             help_table.add_row(
                 "socket connect [<url>]",
                 "连接 Socket.IO（省略 URL 将进入引导式输入） / connect to Socket.IO (guided if URL omitted)",
@@ -440,6 +441,22 @@ async def interactive_loop(
                         console.print(repr(result))
                 except Exception as e:
                     console.print(f"[red]❌ 工具调用失败 / Tool call failed: {e}[/red]")
+
+            elif cmd == "history":
+                # 中文: 显示最近的调用历史。可选参数 n 指定返回条数，默认显示全部（最多10条）。
+                # English: Show recent call history. Optional n limits number of returned entries (default all, up to 10).
+                try:
+                    n: int | None = None
+                    if len(parts) >= 2:
+                        try:
+                            n = int(parts[1])
+                        except Exception:
+                            n = None
+                    history = await comp.aget_tool_call_history()
+                    items = list(history)[-n:] if n is not None and n > 0 else list(history)
+                    console.print_json(data=items)
+                except Exception as e:  # pragma: no cover
+                    console.print(f"[red]❌ 读取历史失败 / Failed to read history: {e}[/red]")
 
             else:
                 console.print("[yellow]未知命令 / Unknown command[/yellow]")

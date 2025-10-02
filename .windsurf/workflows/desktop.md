@@ -22,3 +22,11 @@ MCP Resources需要满足以下协议
 
 ---
 
+a2c-smcp 中 Desktop 本质上是按一定规则将各MCP Server提供的符合window_uri的Resources进行整合，形成一个或者多个Desktop组合，其现实产品类似，可以将MCP Server理解我们电脑上安装的软件，软件可以提供自己的窗口，a2c-smcp/computer通过将窗口渲染到自己的Desktop上，通过Desktop暴露给用户。
+
+在目前的Desktop系统中分工如下：
+
+1. 最内层的BaseClient (StdioClient/SSEClient/StreamableClient) 级别，负责按window_uri过滤并提供MCP Server提供的窗口信息。同时注册订阅（目前业务逻辑前提是MCP Server必须开启订阅）
+2. 中间层 MCPServerManager 级别，负责管理当前众多Server提供的所有Window信息，管理元数据，比如某个Window归属在哪个server下，因为未来对Windows进行组织（比如排列或者压缩内容时）是需要使用这些元数据的，因此在由最外层触发获取 windows 信息的时候，除了调用Client.list_windows之外，还要维护元数据
+3. 最外层 Computer 级别，负责响应远端Agent/外部的调用，从Manager中拿到windows与元数据信息后，结合自身操作历史，进行一些整合与优化操作，目前版本原则如下：
+    a. 因为获取到的windows比较多，而且可能来自多个MCP Server

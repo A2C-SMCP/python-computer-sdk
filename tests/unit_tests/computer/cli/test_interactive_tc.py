@@ -69,6 +69,7 @@ class _FakeMgr:
     async def acall_tool(self, server: str, tool: str, params: dict, timeout: float | None):  # noqa: D401
         self._called = (server, tool, params, timeout)
         # 返回符合 CallToolResult 结构的简化对象
+
         class _Res:
             def __init__(self) -> None:
                 self.isError = False

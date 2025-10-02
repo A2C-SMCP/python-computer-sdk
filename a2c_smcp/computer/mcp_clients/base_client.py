@@ -369,8 +369,15 @@ class BaseMCPClient(ABC):
             # Get available resources directly from client session
             try:
                 asession = cast(ClientSession, await self.async_session)
-                resources_result = await asession.list_resources()
-                resources = resources_result.resources if resources_result else []
+                # 中文: 支持分页获取资源；与 list_tools 一致，穷举所有页后再进行过滤与订阅
+                # 英文: Support pagination; same as list_tools, exhaust all pages then filter and subscribe
+                resources: list[Resource] = []
+                ret = await asession.list_resources()
+                if ret:
+                    resources.extend(ret.resources)
+                    while ret.nextCursor:
+                        ret = await asession.list_resources(cursor=ret.nextCursor)
+                        resources.extend(ret.resources)
                 # 返回满足WindowURI协议要求的Resource
                 # Return only resources that conform to WindowURI (window:// scheme)
                 filtered: list[tuple[Resource, int]] = []

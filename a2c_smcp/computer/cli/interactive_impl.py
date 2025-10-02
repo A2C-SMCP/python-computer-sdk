@@ -413,7 +413,8 @@ async def interactive_loop(
                     # Pre-check: require active MCP manager
                     if not comp.mcp_manager:
                         console.print(
-                            "[yellow]MCP 管理器未初始化。请先添加并启动服务器 (server add/start) / MCP manager not initialized. Add and start a server first.[/yellow]"
+                            "[yellow]MCP 管理器未初始化。请先添加并启动服务器 (server add/start) / MCP manager not initialized."
+                            " Add and start a server first.[/yellow]",
                         )
                         continue
 

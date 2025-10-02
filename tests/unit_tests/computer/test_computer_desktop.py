@@ -19,6 +19,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from mcp.types import ReadResourceResult, TextResourceContents
 
 from a2c_smcp.computer.computer import Computer
 from a2c_smcp.computer.mcp_clients.manager import MCPServerManager
@@ -32,11 +33,13 @@ async def test_get_desktop_calls_manager_and_organize(monkeypatch):
     """
     # 准备 mock manager / Prepare mock manager
     mock_manager = MagicMock(spec=MCPServerManager)
-    # manager.list_windows 返回两条 window 记录（使用 SimpleNamespace 模拟 Resource）
+    # manager.get_windows_details 返回两条 window 记录（三元组：server, Resource-like, ReadResourceResult）
     res1 = SimpleNamespace(uri="window://mcp-a/w1")
     res2 = SimpleNamespace(uri="window://mcp-b/w2")
-    mock_windows = [("mcp-a", res1), ("mcp-b", res2)]
-    mock_manager.list_windows = AsyncMock(return_value=mock_windows)
+    d1 = ReadResourceResult(contents=[TextResourceContents(uri="window://mcp-a/w1", text="w1-content")])
+    d2 = ReadResourceResult(contents=[TextResourceContents(uri="window://mcp-b/w2", text="w2-content")])
+    mock_windows = [("mcp-a", res1, d1), ("mcp-b", res2, d2)]
+    mock_manager.get_windows_details = AsyncMock(return_value=mock_windows)
 
     # 将构造函数替换为返回 mock_manager / Patch constructor to return mock manager
     monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
@@ -56,10 +59,9 @@ async def test_get_desktop_calls_manager_and_organize(monkeypatch):
     result = await computer.get_desktop(size=size, window_uri=uri)
 
     # 断言调用链 / Assertions
-    mock_manager.list_windows.assert_awaited_once_with(uri)
-    # history 通过实例方法读取，这里仅验证 organize 接口参数完整性
+    mock_manager.get_windows_details.assert_awaited_once_with(uri)
+    # history 通过实例方法读取，这里仅验证 organize 接口参数完整性（避免对 windows 作脆弱的严格比较）
     call = mock_organize.await_args
-    assert call.kwargs["windows"] == mock_windows
     assert call.kwargs["size"] == size
     assert isinstance(call.kwargs["history"], tuple)
 

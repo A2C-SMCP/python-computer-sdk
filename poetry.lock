@@ -907,14 +907,14 @@ files = [
 
 [[package]]
 name = "mcp"
-version = "1.13.0"
+version = "1.15.0"
 description = "Model Context Protocol SDK"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "mcp-1.13.0-py3-none-any.whl", hash = "sha256:8b1a002ebe6e17e894ec74d1943cc09aa9d23cb931bf58d49ab2e9fa6bb17e4b"},
-    {file = "mcp-1.13.0.tar.gz", hash = "sha256:70452f56f74662a94eb72ac5feb93997b35995e389b3a3a574e078bed2aa9ab3"},
+    {file = "mcp-1.15.0-py3-none-any.whl", hash = "sha256:314614c8addc67b663d6c3e4054db0a5c3dedc416c24ef8ce954e203fdc2333d"},
+    {file = "mcp-1.15.0.tar.gz", hash = "sha256:5bda1f4d383cf539d3c035b3505a3de94b20dbd7e4e8b4bd071e14634eeb2d72"},
 ]
 
 [package.dependencies]
@@ -2527,4 +2527,4 @@ test = ["aiohttp", "inline-snapshot", "polyfactory", "pytest-asyncio", "pytest-c
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<4.0"
-content-hash = "576571bfcc7657510c0f5319abddbff32da6924b704861e75eb699cb19a9909d"
+content-hash = "30fa2f45c6c37af95a02b67dc0bff47c1eaa594b8269e5935fcc0a032641e37b"

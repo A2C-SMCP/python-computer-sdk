@@ -626,16 +626,16 @@ class Computer(BaseComputer[PromptSession]):
             logger.warning("MCP 管理器尚未初始化，返回空桌面 / MCP manager not initialized, return empty desktop")
             return []
 
-        # 1) 从 Manager 拉取窗口资源（含归属 server 元数据）
-        #    Fetch window resources (with owning server name)
-        windows = await self.mcp_manager.list_windows(window_uri)
+        # 1) 从 Manager 拉取窗口资源“及其详情”（含归属 server 元数据）
+        #    Fetch window resources WITH their details (and owning server name)
+        windows = await self.mcp_manager.get_windows_details(window_uri)
 
         # 2) 读取近期工具调用历史，供组织策略使用
         #    Read recent tool call history for organizing policy
         history = await self.aget_tool_call_history()
 
-        # 3) 调用抽象组织函数（当前仅定义签名，后续补充实现细则）
-        #    Delegate to organizing policy (signature only for now)
+        # 3) 调用抽象组织函数（考虑资源详情进行组织，例如过滤无内容的窗口、按优先级等）
+        #    Delegate to organizing policy (consider contents, e.g., filter empty, keep priority ordering)
         desktops = await organize_desktop(windows=windows, size=size, history=history)
         return desktops
 

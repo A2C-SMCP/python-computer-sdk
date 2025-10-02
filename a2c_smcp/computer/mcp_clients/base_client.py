@@ -13,7 +13,7 @@ from typing import cast
 
 from mcp import ClientSession, Tool
 from mcp.client.session import MessageHandlerFnT
-from mcp.types import CallToolResult, InitializeResult, Resource
+from mcp.types import AnyUrl, CallToolResult, InitializeResult, ReadResourceResult, Resource, TextResourceContents
 from pydantic import BaseModel
 from transitions.core import EventData
 from transitions.extensions import AsyncMachine
@@ -401,6 +401,31 @@ class BaseMCPClient(ABC):
                 return []
         else:
             return []
+
+    async def get_window_detail(self, resource: Resource | str) -> ReadResourceResult:
+        """
+        中文: 读取单个窗口资源的详细内容（通过 MCP read_resource）。
+        英文: Read details for a single window resource via MCP read_resource.
+
+        Args:
+            resource (Resource | str): 要读取的资源（或其 URI 字符串）。
+
+        Returns:
+            list[object]: 资源内容块列表（如 TextContent/BlobContent 等）。读取失败返回空列表。
+        """
+        try:
+            asession = cast(ClientSession, await self.async_session)
+            uri_val: AnyUrl
+            if isinstance(resource, Resource):
+                uri_val = resource.uri  # type: ignore[assignment]
+            else:
+                # 当传入为字符串时，交由底层进行校验/解析
+                uri_val = AnyUrl(resource)  # type: ignore[call-arg]
+
+            return await asession.read_resource(uri_val)
+        except Exception as e:
+            logger.error(f"Read window resource failed: {resource}: {e}")
+            return ReadResourceResult(contents=[TextResourceContents(text="获取资源失败", uri=resource.uri)])
 
     async def call_tool(self, tool_name: str, params: dict) -> CallToolResult:
         """

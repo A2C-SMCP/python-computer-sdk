@@ -10,7 +10,7 @@ from collections.abc import AsyncGenerator, Iterable
 from typing import Any
 
 from mcp.client.session import MessageHandlerFnT
-from mcp.types import CallToolResult, Resource, Tool
+from mcp.types import CallToolResult, ReadResourceResult, Resource, Tool
 
 from a2c_smcp.computer.mcp_clients.model import A2C_TOOL_META, MCPClientProtocol, MCPServerConfig, ToolMeta
 from a2c_smcp.computer.mcp_clients.utils import client_factory
@@ -444,6 +444,33 @@ class MCPServerManager:
                     continue
                 results.append((server_name, res))
         return results
+
+    async def get_windows_details(self, window_uri: str | None = None) -> list[tuple[SERVER_NAME, Resource, ReadResourceResult]]:
+        """
+        中文: 读取所有活动 MCP 服务器的窗口资源详情。由于 MCP 协议中的 Resource 仅为标识，需要通过 read_resource 获取内容。
+        英文: Read detailed contents for window resources from all active MCP servers. Resource is an identifier; use read_resource.
+
+        Args:
+            window_uri (str | None): 若提供，则仅读取该 URI 完全匹配的窗口；否则读取所有窗口。
+
+        Returns:
+            list[tuple[SERVER_NAME, Resource, list[object]]]: 列表项为 (server_name, resource, contents)。
+        """
+        details: list[tuple[SERVER_NAME, Resource, ReadResourceResult]] = []
+        active_snapshot = list(self._active_clients.items())
+        for server_name, client in active_snapshot:
+            try:
+                resources = await client.list_windows()
+            except Exception as e:
+                logger.error(f"Error listing windows for {server_name}: {e}")
+                continue
+
+            for res in resources:
+                if window_uri is not None and str(res.uri) != window_uri:
+                    continue
+                content = await client.get_window_detail(res)
+                details.append((server_name, res, content))
+        return details
 
     @staticmethod
     def _merged_tool_meta(config: MCPServerConfig, tool_name: TOOL_NAME) -> ToolMeta | None:

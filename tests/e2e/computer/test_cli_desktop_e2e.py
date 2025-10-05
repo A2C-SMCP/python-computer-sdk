@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -33,7 +34,7 @@ def _server_cfg_for_script(name: str, script_rel_path: str) -> dict[str, Any]:
             "auto_apply": True,
         },
         "server_parameters": {
-            "command": "python",
+            "command": sys.executable,  # 使用当前 Python 解释器 / Use current Python interpreter
             "args": [script_rel_path],
             "env": None,
             "cwd": None,

@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -58,7 +59,7 @@ def test_add_server_via_config_file(cli_proc: pexpect.spawn, tmp_path: Path) -> 
         "forbidden_tools": [],
         "tool_meta": {},
         "server_parameters": {
-            "command": "python",
+            "command": sys.executable,  # 使用当前 Python 解释器 / Use current Python interpreter
             "args": [
                 "tests/integration_tests/computer/mcp_servers/direct_execution.py",
             ],
@@ -95,11 +96,12 @@ def test_add_server_via_inline_json_and_check(cli_proc: pexpect.spawn) -> None:
     """
     child = cli_proc
 
+    # 使用当前 Python 解释器构建内联 JSON / Build inline JSON with current Python interpreter
     inline_json = (
-        '{"name": "e2e-test-inline", "type": "stdio", "disabled": false, "forbidden_tools": [], '
-        '"tool_meta": {}, "server_parameters": {"command": "python", "args": '
-        ' ["tests/integration_tests/computer/mcp_servers/direct_execution.py"], "env": null, "cwd": null, '
-        ' "encoding": "utf-8", "encoding_error_handler": "strict"}}'
+        f'{{"name": "e2e-test-inline", "type": "stdio", "disabled": false, "forbidden_tools": [], '
+        f'"tool_meta": {{}}, "server_parameters": {{"command": "{sys.executable}", "args": '
+        f' ["tests/integration_tests/computer/mcp_servers/direct_execution.py"], "env": null, "cwd": null, '
+        f' "encoding": "utf-8", "encoding_error_handler": "strict"}}}}'
     )
 
     # 1) 添加配置（inline JSON）

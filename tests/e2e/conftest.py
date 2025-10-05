@@ -1,22 +1,25 @@
 # -*- coding: utf-8 -*-
 # filename: conftest.py
-# @Time    : 2025/10/05 14:10
+# @Time    : 2025/10/05 16:20
 # @Author  : JQQ
 # @Email   : jqq1716@gmail.com
 # @Software: PyCharm
 """
-中文: e2e Server 测试公共夹具。启动真实 Socket.IO HTTP 服务器，并提供 Agent 与 Computer 真实客户端。
-English: Common fixtures for e2e Server tests. Boots a real Socket.IO HTTP server and provides real Agent/Computer clients.
+中文: E2E 测试根目录公共夹具，提供 Computer-Agent-Server 三者集成测试所需的基础设施。
+English: Root-level E2E test fixtures providing infrastructure for Computer-Agent-Server integration tests.
 """
 
 from __future__ import annotations
 
 import contextlib
+import json
 import multiprocessing
 import socket
+import sys
 import time
 from collections.abc import Iterator
 from multiprocessing.synchronize import Event
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -26,11 +29,9 @@ from werkzeug.serving import make_server
 
 from a2c_smcp.server import SyncSMCPNamespace
 from a2c_smcp.server.sync_auth import SyncAuthenticationProvider
-from a2c_smcp.smcp import SMCP_NAMESPACE
 
 # ============================================================================
-# 中文: 本地同步服务器创建函数（从 _local_sync_server.py 复制而来）
-# English: Local sync server creation functions (copied from _local_sync_server.py)
+# 中文: 测试用认证提供者 / English: Test authentication provider
 # ============================================================================
 
 
@@ -52,13 +53,6 @@ class LocalSyncSMCPNamespace(SyncSMCPNamespace):
 
     def __init__(self) -> None:
         super().__init__(auth_provider=_PassSyncAuth())
-        # 可选：记录操作 / Optional: record operations
-        self.client_operations_record: dict[str, tuple[str, Any]] = {}
-
-    def on_connect(self, sid: str, environ: dict, auth: dict | None = None) -> bool:  # type: ignore[override]
-        ok = super().on_connect(sid, environ, auth)
-        self.client_operations_record[sid] = ("connect", None)
-        return ok
 
 
 def create_local_sync_server() -> tuple[Server, Namespace, WSGIApp]:
@@ -150,55 +144,64 @@ def run_http_server() -> Iterator[tuple[str, int]]:
 
 
 @pytest.fixture(scope="session")
-def server_endpoint() -> Iterator[str]:
+def integration_server_endpoint() -> Iterator[str]:
     """
-    中文: 提供形如 http://127.0.0.1:PORT 的服务端地址。
-    English: Provide server endpoint like http://127.0.0.1:PORT
+    中文: 提供形如 http://127.0.0.1:PORT 的服务端地址，用于集成测试。
+    English: Provide server endpoint like http://127.0.0.1:PORT for integration tests.
     """
     with run_http_server() as (host, port):
         yield f"http://{host}:{port}"
 
 
-@contextlib.contextmanager
-def _socketio_client(url: str) -> Iterator[socketio.Client]:
+# ============================================================================
+# 中文: MCP Server 配置辅助函数 / English: MCP Server config helpers
+# ============================================================================
+
+
+def create_mcp_server_config(
+    name: str,
+    script_path: str,
+    disabled: bool = False,
+) -> dict[str, Any]:
     """
-    中文: 创建并连接一个真实 socketio.Client，自动断开与关闭。
-    English: Create and connect a real socketio.Client, auto cleanup.
+    中文: 创建 MCP Server 配置，用于 Computer 端测试
+    English: Create MCP Server config for Computer-side testing
     """
-    client = socketio.Client()
-    client.connect(
-        url,
-        socketio_path="/socket.io",
-        namespaces=[SMCP_NAMESPACE],
-        transports=["polling"],  # 仅使用轮询，避免WSGI环境的WebSocket升级失败 / force polling to avoid websocket upgrade under WSGI
-        wait=True,
-        wait_timeout=10,
+    return {
+        "name": name,
+        "type": "stdio",
+        "disabled": disabled,
+        "forbidden_tools": [],
+        "tool_meta": {},
+        "default_tool_meta": {
+            "auto_apply": True,
+        },
+        "server_parameters": {
+            "command": sys.executable,  # 使用当前 Python 解释器 / Use current Python interpreter
+            "args": [script_path],
+            "env": None,
+            "cwd": None,
+            "encoding": "utf-8",
+            "encoding_error_handler": "strict",
+        },
+    }
+
+
+@pytest.fixture
+def mcp_server_config_path(tmp_path: Path) -> Path:
+    """
+    中文: 创建临时 MCP Server 配置文件路径
+    English: Create temporary MCP Server config file path
+    """
+    config_file = tmp_path / "mcp_servers.json"
+    # 创建一个基础配置，包含测试用的 MCP Server
+    # Create a basic config with test MCP Server
+    config = create_mcp_server_config(
+        name="e2e-test-server",
+        script_path="tests/integration_tests/computer/mcp_servers/resources_subscribe_stdio_server.py",
     )
-    try:
-        yield client
-    finally:
-        with contextlib.suppress(Exception):
-            client.disconnect()
-
-
-@pytest.fixture()
-def agent_client(server_endpoint: str) -> Iterator[socketio.Client]:
-    """
-    中文: 已连接到 Server 的 Agent 客户端（同步）。
-    English: Connected Agent client (sync).
-    """
-    with _socketio_client(server_endpoint) as c:
-        yield c
-
-
-@pytest.fixture()
-def computer_client(server_endpoint: str) -> Iterator[socketio.Client]:
-    """
-    中文: 已连接到 Server 的 Computer 客户端（同步）。
-    English: Connected Computer client (sync).
-    """
-    with _socketio_client(server_endpoint) as c:
-        yield c
+    config_file.write_text(json.dumps([config], ensure_ascii=False), encoding="utf-8")
+    return config_file
 
 
 # ============================================================================
@@ -248,10 +251,10 @@ def create_local_async_server() -> tuple[socketio.AsyncServer, socketio.AsyncNam
 
 
 @pytest.fixture
-def async_server_port() -> int:
+def async_integration_server_port() -> int:
     """
-    中文: 查找可用端口用于异步服务器。
-    English: Find an available TCP port for async server.
+    中文: 查找可用端口用于异步集成服务器。
+    English: Find an available TCP port for async integration server.
     """
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
@@ -261,62 +264,28 @@ def async_server_port() -> int:
 
 
 @pytest.fixture
-async def async_socketio_server(async_server_port: int):
+async def async_integration_socketio_server(async_integration_server_port: int):
     """
-    中文: 启动基于 SMCPNamespace 的异步测试服务器，返回命名空间。
-    English: Start async test server based on SMCPNamespace and return the namespace.
+    中文: 启动基于 SMCPNamespace 的异步集成测试服务器，返回命名空间。
+    English: Start async integration test server based on SMCPNamespace and return the namespace.
     """
     from tests.integration_tests.computer.socketio.mock_uv_server import UvicornTestServer
 
+    setup_start = time.time()
     sio, ns, asgi_app = create_local_async_server()
+    print(f"[E2E Fixture] Server creation took {time.time() - setup_start:.2f}s")
 
-    server = UvicornTestServer(asgi_app, port=async_server_port)
+    server_start = time.time()
+    server = UvicornTestServer(asgi_app, port=async_integration_server_port)
     await server.up()
+    print(f"[E2E Fixture] Server startup took {time.time() - server_start:.2f}s")
+
     try:
         yield ns
     finally:
+        shutdown_start = time.time()
+        # 强制快速关闭，不等待连接清理 / Force fast shutdown without waiting for connection cleanup
+        server.should_exit = True
+        server.force_exit = True
         await server.down()
-
-
-@pytest.fixture()
-async def async_agent_client(async_socketio_server, async_server_port: int):
-    """
-    中文: 已连接到异步 Server 的 Agent 客户端。
-    English: Connected Agent client (async).
-    """
-    client = socketio.AsyncClient()
-    await client.connect(
-        f"http://127.0.0.1:{async_server_port}",
-        socketio_path="/socket.io",
-        namespaces=[SMCP_NAMESPACE],
-        transports=["polling"],
-        wait=True,
-        wait_timeout=10,
-    )
-    try:
-        yield client
-    finally:
-        with contextlib.suppress(Exception):
-            await client.disconnect()
-
-
-@pytest.fixture()
-async def async_computer_client(async_socketio_server, async_server_port: int):
-    """
-    中文: 已连接到异步 Server 的 Computer 客户端。
-    English: Connected Computer client (async).
-    """
-    client = socketio.AsyncClient()
-    await client.connect(
-        f"http://127.0.0.1:{async_server_port}",
-        socketio_path="/socket.io",
-        namespaces=[SMCP_NAMESPACE],
-        transports=["polling"],
-        wait=True,
-        wait_timeout=10,
-    )
-    try:
-        yield client
-    finally:
-        with contextlib.suppress(Exception):
-            await client.disconnect()
+        print(f"[E2E Fixture] Server shutdown took {time.time() - shutdown_start:.2f}s")

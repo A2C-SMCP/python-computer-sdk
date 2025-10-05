@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -43,7 +44,7 @@ def test_history_after_tc(cli_proc: pexpect.spawn, tmp_path: Path) -> None:
         "forbidden_tools": [],
         "tool_meta": {"hello": {"auto_apply": True}},
         "server_parameters": {
-            "command": "python",
+            "command": sys.executable,  # 使用当前 Python 解释器 / Use current Python interpreter
             "args": [
                 "tests/integration_tests/computer/mcp_servers/direct_execution.py",
             ],

@@ -132,12 +132,15 @@ class SMCPComputerClient(AsyncClient):
         if self.office_id:
             await self.emit(UPDATE_DESKTOP_EVENT, UpdateComputerConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
 
-    async def on_tool_call(self, data: ToolCallReq) -> CallToolResult:
+    async def on_tool_call(self, data: ToolCallReq) -> dict:
         """
         信令服务器通知计算机端，有工具调用请求
 
         Args:
             data (ToolCallReq): 请求数据
+
+        Returns:
+            dict: 工具调用结果的字典表示（JSON 可序列化）
         """
         assert self.office_id == data["robot_id"], "房间名称与Agent信息名称不匹配"
         assert self.namespaces[SMCP_NAMESPACE] == data["computer"], "计算机标识不匹配"
@@ -148,9 +151,11 @@ class SMCPComputerClient(AsyncClient):
                 parameters=data["params"],
                 timeout=data["timeout"],
             )
-            return ret
+            # 将 CallToolResult 转换为字典以便 JSON 序列化 / Convert CallToolResult to dict for JSON serialization
+            return ret.model_dump(mode="json")
         except Exception as e:
-            return CallToolResult(isError=True, structuredContent={"error": str(e), "error_type": type(e).__name__}, content=[])
+            error_result = CallToolResult(isError=True, structuredContent={"error": str(e), "error_type": type(e).__name__}, content=[])
+            return error_result.model_dump(mode="json")
 
     async def on_get_tools(self, data: GetToolsReq) -> GetToolsRet:
         """

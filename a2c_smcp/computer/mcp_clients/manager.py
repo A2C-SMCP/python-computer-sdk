@@ -479,7 +479,7 @@ class MCPServerManager:
         Shallow merge ToolMeta: prefer per-tool meta; fallback to default for missing root-level fields.
         """
         specific = (config.tool_meta or {}).get(tool_name)
-        default = getattr(config, "default_tool_meta", None)
+        default = config.default_tool_meta
         if specific is None and default is None:
             return None
         if specific is None:

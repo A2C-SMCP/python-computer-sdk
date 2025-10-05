@@ -199,7 +199,7 @@ async def test_close_task_handles_non_cancel_error():
     async def evil_task():
         try:
             await asyncio.Event().wait()
-        except asyncio.CancelledError as e:  # noqa: PIE786
+        except asyncio.CancelledError as e:
             # 在取消时抛出其他异常 / raise non-cancel after cancel
             raise RuntimeError("boom-after-cancel") from e
 

@@ -29,6 +29,9 @@ def _server_cfg_for_script(name: str, script_rel_path: str) -> dict[str, Any]:
         "disabled": False,
         "forbidden_tools": [],
         "tool_meta": {},
+        "default_tool_meta": {
+            "auto_apply": True,
+        },
         "server_parameters": {
             "command": "python",
             "args": [script_rel_path],
@@ -100,13 +103,15 @@ def test_desktop_order_respects_recent_tool_calls(cli_proc: pexpect.spawn, tmp_p
     desktop_list = None
     for _ in range(10):
         desktop_list = _read_desktop_list()
-        if desktop_list and any("example.desktop.subscribe.b" in u for u in desktop_list) and any(
-            "example.desktop.subscribe" in u for u in desktop_list
+        if (
+            desktop_list
+            and any("example.desktop.subscribe.b" in u for u in desktop_list)
+            and any("example.desktop.subscribe" in u for u in desktop_list)
         ):
             break
-    assert desktop_list is not None and any(
-        "example.desktop.subscribe.b" in u for u in desktop_list
-    ), f"B windows not present after startup: {desktop_list}"
+    assert desktop_list is not None and any("example.desktop.subscribe.b" in u for u in desktop_list), (
+        f"B windows not present after startup: {desktop_list}"
+    )
     assert any("example.desktop.subscribe" in u for u in desktop_list), f"A windows not present: {desktop_list}"
 
     # 2) 通过 tc 调用 B 的工具 mark_b，形成最近调用记录

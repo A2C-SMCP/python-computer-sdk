@@ -94,7 +94,6 @@ class SMCPNamespace(BaseNamespace):
                 # 获取房间内所有参与者
                 # Get all participants in the room
                 participants = self.server.manager.get_participants(SMCP_NAMESPACE, room)
-                logger.debug(f"Room {room} participants: {participants}")
 
                 # 检查房间内是否已有Agent
                 # Check if there's already an Agent in the room
@@ -253,10 +252,12 @@ class SMCPNamespace(BaseNamespace):
         agent_call = TypeAdapter(AgentCallData).validate_python(data)
         assert sid == agent_call["robot_id"], "取消工具调用的广播仅可以由对应Agent发出"
 
+        # 广播到 office 房间，而不是 Agent 的私有房间 / Broadcast to office room, not Agent's private room
+        office_id = session.get("office_id")
         await self.emit(
             CANCEL_TOOL_CALL_NOTIFICATION,
             agent_call,
-            room=agent_call["robot_id"],
+            room=office_id,
             skip_sid=sid,
         )
 

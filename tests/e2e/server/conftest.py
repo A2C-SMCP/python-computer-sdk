@@ -15,18 +15,18 @@ import contextlib
 import multiprocessing
 import socket
 import time
-from collections.abc import Iterator
+from collections.abc import AsyncGenerator, Iterator
+from multiprocessing.synchronize import Event
 from typing import Any
 
 import pytest
 import socketio
-from socketio import Namespace, Server, WSGIApp
+from socketio import AsyncClient, Namespace, Server, WSGIApp
 from werkzeug.serving import make_server
 
 from a2c_smcp.server import SyncSMCPNamespace
 from a2c_smcp.server.sync_auth import SyncAuthenticationProvider
 from a2c_smcp.smcp import SMCP_NAMESPACE
-
 
 # ============================================================================
 # 中文: 本地同步服务器创建函数（从 _local_sync_server.py 复制而来）
@@ -81,7 +81,7 @@ def create_local_sync_server() -> tuple[Server, Namespace, WSGIApp]:
 # ============================================================================
 
 
-def _run_server_process(port: int, ready_event: multiprocessing.synchronize.Event) -> None:
+def _run_server_process(port: int, ready_event: Event) -> None:
     """
     中文: 在独立进程中运行服务器
     English: Run server in a separate process
@@ -199,3 +199,124 @@ def computer_client(server_endpoint: str) -> Iterator[socketio.Client]:
     """
     with _socketio_client(server_endpoint) as c:
         yield c
+
+
+# ============================================================================
+# 中文: 异步服务器相关 fixtures
+# English: Async server related fixtures
+# ============================================================================
+
+
+def create_local_async_server() -> tuple[socketio.AsyncServer, socketio.AsyncNamespace, Any]:
+    """
+    中文: 创建本地异步 SMCP 服务器，用于测试。
+    English: Create local async SMCP server for testing.
+    """
+    from a2c_smcp.server import SMCPNamespace
+    from a2c_smcp.server.auth import AuthenticationProvider
+
+    class _PassAsyncAuth(AuthenticationProvider):
+        """中文: 测试用的放行认证提供者 / English: Permissive auth provider for testing"""
+
+        async def get_agent_id(self, sio: socketio.AsyncServer, environ: dict) -> str:  # type: ignore[override]
+            return "test-agent"
+
+        async def authenticate(self, sio: socketio.AsyncServer, agent_id: str, auth: dict | None, headers: list) -> bool:  # type: ignore[override]
+            return True
+
+        async def has_admin_permission(self, sio: socketio.AsyncServer, agent_id: str, secret: str) -> bool:  # type: ignore[override]
+            return True
+
+    class LocalAsyncSMCPNamespace(SMCPNamespace):
+        """中文: 异步命名空间，继承自正式实现，仅替换认证 / English: Async namespace with test auth"""
+
+        def __init__(self) -> None:
+            super().__init__(auth_provider=_PassAsyncAuth())
+
+    sio = socketio.AsyncServer(
+        async_mode="asgi",
+        cors_allowed_origins="*",
+        logger=False,
+        engineio_logger=False,
+    )
+    # 避免关闭时后台任务异常 / avoid background task issues on shutdown
+    sio.eio.start_service_task = False
+    ns = LocalAsyncSMCPNamespace()
+    sio.register_namespace(ns)
+    app = socketio.ASGIApp(sio, socketio_path="/socket.io")
+    return sio, ns, app
+
+
+@pytest.fixture
+def async_server_port() -> int:
+    """
+    中文: 查找可用端口用于异步服务器。
+    English: Find an available TCP port for async server.
+    """
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    return port
+
+
+@pytest.fixture
+async def async_socketio_server(async_server_port: int):
+    """
+    中文: 启动基于 SMCPNamespace 的异步测试服务器，返回命名空间。
+    English: Start async test server based on SMCPNamespace and return the namespace.
+    """
+    from tests.integration_tests.computer.socketio.mock_uv_server import UvicornTestServer
+
+    sio, ns, asgi_app = create_local_async_server()
+
+    server = UvicornTestServer(asgi_app, port=async_server_port)
+    await server.up()
+    try:
+        yield ns
+    finally:
+        await server.down()
+
+
+@pytest.fixture()
+async def async_agent_client(async_socketio_server, async_server_port: int):
+    """
+    中文: 已连接到异步 Server 的 Agent 客户端。
+    English: Connected Agent client (async).
+    """
+    client = socketio.AsyncClient()
+    await client.connect(
+        f"http://127.0.0.1:{async_server_port}",
+        socketio_path="/socket.io",
+        namespaces=[SMCP_NAMESPACE],
+        transports=["polling"],
+        wait=True,
+        wait_timeout=10,
+    )
+    try:
+        yield client
+    finally:
+        with contextlib.suppress(Exception):
+            await client.disconnect()
+
+
+@pytest.fixture()
+async def async_computer_client(async_socketio_server, async_server_port: int):
+    """
+    中文: 已连接到异步 Server 的 Computer 客户端。
+    English: Connected Computer client (async).
+    """
+    client = socketio.AsyncClient()
+    await client.connect(
+        f"http://127.0.0.1:{async_server_port}",
+        socketio_path="/socket.io",
+        namespaces=[SMCP_NAMESPACE],
+        transports=["polling"],
+        wait=True,
+        wait_timeout=10,
+    )
+    try:
+        yield client
+    finally:
+        with contextlib.suppress(Exception):
+            await client.disconnect()

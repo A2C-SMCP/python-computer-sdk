@@ -319,9 +319,7 @@ async def async_socketio_server(async_server_port: int):
     finally:
         shutdown_start = time.time()
         # 强制快速关闭，不等待连接清理 / Force fast shutdown without waiting for connection cleanup
-        server.should_exit = True
-        server.force_exit = True
-        await server.down()
+        await server.down(force=True)
         print(f"[E2E] Async server shutdown in {time.time() - shutdown_start:.2f}s")
 
 

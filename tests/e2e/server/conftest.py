@@ -275,7 +275,8 @@ async def async_socketio_server(async_server_port: int):
     try:
         yield ns
     finally:
-        await server.down()
+        # 强制快速关闭，不等待连接清理 / Force fast shutdown without waiting for connection cleanup
+        await server.down(force=True)
 
 
 @pytest.fixture()

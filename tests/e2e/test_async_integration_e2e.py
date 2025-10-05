@@ -81,6 +81,11 @@ def _create_mcp_config(name: str, script_path: str) -> dict[str, Any]:
     中文: 创建 MCP Server 配置
     English: Create MCP Server config
     """
+    # 将相对路径转换为绝对路径，确保在不同工作目录下都能正确找到文件
+    # Convert relative path to absolute path to ensure file can be found in different working directories
+    project_root = Path(__file__).parent.parent.parent  # 从 tests/e2e/ 回到项目根目录 / Go back to project root from tests/e2e/
+    absolute_script_path = (project_root / script_path).resolve()
+
     return {
         "name": name,
         "type": "stdio",
@@ -90,7 +95,7 @@ def _create_mcp_config(name: str, script_path: str) -> dict[str, Any]:
         "default_tool_meta": {"auto_apply": True},
         "server_parameters": {
             "command": sys.executable,  # 使用当前 Python 解释器 / Use current Python interpreter
-            "args": [script_path],
+            "args": [str(absolute_script_path)],
             "env": None,
             "cwd": None,
             "encoding": "utf-8",
@@ -430,12 +435,17 @@ async def test_async_integration_computer_leave_notification(
         # 3. 等待事件传播 / Wait for event propagation
         await asyncio.sleep(1.0)
 
-        # 等待 Agent 收到加入通知 / Wait for Agent to receive join notification
+        # 等待 Agent 收到加入通知并完成工具获取 / Wait for Agent to receive join notification and complete tool fetching
         assert await _wait_until(lambda: len(event_handler.enter_office_events) >= 1, timeout=5)
+        assert await _wait_until(lambda: len(event_handler.tools_received_events) >= 1, timeout=5), (
+            "Agent did not receive tools from Computer"
+        )
 
         # 3. Computer 离开办公室 / Computer leaves office
         await computer_client.leave_office(office_id)
+        t = time.time()
         await computer_client.disconnect()
+        print(f"[E2E Test2] Computer Client disconnect took {time.time() - t:.2f}s")
 
         # 3. 验证 Agent 收到离开通知 / Verify Agent received leave notification
         assert await _wait_until(lambda: len(event_handler.leave_office_events) >= 1, timeout=5), (
@@ -445,7 +455,9 @@ async def test_async_integration_computer_leave_notification(
         leave_event = event_handler.leave_office_events[0]
         assert leave_event["office_id"] == office_id
         assert "computer" in leave_event
-
+    except Exception as e:
+        print(f"测试未通过 : {e}")
+        pytest.fail(f"Error: {e}")
     finally:
         # 清理资源 / Cleanup resources
         await agent_client.disconnect()
@@ -570,7 +582,9 @@ async def test_async_integration_multiple_tool_calls(
             assert result.isError is False, f"Concurrent tool call {i} failed: {result}"
             assert len(result.content) >= 1
             assert "ok:mark_a" in result.content[0].text
-
+    except Exception as e:
+        print(f"测试未通过 : {e}")
+        pytest.fail(f"Error: {e}")
     finally:
         # 清理资源 / Cleanup resources
         # 先断开 Agent / Disconnect Agent first

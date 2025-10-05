@@ -59,8 +59,8 @@ def create_local_sync_server() -> tuple[Server, Namespace, WSGIApp]:
     """中文: 创建同步 Socket.IO Server 并注册本地命名空间 / English: Create sync Socket.IO Server with local namespace"""
     sio = Server(
         cors_allowed_origins="*",
-        ping_timeout=60,
-        ping_interval=25,
+        ping_timeout=5,  # 中文: 测试环境使用较短超时 / English: Use shorter timeout for testing
+        ping_interval=3,  # 中文: 测试环境使用较短间隔 / English: Use shorter interval for testing
         async_handlers=True,  # 如果想使用 call 方法，则必定需要将此参数设置为True / Required for call method
         always_connect=True,
     )
@@ -239,6 +239,8 @@ def create_local_async_server() -> tuple[socketio.AsyncServer, socketio.AsyncNam
     sio = socketio.AsyncServer(
         async_mode="asgi",
         cors_allowed_origins="*",
+        ping_timeout=5,  # 中文: 测试环境使用较短超时 / English: Use shorter timeout for testing
+        ping_interval=3,  # 中文: 测试环境使用较短间隔 / English: Use shorter interval for testing
         logger=False,
         engineio_logger=False,
     )
@@ -284,8 +286,7 @@ async def async_integration_socketio_server(async_integration_server_port: int):
         yield ns
     finally:
         shutdown_start = time.time()
+        print(f"[E2E Fixture] Starting shutdown Server {shutdown_start}")
         # 强制快速关闭，不等待连接清理 / Force fast shutdown without waiting for connection cleanup
-        server.should_exit = True
-        server.force_exit = True
-        await server.down()
+        await server.down(force=True)
         print(f"[E2E Fixture] Server shutdown took {time.time() - shutdown_start:.2f}s")

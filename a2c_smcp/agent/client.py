@@ -211,7 +211,7 @@ class AsyncSMCPAgentClient(AsyncClient, BaseAgentClient):
             return GetToolsRet(tools=response.get("tools", []), req_id=response["req_id"])
 
         except Exception as e:
-            logger.error(f"Failed to get tools from computer {computer}: {e}")
+            logger.error(f"Failed to get tools from computer {computer}: {e}", exc_info=True)
             raise
 
     def register_event_handlers(self) -> None:
@@ -244,7 +244,7 @@ class AsyncSMCPAgentClient(AsyncClient, BaseAgentClient):
             await self.process_tools_response(tools_response, computer)
 
         except Exception as e:
-            logger.error(f"Error in _on_computer_enter_office: {e}")
+            logger.error(f"Error in _on_computer_enter_office: {e}", exc_info=True)
 
     async def _on_computer_leave_office(self, data: LeaveOfficeNotification) -> None:
         """

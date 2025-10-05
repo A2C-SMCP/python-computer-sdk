@@ -43,7 +43,7 @@ from mcp.types import (
     ToolListChangedNotification,
 )
 from prompt_toolkit import PromptSession
-from pydantic import TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 
 from a2c_smcp.computer.base import BaseComputer
 from a2c_smcp.computer.desktop.organize import organize_desktop
@@ -581,14 +581,16 @@ class Computer(BaseComputer[PromptSession]):
                 for k, v in t.meta.items():
                     if not is_attr(v):
                         try:
-                            meta[k] = json.dumps(v)
+                            # 无论是 BaseModel 还是其他复杂类型，都序列化为 JSON 字符串
+                            # Serialize both BaseModel and other complex types to JSON string
+                            meta[k] = json.dumps(v.model_dump(mode="json")) if isinstance(v, BaseModel) else json.dumps(v)
                         except Exception as e:
                             logger.error(f"无法序列化工具元数据{k}:{v}", exc_info=e)
                             meta[k] = str(v)
                     else:
                         meta[k] = v
             if t.annotations:
-                meta["MCP_TOOL_ANNOTATION"] = t.annotations.model_dump(mode="json")
+                meta["MCP_TOOL_ANNOTATION"] = json.dumps(t.annotations.model_dump(mode="json"))
             return SMCPTool(name=t.name, description=t.description, params_schema=t.inputSchema, return_schema=t.outputSchema, meta=meta)
 
         mcp_tools = [convert_tool(t) for t in tools]

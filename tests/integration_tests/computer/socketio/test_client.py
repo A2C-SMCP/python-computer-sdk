@@ -56,7 +56,8 @@ async def computer_server(basic_server_port: int) -> AsyncGenerator[MockComputer
     server = UvicornTestServer(asgi_app, port=basic_server_port)
     await server.up()
     yield sio.namespace_handlers[SMCP_NAMESPACE]  # 返回命名空间处理器以便测试中访问
-    await server.down()
+    # 强制快速关闭，不等待连接清理 / Force fast shutdown without waiting for connection cleanup
+    await server.down(force=True)
 
 
 @pytest.mark.asyncio

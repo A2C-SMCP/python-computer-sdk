@@ -15,11 +15,9 @@ from mcp.types import CallToolResult, TextContent
 from socketio import Namespace, Server
 
 from a2c_smcp.smcp import (
-    GET_DESKTOP_EVENT,
     ENTER_OFFICE_NOTIFICATION,
     SMCP_NAMESPACE,
     UPDATE_CONFIG_NOTIFICATION,
-    UPDATE_DESKTOP_EVENT,
     UPDATE_DESKTOP_NOTIFICATION,
     EnterOfficeNotification,
     EnterOfficeReq,

@@ -94,3 +94,118 @@ async def test_server_order_by_recent_history():
 async def test_size_zero_returns_empty():
     ret = await organize_desktop(windows=[], size=0, history=tuple())
     assert ret == []
+
+
+@pytest.mark.asyncio
+async def test_skip_empty_contents_and_detail_exception():
+    """
+    空内容与 detail.contents 访问异常会被跳过。
+    Empty contents and exception when accessing detail.contents should be skipped.
+    """
+    from types import SimpleNamespace as NS
+
+    from mcp.types import ReadResourceResult, TextResourceContents
+
+    # 空 contents -> 被跳过
+    empty_detail = ReadResourceResult(contents=[])
+    # 访问 contents 抛出异常 -> 被跳过
+
+    class BadDetail:
+        def __getattribute__(self, name):
+            if name == "contents":
+                raise RuntimeError("boom")
+            return super().__getattribute__(name)
+
+    ok_detail = ReadResourceResult(contents=[TextResourceContents(text="ok", uri="window://S/ok")])
+
+    windows = [
+        ("S", NS(uri="window://S/empty"), empty_detail),
+        ("S", NS(uri="window://S/bad"), BadDetail()),
+        ("S", NS(uri="window://S/ok"), ok_detail),
+    ]
+    ret = await organize_desktop(windows=windows, size=None, history=tuple())
+    # 仅保留 ok 窗口
+    assert len(ret) == 1 and ret[0].startswith("window://S/ok") and "ok" in ret[0]
+
+
+@pytest.mark.asyncio
+async def test_invalid_window_uri_is_skipped():
+    """
+    非法的 URI 解析失败会被跳过。
+    Invalid WindowURI should be skipped when parsing fails.
+    """
+    from types import SimpleNamespace as NS
+
+    from mcp.types import ReadResourceResult, TextResourceContents
+
+    bad_detail = ReadResourceResult(contents=[TextResourceContents(text="bad", uri="bad://whatever")])
+    good_detail = ReadResourceResult(contents=[TextResourceContents(text="good", uri="window://G/good")])
+
+    windows = [
+        ("G", NS(uri=":::this_is_not_a_uri"), bad_detail),  # 将触发 WindowURI 解析失败
+        ("G", NS(uri="window://G/good"), good_detail),
+    ]
+    ret = await organize_desktop(windows=windows, size=None, history=tuple())
+    # 仅包含合法 URI
+    assert len(ret) == 1 and ret[0].startswith("window://G/good") and "good" in ret[0]
+
+
+@pytest.mark.asyncio
+async def test_render_blob_and_unknown_and_render_exception():
+    """
+    渲染分支：
+    - BlobResourceContents -> 仅记录日志，不加入文本
+    - 未知类型 -> 仅记录错误日志
+    - 渲染异常 -> 捕获并回退为 URI 字符串
+    Rendering branches: Blob, unknown type, and exception fallback.
+    """
+    from types import SimpleNamespace as NS
+
+    from mcp.types import BlobResourceContents, ReadResourceResult, TextResourceContents
+
+    # Blob + 文本混合 -> 返回包含 URI 与文本（Blob 不追加文本）
+    detail_blob = ReadResourceResult(contents=[
+        BlobResourceContents(uri="window://R/blob", mimeType="application/octet-stream", blob="eHg="),
+        TextResourceContents(uri="window://R/blob", text="t1"),
+    ])
+    # 为了触发 _render 的未知类型分支，先创建合法实例，再在运行期覆盖 contents
+    detail_unknown = ReadResourceResult(contents=[TextResourceContents(uri="window://R/u", text="t2")])
+    detail_unknown.contents = [object(), TextResourceContents(uri="window://R/u", text="t2")]
+    # 渲染异常：contents 不是可迭代对象 -> TypeError -> except 分支返回纯 URI
+    detail_exception = ReadResourceResult(contents=[TextResourceContents(uri="window://R/ex", text="ex")])
+    detail_exception.contents = 123  # 非可迭代
+
+    windows = [
+        ("R", NS(uri="window://R/blob"), detail_blob),
+        ("R", NS(uri="window://R/u"), detail_unknown),
+        ("R", NS(uri="window://R/ex"), detail_exception),
+    ]
+    ret = await organize_desktop(windows=windows, size=None, history=tuple())
+    # 断言：
+    # 1) blob 项包含文本 t1（Blob 本身不拼接文本）
+    assert any(x.startswith("window://R/blob") and "t1" in x for x in ret)
+    # 2) unknown 类型不影响已有文本 t2
+    assert any(x.startswith("window://R/u") and "t2" in x for x in ret)
+    # 3) 渲染异常时仅返回 URI
+    assert any(x == "window://R/ex" for x in ret)
+
+
+@pytest.mark.asyncio
+async def test_server_level_cap_breaks_iteration():
+    """
+    当第一个服务器已满足 size 上限时，后续服务器在服务器层级立即中断。
+    When cap reached after first server, loop breaks before processing later servers.
+    """
+    from types import SimpleNamespace as NS
+
+    from mcp.types import ReadResourceResult, TextResourceContents
+
+    d_a = ReadResourceResult(contents=[TextResourceContents(uri="window://A/a", text="a")])
+    d_b = ReadResourceResult(contents=[TextResourceContents(uri="window://B/b", text="b")])
+    windows = [
+        ("A", NS(uri="window://A/a"), d_a),
+        ("B", NS(uri="window://B/b"), d_b),
+    ]
+    # 使用 history 让 A 在前，size=1 使得在进入 B 时触发服务器层级的 break
+    ret = await organize_desktop(windows=windows, size=1, history=({"server": "A"},))
+    assert len(ret) == 1 and ret[0].startswith("window://A/a")

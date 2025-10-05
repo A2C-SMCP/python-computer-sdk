@@ -61,6 +61,21 @@ class MCPServerManager:
         """通过名称获取服务配置"""
         return self._servers_config[server_name]
 
+    def get_tool_meta(self, server_name: SERVER_NAME, tool_name: TOOL_NAME) -> ToolMeta | None:
+        """
+        中文: 获取指定服务器下某工具合并后的元数据（优先具体 tool_meta，缺失字段回落 default_tool_meta）。
+        English: Get merged ToolMeta for a tool under the given server (specific overrides; fallback to default).
+
+        Args:
+            server_name (SERVER_NAME): 服务器名称 / server name
+            tool_name (TOOL_NAME): 工具原始名称或别名解析后的名称 / tool name
+
+        Returns:
+            ToolMeta | None: 合并后的工具元数据；若两侧均为空返回 None / merged ToolMeta or None if both absent.
+        """
+        config = self.get_server_config(server_name)
+        return self._merged_tool_meta(config, tool_name)
+
     async def enable_auto_connect(self) -> None:
         """启用自动连接"""
         async with self._lock:

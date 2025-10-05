@@ -539,14 +539,19 @@ class Computer(BaseComputer[PromptSession]):
         # 中文: 统一记录输出，保证任何返回路径都能记录历史
         # English: Unify return to ensure we always record call history
         server_name, tool_name = await self.mcp_manager.avalidate_tool_call(tool_name, parameters)
-        server_config = self.mcp_manager.get_server_config(server_name)
 
         ts = datetime.now(UTC).isoformat()
         success: bool = False
         error_msg: str | None = None
 
         try:
-            if server_config.tool_meta.get(tool_name) and server_config.tool_meta[tool_name].auto_apply:
+            # 中文: 通过 Manager 获取合并后的 ToolMeta（specific 优先，缺失字段回落 default_tool_meta）
+            # English: Use Manager to get merged ToolMeta (specific overrides; fallback to default_tool_meta)
+            merged_meta = self.mcp_manager.get_tool_meta(server_name, tool_name)
+
+            # 中文: 仅当合并结果的 auto_apply 显式为 True 时直接执行；否则进入二次确认流程
+            # English: Only execute directly if merged auto_apply is explicitly True; otherwise require confirmation
+            if merged_meta is not None and merged_meta.auto_apply is True:
                 result = await self.mcp_manager.acall_tool(server_name, tool_name, parameters, timeout)
             else:
                 # 除非明确允许 auto_apply 否则均需要调用二次确认回调进行确认

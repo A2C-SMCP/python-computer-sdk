@@ -19,13 +19,16 @@ from a2c_smcp.agent.types import AsyncAgentEventHandler
 from a2c_smcp.smcp import (
     CANCEL_TOOL_CALL_EVENT,
     ENTER_OFFICE_NOTIFICATION,
+    GET_DESKTOP_EVENT,
     GET_TOOLS_EVENT,
     LEAVE_OFFICE_NOTIFICATION,
     SMCP_NAMESPACE,
     TOOL_CALL_EVENT,
     UPDATE_CONFIG_NOTIFICATION,
+    UPDATE_DESKTOP_NOTIFICATION,
     AgentCallData,
     EnterOfficeNotification,
+    GetDeskTopRet,
     GetToolsRet,
     LeaveOfficeNotification,
     UpdateMCPConfigNotification,
@@ -219,6 +222,7 @@ class AsyncSMCPAgentClient(AsyncClient, BaseAgentClient):
         self.on(ENTER_OFFICE_NOTIFICATION, self._on_computer_enter_office, namespace=SMCP_NAMESPACE)
         self.on(LEAVE_OFFICE_NOTIFICATION, self._on_computer_leave_office, namespace=SMCP_NAMESPACE)
         self.on(UPDATE_CONFIG_NOTIFICATION, self._on_computer_update_config, namespace=SMCP_NAMESPACE)
+        self.on(UPDATE_DESKTOP_NOTIFICATION, self._on_desktop_updated, namespace=SMCP_NAMESPACE)
 
     async def _on_computer_enter_office(self, data: EnterOfficeNotification) -> None:
         """
@@ -301,3 +305,38 @@ class AsyncSMCPAgentClient(AsyncClient, BaseAgentClient):
 
         except Exception as e:
             logger.error(f"Error processing tools response: {e}")
+
+    async def get_desktop_from_computer(
+        self,
+        computer: str,
+        *,
+        size: int | None = None,
+        window: str | None = None,
+        timeout: int = 20,
+    ) -> GetDeskTopRet:
+        """
+        异步从指定计算机获取桌面信息
+        Async get desktop from specified computer
+        """
+        req = self.create_get_desktop_request(computer, size=size, window=window)
+        logger.debug(f"Getting desktop from computer {computer}, size={size}, window={window}")
+        response = await self.call(GET_DESKTOP_EVENT, req, namespace=SMCP_NAMESPACE, timeout=timeout)
+        if response.get("req_id") != req["req_id"]:
+            raise ValueError("Invalid response with mismatched req_id for desktop")
+        return GetDeskTopRet(desktops=response.get("desktops", []), req_id=response["req_id"])  # type: ignore[return-value]
+
+    async def _on_desktop_updated(self, data: dict) -> None:
+        """
+        处理桌面更新通知：默认自动拉取一次桌面。
+        Handle desktop updated notification: automatically fetch desktop once.
+        """
+        try:
+            computer = data.get("computer")
+            if not computer:
+                logger.warning("UPDATE_DESKTOP_NOTIFICATION missing 'computer'")
+                return
+            ret = await self.get_desktop_from_computer(computer)
+            # 复用基类同步处理器（仅日志），未来可扩展异步回调
+            self.process_desktop_response(ret, computer)
+        except Exception as e:
+            logger.error(f"Error handling desktop updated notification: {e}")

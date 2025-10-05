@@ -12,16 +12,20 @@ from socketio import AsyncClient
 from a2c_smcp.computer.computer import Computer
 from a2c_smcp.smcp import (
     GET_CONFIG_EVENT,
+    GET_DESKTOP_EVENT,
     GET_TOOLS_EVENT,
     JOIN_OFFICE_EVENT,
     LEAVE_OFFICE_EVENT,
     SMCP_NAMESPACE,
     TOOL_CALL_EVENT,
     UPDATE_CONFIG_EVENT,
+    UPDATE_DESKTOP_EVENT,
     UPDATE_TOOL_LIST_EVENT,
     EnterOfficeReq,
     GetComputerConfigReq,
     GetComputerConfigRet,
+    GetDeskTopReq,
+    GetDeskTopRet,
     GetToolsReq,
     GetToolsRet,
     LeaveOfficeReq,
@@ -48,6 +52,7 @@ class SMCPComputerClient(AsyncClient):
         self.on(TOOL_CALL_EVENT, self.on_tool_call, namespace=SMCP_NAMESPACE)
         self.on(GET_TOOLS_EVENT, self.on_get_tools, namespace=SMCP_NAMESPACE)
         self.on(GET_CONFIG_EVENT, self.on_get_config, namespace=SMCP_NAMESPACE)
+        self.on(GET_DESKTOP_EVENT, self.on_get_desktop, namespace=SMCP_NAMESPACE)
         self.office_id: str | None = None
 
     async def emit(self, event: str, data: Any = None, namespace: str | None = SMCP_NAMESPACE, callback: Any = None) -> None:
@@ -119,6 +124,14 @@ class SMCPComputerClient(AsyncClient):
         if self.office_id:
             await self.emit(UPDATE_TOOL_LIST_EVENT, UpdateComputerConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
 
+    async def emit_refresh_desktop(self) -> None:
+        """
+        桌面刷新触发：当资源列表或资源内容变化时，通知信令服务器。服务端会广播 notify:update_desktop。
+        Desktop refresh trigger: notify server when resources list/content changed; server will broadcast notify:update_desktop.
+        """
+        if self.office_id:
+            await self.emit(UPDATE_DESKTOP_EVENT, UpdateComputerConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
+
     async def on_tool_call(self, data: ToolCallReq) -> CallToolResult:
         """
         信令服务器通知计算机端，有工具调用请求
@@ -152,6 +165,24 @@ class SMCPComputerClient(AsyncClient):
         mcp_tools = await self.computer.aget_available_tools()
 
         return GetToolsRet(tools=mcp_tools, req_id=data["req_id"])
+
+    async def on_get_desktop(self, data: GetDeskTopReq) -> GetDeskTopRet:
+        """
+        获取当前计算机桌面（窗口资源组织后的视图）。
+        Get current desktop organized from window resources.
+
+        Args:
+            data (GetDeskTopReq): 请求数据（包含 computer, robot_id, req_id 等）。
+
+        Returns:
+            GetDeskTopRet: 桌面数据与 req_id。
+        """
+        assert self.office_id == data["robot_id"], "房间名称与Agent信息名称不匹配"
+        assert self.namespaces[SMCP_NAMESPACE] == data["computer"], "计算机标识不匹配"
+        size = data.get("desktop_size")
+        window_uri = data.get("window")
+        desktops = await self.computer.get_desktop(size=size, window_uri=window_uri)
+        return GetDeskTopRet(desktops=desktops, req_id=data["req_id"])
 
     async def on_get_config(self, data: GetComputerConfigReq) -> GetComputerConfigRet:
         """

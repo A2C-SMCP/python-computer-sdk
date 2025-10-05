@@ -18,15 +18,19 @@ from a2c_smcp.server.types import OFFICE_ID, SID
 from a2c_smcp.smcp import (
     CANCEL_TOOL_CALL_NOTIFICATION,
     ENTER_OFFICE_NOTIFICATION,
+    GET_DESKTOP_EVENT,
     GET_TOOLS_EVENT,
     LEAVE_OFFICE_NOTIFICATION,
     SMCP_NAMESPACE,
     TOOL_CALL_EVENT,
     UPDATE_CONFIG_NOTIFICATION,
+    UPDATE_DESKTOP_NOTIFICATION,
     UPDATE_TOOL_LIST_NOTIFICATION,
     AgentCallData,
     EnterOfficeNotification,
     EnterOfficeReq,
+    GetDeskTopReq,
+    GetDeskTopRet,
     GetToolsReq,
     GetToolsRet,
     LeaveOfficeNotification,
@@ -352,3 +356,47 @@ class SMCPNamespace(BaseNamespace):
         )
 
         return TypeAdapter(GetToolsRet).validate_python(client_response)
+
+    async def on_client_get_desktop(self, sid: str, data: GetDeskTopReq) -> GetDeskTopRet:
+        """
+        获取指定Computer的桌面信息（窗口组织后的视图）。
+        Get desktop view from specified Computer.
+
+        要求：Agent 与 Computer 需在同一 office。
+        """
+        computer_sid = data["computer"]
+        session = await self.get_session(computer_sid)
+        assert session["role"] == "computer", "目前仅支持Computer获取桌面"
+
+        agent_session = await self.get_session(sid)
+        computer_office_id = session.get("office_id")
+        agent_office_id = agent_session.get("office_id")
+        assert computer_office_id == agent_office_id, "目前仅支持Agent获取自己房间内Computer的桌面"
+
+        client_response = await self.call(
+            GET_DESKTOP_EVENT,
+            data,
+            to=data["computer"],
+            namespace=SMCP_NAMESPACE,
+        )
+        return TypeAdapter(GetDeskTopRet).validate_python(client_response)
+
+    async def on_server_update_desktop(self, sid: str, data: UpdateComputerConfigReq) -> None:
+        """
+        将事件广播至对应的房间内其他参与者，通知桌面刷新。
+        Broadcast to others in the room to notify desktop update.
+
+        Args:
+            sid (str): 发起者ID，应为Computer / Initiator ID, should be Computer
+            data (UpdateComputerConfigReq): 载荷复用 UpdateConfigReq，仅需 computer 标识
+        """
+        session = await self.get_session(sid)
+        assert session["role"] == "computer", "目前仅支持Computer上报桌面刷新"
+
+        update_req = TypeAdapter(UpdateComputerConfigReq).validate_python(data)
+        await self.emit(
+            UPDATE_DESKTOP_NOTIFICATION,
+            {"computer": update_req["computer"]},
+            room=session.get("office_id"),
+            skip_sid=sid,
+        )

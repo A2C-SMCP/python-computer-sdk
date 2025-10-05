@@ -18,6 +18,7 @@ from a2c_smcp.server import (
     SMCPNamespace,
 )
 from a2c_smcp.smcp import SMCP_NAMESPACE, EnterOfficeReq, LeaveOfficeReq
+from a2c_smcp.smcp import GetDeskTopReq, GetDeskTopRet, UPDATE_DESKTOP_NOTIFICATION, UPDATE_DESKTOP_EVENT, GET_DESKTOP_EVENT
 
 
 class MockAuthProvider(AuthenticationProvider):

@@ -35,7 +35,13 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from mcp import Tool, types
 from mcp.shared.session import RequestResponder
-from mcp.types import CallToolResult, TextContent, ToolListChangedNotification
+from mcp.types import (
+    CallToolResult,
+    ResourceListChangedNotification,
+    ResourceUpdatedNotification,
+    TextContent,
+    ToolListChangedNotification,
+)
 from prompt_toolkit import PromptSession
 from pydantic import TypeAdapter
 
@@ -49,6 +55,7 @@ from a2c_smcp.computer.types import ToolCallRecord
 from a2c_smcp.smcp import Desktop, SMCPTool
 from a2c_smcp.types import AttributeValue
 from a2c_smcp.utils.logger import logger
+from a2c_smcp.utils.window_uri import is_window_uri
 
 if TYPE_CHECKING:
     # 仅用于类型检查，避免运行时引入依赖/循环引用
@@ -101,6 +108,9 @@ class Computer(BaseComputer[PromptSession]):
         # English: Tool call history (keep last 10). Protected by asyncio.Lock for cross-coroutine safety
         self._tool_call_history = deque(maxlen=10)
         self._tool_call_history_lock = asyncio.Lock()
+        # 窗口缓存（仅记录满足 WindowURI 的资源 URI，避免无关资源导致刷新）
+        # Windows cache (only URIs that conform to WindowURI to avoid irrelevant refresh triggers)
+        self._windows_cache: set[str] = set()
 
     # 工具调用历史类型已抽取到 a2c_smcp/computer/types.py 的 ToolCallRecord 供多处复用
     # The tool call record type is extracted to ToolCallRecord for reuse across modules
@@ -190,8 +200,70 @@ class Computer(BaseComputer[PromptSession]):
                 await client.emit_update_tool_list()
             except Exception as e:  # pragma: no cover
                 logger.error(f"上报工具变更失败: {e}")
+        elif isinstance(message.root, ResourceListChangedNotification):
+            # 仅当 window:// 集合发生变化时触发刷新；否则记录日志以便后续策略调整
+            client = self.socketio_client
+            if client is None:
+                logger.debug("Socket.IO 客户端不存在或已释放，忽略桌面刷新上报")
+                return
+            try:
+                new_windows = await self._acollect_window_uris()
+            except Exception as e:  # pragma: no cover
+                logger.error(f"收集窗口资源失败，跳过刷新: {e}")
+                return
+
+            if new_windows != self._windows_cache:
+                added = sorted(new_windows - self._windows_cache)
+                removed = sorted(self._windows_cache - new_windows)
+                logger.info(
+                    "WindowURI 列表发生变化，将触发桌面刷新 | Window list changed, refreshing desktop. "
+                    f"added={len(added)}, removed={len(removed)}",
+                )
+                if added:
+                    logger.debug(f"新增窗口: {added}")
+                if removed:
+                    logger.debug(f"移除窗口: {removed}")
+                self._windows_cache = new_windows
+                try:
+                    await client.emit_refresh_desktop()
+                except Exception as e:  # pragma: no cover
+                    logger.error(f"上报桌面刷新失败: {e}")
+            else:
+                # 打印关键信息帮助开发者判断策略是否需要更新
+                logger.info(
+                    "收到 ResourceListChangedNotification 但 WindowURI 未变化，跳过刷新 / "
+                    "Resource list changed but WindowURI set unchanged, skip refresh",
+                )
+        elif isinstance(message.root, ResourceUpdatedNotification):
+            # 资源内容更新：若是 window:// 则直接触发刷新（不比较集合，降低延迟）
+            client = self.socketio_client
+            if client is None:
+                logger.debug("Socket.IO 客户端不存在或已释放，忽略桌面刷新上报")
+                return
+            try:
+                uri = getattr(getattr(message.root, "params", None), "uri", None)
+                if uri is None or not is_window_uri(str(uri)):
+                    logger.debug("收到资源更新但非 WindowURI，放行 / Non-window resource updated, ignore")
+                    return
+                await client.emit_refresh_desktop()
+            except Exception as e:  # pragma: no cover
+                logger.error(f"上报桌面刷新失败: {e}")
         else:
             logger.warning(f"收到未处理的变化类型: {message}，当前版本仅处理工具列表变化")
+
+    async def _acollect_window_uris(self) -> set[str]:
+        """
+        收集当前所有 MCP Server 的 WindowURI 集合（去重）。
+        Collect deduplicated set of WindowURIs across all active MCP servers.
+
+        Returns:
+            set[str]: WindowURI 集合
+        """
+        if not self.mcp_manager:
+            return set()
+        pairs = await self.mcp_manager.list_windows()
+        # 仅保留符合 WindowURI 协议的资源
+        return {str(res.uri) for _srv, res in pairs if is_window_uri(str(res.uri))}
 
     async def _arender_and_validate_server(
         self,

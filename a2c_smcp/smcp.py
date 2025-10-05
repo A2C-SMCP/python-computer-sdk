@@ -19,11 +19,15 @@ SMCP_NAMESPACE = "/smcp"
 TOOL_CALL_EVENT = "client:tool_call"
 GET_CONFIG_EVENT = "client:get_config"
 GET_TOOLS_EVENT = "client:get_tools"
+GET_DESKTOP_EVENT = "client:get_desktop"
 # 服务端事件 由server:开头的事件服务端执行
 JOIN_OFFICE_EVENT = "server:join_office"
 LEAVE_OFFICE_EVENT = "server:leave_office"
 UPDATE_CONFIG_EVENT = "server:update_config"
 UPDATE_TOOL_LIST_EVENT = "server:update_tool_list"
+# 桌面刷新事件：当资源列表或资源内容变化时，由Computer端通知Server广播。
+# 中文: 当需要让Agent刷新桌面时，由Computer触发此事件。英文: Computer emits this when Agent should refresh desktop.
+UPDATE_DESKTOP_EVENT = "server:update_desktop"
 CANCEL_TOOL_CALL_EVENT = "server:tool_call_cancel"
 # NOTIFY 通知事件  通知事件全部由Server发出（一般由Client触发其它事件，在响应这些事件时，Server发出通知）
 #   1. 比如 AgentClient 发出 server:tool_call_cancel 事件，服务端接收后，发起 notify:tool_call_cancel 通知
@@ -34,6 +38,8 @@ ENTER_OFFICE_NOTIFICATION = "notify:enter_office"  # AgentClient必须实现 以
 LEAVE_OFFICE_NOTIFICATION = "notify:leave_office"  # AgentClient必须实现 以此，配合 client:get_config 与 client:get_tools 更新工具配置
 UPDATE_CONFIG_NOTIFICATION = "notify:update_config"  # AgentClient必须实现 以此，配合 client:get_config
 UPDATE_TOOL_LIST_NOTIFICATION = "notify:update_tool_list"  # AgentClient必须实现，通过 client:get_tools 实现更新工具配置
+# 桌面刷新通知：Server接收 server:update_desktop 后广播。Agent据此拉取最新桌面。
+UPDATE_DESKTOP_NOTIFICATION = "notify:update_desktop"
 
 
 class AgentCallData(TypedDict):
@@ -267,7 +273,7 @@ class UpdateToolListNotification(TypedDict, total=False):
     computer: str  # 被更新的Computer sid / The computer SID whose tools changed
 
 
-class GetDeskTopReq(TypedDict, total=True):
+class GetDeskTopReq(AgentCallData, total=True):
     """
     获取当前Computer的桌面信息。
     """
@@ -287,3 +293,4 @@ class GetDeskTopRet(TypedDict, total=False):
     """
 
     desktops: list[Desktop]
+    req_id: str

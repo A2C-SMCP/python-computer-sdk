@@ -123,11 +123,18 @@ class SMCPNamespace(BaseNamespace):
         session["office_id"] = room
         await self.save_session(sid, session)
 
+        # 根据角色发送不同的通知 / Send different notifications based on role
+        notification_data: EnterOfficeNotification = {"office_id": room}
+        if session.get("role") == "computer":
+            notification_data["computer"] = sid
+        else:
+            notification_data["agent"] = sid
+
         # 广播加入新房间的消息至房间内其它人
         # Broadcast join message to others in the room
         await self.emit(
             ENTER_OFFICE_NOTIFICATION,
-            EnterOfficeNotification(office_id=room, computer=sid),
+            notification_data,
             skip_sid=sid,
             room=room,
         )

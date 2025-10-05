@@ -337,6 +337,8 @@ def test_tool_call_forward_sync(startup_and_shutdown_local_sync_server, sync_ser
     def _on_tool_call(data: dict):  # noqa: ANN001
         received["count"] += 1
         received["data"] = data
+        # 返回响应给 Agent
+        return {"ok": True, "echo": data}
 
     def run_computer_client():
         """在独立线程中运行Computer客户端"""
@@ -392,14 +394,13 @@ def test_tool_call_forward_sync(startup_and_shutdown_local_sync_server, sync_ser
             timeout=15,
         )
 
-        # 同步命名空间返回固定确认信息
-        assert isinstance(res, dict) and res.get("status") == "sent"
+        # 同步命名空间现在使用 call 方法，等待 Computer 响应
+        assert isinstance(res, dict), f"期望返回 dict，实际返回: {type(res)}"
+        assert res.get("ok") is True, f"期望 ok=True，实际返回: {res}"
+        assert res.get("echo") is not None, f"期望有 echo 字段，实际返回: {res}"
 
-        # 等待Computer端接收事件
-        time.sleep(0.5)
+        # 验证 Computer 收到了工具调用
         assert received["count"] == 1, f"Computer应该收到1次工具调用事件，实际收到{received['count']}次"
-
-        # 验证接收到的数据
         assert received["data"] is not None
         assert received["data"]["tool_name"] == "echo"
         assert received["data"]["params"]["text"] == "hi"

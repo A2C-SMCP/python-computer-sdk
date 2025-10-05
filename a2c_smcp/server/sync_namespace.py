@@ -18,15 +18,19 @@ from a2c_smcp.server.types import OFFICE_ID, SID
 from a2c_smcp.smcp import (
     CANCEL_TOOL_CALL_NOTIFICATION,
     ENTER_OFFICE_NOTIFICATION,
+    GET_DESKTOP_EVENT,
     GET_TOOLS_EVENT,
     LEAVE_OFFICE_NOTIFICATION,
     SMCP_NAMESPACE,
     TOOL_CALL_EVENT,
     UPDATE_CONFIG_NOTIFICATION,
+    UPDATE_DESKTOP_NOTIFICATION,
     UPDATE_TOOL_LIST_NOTIFICATION,
     AgentCallData,
     EnterOfficeNotification,
     EnterOfficeReq,
+    GetDeskTopReq,
+    GetDeskTopRet,
     GetToolsReq,
     GetToolsRet,
     LeaveOfficeNotification,
@@ -91,9 +95,16 @@ class SyncSMCPNamespace(SyncBaseNamespace):
         session["office_id"] = room
         self.save_session(sid, session)
 
+        # 根据角色发送不同的通知 / Send different notifications based on role
+        notification_data: EnterOfficeNotification = {"office_id": room}
+        if session.get("role") == "computer":
+            notification_data["computer"] = sid
+        else:
+            notification_data["agent"] = sid
+
         self.emit(
             ENTER_OFFICE_NOTIFICATION,
-            EnterOfficeNotification(office_id=room, computer=sid),
+            notification_data,
             skip_sid=sid,
             room=room,
         )
@@ -155,8 +166,8 @@ class SyncSMCPNamespace(SyncBaseNamespace):
 
     def on_server_tool_call_cancel(self, sid: str, data: AgentCallData) -> None:
         """
-        同步：广播取消ToolCall
-        Sync: broadcast tool call cancellation
+        同步：广播取消ToolCall到房间内的其他成员
+        Sync: broadcast tool call cancellation to other members in the room
         """
         session = self.get_session(sid)
         assert session["role"] == "agent", "目前仅支持Agent调用取消ToolCall的操作"
@@ -164,10 +175,12 @@ class SyncSMCPNamespace(SyncBaseNamespace):
         agent_call = TypeAdapter(AgentCallData).validate_python(data)
         assert sid == agent_call["robot_id"], "取消工具调用的广播仅可以由对应Agent发出"
 
+        # 广播到 office 房间，而不是 Agent 的私有房间 / Broadcast to office room, not Agent's private room
+        office_id = session.get("office_id")
         self.emit(
             CANCEL_TOOL_CALL_NOTIFICATION,
             agent_call,
-            room=agent_call["robot_id"],
+            room=office_id,
             skip_sid=sid,
         )
 
@@ -206,18 +219,21 @@ class SyncSMCPNamespace(SyncBaseNamespace):
 
     def on_client_tool_call(self, sid: str, data: dict) -> dict:
         """
-        同步：响应工具调用（注意：同步服务端没有原生的等待回调API，因此这里采用向目标房间直接emit的方式，
-        具体响应聚合应由上层业务处理。）
-        Sync: respond to tool call. Note: sync server lacks await/call semantics, we emit directly.
+        同步：响应工具调用，使用 call 方法等待 Computer 返回结果
+        Sync: respond to tool call, use call method to wait for Computer response
         """
         session = self.get_session(sid)
         assert session["role"] == "agent", "目前仅支持Agent调用工具"
 
         tool_call = TypeAdapter(dict).validate_python(data)
-        # 直接转发事件
-        self.emit(TOOL_CALL_EVENT, tool_call, room=tool_call["computer"], skip_sid=sid)
-        # 返回一个确认信息（同步模式下由调用方自行处理回调）
-        return {"status": "sent"}
+        
+        # 使用 call 方法调用 Computer，等待返回结果 / Use call method to invoke Computer and wait for result
+        return self.call(
+            TOOL_CALL_EVENT,
+            tool_call,
+            to=tool_call["computer"],
+            namespace=SMCP_NAMESPACE,
+        )
 
     def on_client_get_tools(self, sid: str, data: GetToolsReq) -> GetToolsRet:
         """
@@ -241,3 +257,48 @@ class SyncSMCPNamespace(SyncBaseNamespace):
         )
 
         return TypeAdapter(GetToolsRet).validate_python(client_response)
+
+    def on_client_get_desktop(self, sid: str, data: GetDeskTopReq) -> GetDeskTopRet:
+        """
+        同步：获取指定Computer的桌面信息（窗口组织后的视图）
+        Sync: get desktop view from specified Computer
+
+        要求：Agent 与 Computer 需在同一 office / Requirement: Agent and Computer must be in the same office
+        """
+        computer_sid = data["computer"]
+        session = self.get_session(computer_sid)
+        assert session["role"] == "computer", "目前仅支持Computer获取桌面"
+
+        agent_session = self.get_session(sid)
+        computer_office_id = session.get("office_id")
+        agent_office_id = agent_session.get("office_id")
+        assert computer_office_id == agent_office_id, "目前仅支持Agent获取自己房间内Computer的桌面"
+
+        client_response = self.call(
+            GET_DESKTOP_EVENT,
+            data,
+            to=data["computer"],
+            namespace=SMCP_NAMESPACE,
+        )
+
+        return TypeAdapter(GetDeskTopRet).validate_python(client_response)
+
+    def on_server_update_desktop(self, sid: str, data: UpdateComputerConfigReq) -> None:
+        """
+        同步：将事件广播至对应的房间内其他参与者，通知桌面刷新
+        Sync: broadcast to others in the room to notify desktop update
+
+        Args:
+            sid (str): 发起者ID，应为Computer / Initiator ID, should be Computer
+            data (UpdateComputerConfigReq): 载荷复用 UpdateConfigReq，仅需 computer 标识
+        """
+        session = self.get_session(sid)
+        assert session["role"] == "computer", "目前仅支持Computer上报桌面刷新"
+
+        update_req = TypeAdapter(UpdateComputerConfigReq).validate_python(data)
+        self.emit(
+            UPDATE_DESKTOP_NOTIFICATION,
+            {"computer": update_req["computer"]},
+            room=session.get("office_id"),
+            skip_sid=sid,
+        )

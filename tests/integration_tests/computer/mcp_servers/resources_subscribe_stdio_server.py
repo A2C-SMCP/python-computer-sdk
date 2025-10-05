@@ -59,7 +59,7 @@ class TestServer(LowLevelServer):
 
 
 # 预置若干窗口资源 / preset window resources
-WINDOW_HOST = "example.desktop.subscribe"
+WINDOW_HOST = "example.desktop.subscribe.a"
 WINDOW_RESOURCES: list[types.Resource] = [
     types.Resource(
         uri=f"window://{WINDOW_HOST}/main?priority=60",
@@ -96,10 +96,29 @@ async def run() -> None:
     @server.read_resource()
     async def read_resource(uri: types.AnyUrl):
         text = (
-            f"# Window Resource (subscribe)\n\nURI: {uri}\n\n中文: 这是订阅版测试窗口内容。\n"
-            f"英文: This is subscribed test window content.\n"
+            f"# Window Resource (subscribe)\n\nURI: {uri}\n\n中文: 这是订阅版A测试窗口内容。\n"
+            f"英文: This is subscribed-A test window content.\n"
         )
         return text
+
+    # 工具列表与调用处理器 / tools listing and calling handlers
+    # 中文: 提供一个简单工具 mark_a，便于在测试中通过 tc 切换“最近调用服务”为 A。
+    # 英文: Provide a simple tool `mark_a` so tests can switch the "most-recently-called server" to A via tc.
+    @server.list_tools()
+    async def list_tools() -> list[types.Tool]:
+        return [
+            types.Tool(
+                name="mark_a",
+                description="中文: 标记A; 英文: mark A",
+                inputSchema={"type": "object", "properties": {}},
+            ),
+        ]
+
+    @server.call_tool()
+    async def call_tool(name: str, arguments: dict | None):  # noqa: ARG001
+        # 中文: 回显工具名，便于 CLI 端确认调用已发生。
+        # 英文: Echo tool name so the CLI can confirm the call happened.
+        return [types.TextContent(type="text", text=f"ok:{name}")]
 
     # 订阅与取消订阅 / subscribe and unsubscribe
     @server.subscribe_resource()

@@ -32,8 +32,8 @@ CANCEL_TOOL_CALL_EVENT = "server:tool_call_cancel"
 CANCEL_TOOL_CALL_NOTIFICATION = "notify:tool_call_cancel"
 ENTER_OFFICE_NOTIFICATION = "notify:enter_office"  # AgentClient必须实现 以此，配合 client:get_config 与 client:get_tools 更新工具配置
 LEAVE_OFFICE_NOTIFICATION = "notify:leave_office"  # AgentClient必须实现 以此，配合 client:get_config 与 client:get_tools 更新工具配置
-UPDATE_CONFIG_NOTIFICATION = "notify:update_config"  # AgentClient必须实现 以此，配合 client:get_config 与 client:get_tools 更新工具配置
-UPDATE_TOOL_LIST_NOTIFICATION = "notify:update_tool_list"  # AgentClient必须实现 用于通知工具列表更新
+UPDATE_CONFIG_NOTIFICATION = "notify:update_config"  # AgentClient必须实现 以此，配合 client:get_config
+UPDATE_TOOL_LIST_NOTIFICATION = "notify:update_tool_list"  # AgentClient必须实现，通过 client:get_tools 实现更新工具配置
 
 
 class AgentCallData(TypedDict):

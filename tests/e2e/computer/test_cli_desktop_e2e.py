@@ -106,13 +106,13 @@ def test_desktop_order_respects_recent_tool_calls(cli_proc: pexpect.spawn, tmp_p
         if (
             desktop_list
             and any("example.desktop.subscribe.b" in u for u in desktop_list)
-            and any("example.desktop.subscribe" in u for u in desktop_list)
+            and any("example.desktop.subscribe.a" in u for u in desktop_list)
         ):
             break
     assert desktop_list is not None and any("example.desktop.subscribe.b" in u for u in desktop_list), (
         f"B windows not present after startup: {desktop_list}"
     )
-    assert any("example.desktop.subscribe" in u for u in desktop_list), f"A windows not present: {desktop_list}"
+    assert any("example.desktop.subscribe.a" in u for u in desktop_list), f"A windows not present: {desktop_list}"
 
     # 2) 通过 tc 调用 B 的工具 mark_b，形成最近调用记录
     tool_req = {
@@ -136,7 +136,7 @@ def test_desktop_order_respects_recent_tool_calls(cli_proc: pexpect.spawn, tmp_p
     # - B 的 windows 在前（board priority=85，再是 main priority=50）
     # - A 的 fullscreen dashboard 随后（fullscreen 只取第一个）
     assert any("example.desktop.subscribe.b" in u for u in desktop_list), f"no B windows: {desktop_list}"
-    assert any("example.desktop.subscribe" in u for u in desktop_list), f"no A windows: {desktop_list}"
+    assert any("example.desktop.subscribe.a" in u for u in desktop_list), f"no A windows: {desktop_list}"
 
     # 找到 B 的两个窗口位置
     b_board_idx = next((i for i, u in enumerate(desktop_list) if "/board" in u), None)
@@ -145,3 +145,54 @@ def test_desktop_order_respects_recent_tool_calls(cli_proc: pexpect.spawn, tmp_p
 
     assert b_board_idx is not None and b_main_idx is not None and a_dash_idx is not None, desktop_list
     assert b_board_idx < b_main_idx < a_dash_idx, f"order mismatch: {desktop_list}"
+
+    # 4) 通过 tc 调用 A 的工具 mark_a，再次获取 desktop 列表并断言顺序翻转：
+    #    - A 的 fullscreen /dashboard 在最前（fullscreen 只取第一个）
+    #    - 随后是 B 的 board 与 main（85 与 50）
+    tool_req_a = {
+        "robot_id": "r-e2e",
+        "req_id": "req-e2e-2",
+        "computer": "client",
+        "tool_name": "mark_a",  # 由 A server 提供
+        "params": {},
+        "timeout": 5,
+    }
+    tf_a = tmp_path / "toolcall_mark_a.json"
+    tf_a.write_text(json.dumps(tool_req_a, ensure_ascii=False), encoding="utf-8")
+    child.sendline(f"tc @{tf_a}")
+    expect_prompt_stable(child, quiet=0.6, max_wait=12.0)
+
+    desktop_list = _read_desktop_list() or []
+    assert any("example.desktop.subscribe.b" in u for u in desktop_list), f"no B windows after A: {desktop_list}"
+    assert any("example.desktop.subscribe.a" in u for u in desktop_list), f"no A windows after A: {desktop_list}"
+
+    # A 的 fullscreen dashboard 应位于最前
+    a_dash_idx = next((i for i, u in enumerate(desktop_list) if "/dashboard" in u), None)
+    b_board_idx = next((i for i, u in enumerate(desktop_list) if "/board" in u), None)
+    b_main_idx = next((i for i, u in enumerate(desktop_list) if "/main" in u and "subscribe.b" in u), None)
+    assert a_dash_idx is not None and b_board_idx is not None and b_main_idx is not None, desktop_list
+    assert a_dash_idx < b_board_idx < b_main_idx, f"order mismatch after A: {desktop_list}"
+
+    # 5) 再次调用 B 的工具 mark_b，验证顺序再次回到 B 优先
+    tool_req_b2 = {
+        "robot_id": "r-e2e",
+        "req_id": "req-e2e-3",
+        "computer": "client",
+        "tool_name": "mark_b",
+        "params": {},
+        "timeout": 5,
+    }
+    tf_b2 = tmp_path / "toolcall_mark_b_2.json"
+    tf_b2.write_text(json.dumps(tool_req_b2, ensure_ascii=False), encoding="utf-8")
+    child.sendline(f"tc @{tf_b2}")
+    expect_prompt_stable(child, quiet=0.6, max_wait=12.0)
+
+    desktop_list = _read_desktop_list() or []
+    assert any("example.desktop.subscribe.b" in u for u in desktop_list), f"no B windows after B2: {desktop_list}"
+    assert any("example.desktop.subscribe.a" in u for u in desktop_list), f"no A windows after B2: {desktop_list}"
+
+    b_board_idx = next((i for i, u in enumerate(desktop_list) if "/board" in u), None)
+    b_main_idx = next((i for i, u in enumerate(desktop_list) if "/main" in u and "subscribe.b" in u), None)
+    a_dash_idx = next((i for i, u in enumerate(desktop_list) if "/dashboard" in u), None)
+    assert b_board_idx is not None and b_main_idx is not None and a_dash_idx is not None, desktop_list
+    assert b_board_idx < b_main_idx < a_dash_idx, f"order mismatch after B2: {desktop_list}"

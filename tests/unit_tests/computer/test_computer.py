@@ -23,6 +23,7 @@ from a2c_smcp.computer.mcp_clients.model import (
     MCPServerPromptStringInput,
     StdioServerConfig,
     StdioServerParameters,
+    ToolMeta,
 )
 
 
@@ -196,10 +197,8 @@ async def test_aexecute_tool_auto_apply(monkeypatch):
     mock_manager = MagicMock(spec=MCPServerManager)
     # avalidate_tool_call返回(server, tool)
     mock_manager.avalidate_tool_call = AsyncMock(return_value=("server", "tool"))
-    # get_server_config返回有auto_apply的config
-    mock_server_config = MagicMock()
-    mock_server_config.tool_meta = {"tool": MagicMock(auto_apply=True)}
-    mock_manager.get_server_config = MagicMock(return_value=mock_server_config)
+    # get_tool_meta 返回 auto_apply=True 的合并元数据
+    mock_manager.get_tool_meta = MagicMock(return_value=ToolMeta(auto_apply=True))
     # acall_tool直接返回result
     mock_result = MagicMock()
     mock_manager.acall_tool = AsyncMock(return_value=mock_result)
@@ -218,9 +217,8 @@ async def test_aexecute_tool_confirm_callback_apply(monkeypatch):
     """
     mock_manager = MagicMock(spec=MCPServerManager)
     mock_manager.avalidate_tool_call = AsyncMock(return_value=("server", "tool"))
-    mock_server_config = MagicMock()
-    mock_server_config.tool_meta = {"tool": MagicMock(auto_apply=False)}
-    mock_manager.get_server_config = MagicMock(return_value=mock_server_config)
+    # get_tool_meta 返回 auto_apply=False，走 confirm_callback=True 分支
+    mock_manager.get_tool_meta = MagicMock(return_value=ToolMeta(auto_apply=False))
     mock_result = MagicMock()
     mock_manager.acall_tool = AsyncMock(return_value=mock_result)
     monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
@@ -239,9 +237,8 @@ async def test_aexecute_tool_confirm_callback_reject(monkeypatch):
     """
     mock_manager = MagicMock(spec=MCPServerManager)
     mock_manager.avalidate_tool_call = AsyncMock(return_value=("server", "tool"))
-    mock_server_config = MagicMock()
-    mock_server_config.tool_meta = {"tool": MagicMock(auto_apply=False)}
-    mock_manager.get_server_config = MagicMock(return_value=mock_server_config)
+    # get_tool_meta 返回 auto_apply=False，走 confirm_callback False 分支
+    mock_manager.get_tool_meta = MagicMock(return_value=ToolMeta(auto_apply=False))
     monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
     computer = Computer(confirm_callback=lambda *_: False)
     await computer.boot_up()
@@ -257,9 +254,8 @@ async def test_aexecute_tool_confirm_callback_timeout(monkeypatch):
     """
     mock_manager = MagicMock(spec=MCPServerManager)
     mock_manager.avalidate_tool_call = AsyncMock(return_value=("server", "tool"))
-    mock_server_config = MagicMock()
-    mock_server_config.tool_meta = {"tool": MagicMock(auto_apply=False)}
-    mock_manager.get_server_config = MagicMock(return_value=mock_server_config)
+    # 改为通过 get_tool_meta 控制 auto_apply=False
+    mock_manager.get_tool_meta = MagicMock(return_value=ToolMeta(auto_apply=False))
     monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
 
     def raise_timeout(*_):
@@ -280,9 +276,8 @@ async def test_aexecute_tool_confirm_callback_exception(monkeypatch):
     """
     mock_manager = MagicMock(spec=MCPServerManager)
     mock_manager.avalidate_tool_call = AsyncMock(return_value=("server", "tool"))
-    mock_server_config = MagicMock()
-    mock_server_config.tool_meta = {"tool": MagicMock(auto_apply=False)}
-    mock_manager.get_server_config = MagicMock(return_value=mock_server_config)
+    # 使用 get_tool_meta 控制 auto_apply=False（触发 confirm_callback 异常分支）
+    mock_manager.get_tool_meta = MagicMock(return_value=ToolMeta(auto_apply=False))
     monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
 
     def raise_exc(*_):
@@ -303,9 +298,8 @@ async def test_aexecute_tool_no_confirm_callback(monkeypatch):
     """
     mock_manager = MagicMock(spec=MCPServerManager)
     mock_manager.avalidate_tool_call = AsyncMock(return_value=("server", "tool"))
-    mock_server_config = MagicMock()
-    mock_server_config.tool_meta = {"tool": MagicMock(auto_apply=False)}
-    mock_manager.get_server_config = MagicMock(return_value=mock_server_config)
+    # 使用 get_tool_meta 控制 auto_apply=False（无 confirm_callback 分支）
+    mock_manager.get_tool_meta = MagicMock(return_value=ToolMeta(auto_apply=False))
     monkeypatch.setattr("a2c_smcp.computer.computer.MCPServerManager", lambda *a, **kw: mock_manager)
     computer = Computer()
     await computer.boot_up()

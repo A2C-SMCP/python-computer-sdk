@@ -55,6 +55,8 @@ class _FakeMgr:
     def __init__(self) -> None:  # noqa: D401
         self._validated: tuple[str, dict] | None = None
         self._called: tuple[str, str, dict, float | None] | None = None
+        # 记录 get_tool_meta 调用 / record get_tool_meta calls
+        self._get_meta_calls: list[tuple[str, str]] = []
 
     async def avalidate_tool_call(self, tool_name: str, params: dict) -> tuple[str, str]:  # noqa: D401
         # 回传 (server_name, tool_name)
@@ -65,6 +67,13 @@ class _FakeMgr:
         class _Cfg:
             tool_meta = {}
         return _Cfg()
+
+    # 新增: 兼容 Manager.get_tool_meta 新接口 / new API for merged tool meta
+    def get_tool_meta(self, server_name: str, tool_name: str):  # noqa: D401
+        # 记录调用并返回 None，表示无强制 auto_apply，由上层 confirm_callback 决定
+        # Record invocation and return None so confirm_callback path is used
+        self._get_meta_calls.append((server_name, tool_name))
+        return None
 
     async def acall_tool(self, server: str, tool: str, params: dict, timeout: float | None):  # noqa: D401
         self._called = (server, tool, params, timeout)
@@ -119,6 +128,8 @@ async def test_tc_json_calls_execute(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     assert tool == "tool/x"
     assert params == {"a": 1}
     assert isinstance(timeout, float) and timeout == 3.0
+    # 新增断言：应调用 get_tool_meta 以决定 auto_apply 行为
+    assert mgr._get_meta_calls == [("s1", "tool/x")]
 
 
 @pytest.mark.asyncio

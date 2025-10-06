@@ -226,7 +226,7 @@ class SyncSMCPNamespace(SyncBaseNamespace):
         assert session["role"] == "agent", "目前仅支持Agent调用工具"
 
         tool_call = TypeAdapter(dict).validate_python(data)
-        
+
         # 使用 call 方法调用 Computer，等待返回结果 / Use call method to invoke Computer and wait for result
         return self.call(
             TOOL_CALL_EVENT,

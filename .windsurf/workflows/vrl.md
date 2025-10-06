@@ -95,8 +95,7 @@ else:
 
 ---
 
-在此基础上，你帮我：
-
-1. 在当前项目（Poetry）中添加 vrl-python
-2. 在 smcp 协议相关结构（BaseMCPServerConfig）定义中，添加 vrl 配置，可空。如果配置了，在初始化时调用语法诊断，如果语法异常，则直接抛出错误
-3. 在调用 Computer ToolCall的时候，返回时，如果当前有配置vrl，则尝试将TC返回值序列化为字典作为Event传入。如果可以正常出结果，则写入到返回的Meta数据里，定一个全局约定的Key值，与当前的A2C... 一样的写法即可。默认Key值你来定。转换完成后，使用json.dumps压缩存储，因为Meta要求是简单数据结构，因此不能递归嵌套字典。
+✅ pyproject.toml - 添加 vrl-python 依赖
+✅ a2c_smcp/smcp.py - 添加 vrl 字段定义（TypedDict）
+✅ a2c_smcp/computer/mcp_clients/model.py - 添加 vrl 字段、验证器和常量
+✅ a2c_smcp/computer/mcp_clients/manager.py - 集成 VRL 转换逻辑

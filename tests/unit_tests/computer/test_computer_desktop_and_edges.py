@@ -15,7 +15,6 @@
 English: Cover missing branches in computer.py.
 """
 
-import asyncio
 from types import SimpleNamespace
 from typing import Any
 
@@ -45,8 +44,6 @@ async def test_on_manager_change_tool_list_changed_triggers_emit(monkeypatch: py
     client = _DummyClient()
     comp.socketio_client = client  # weakref setter
 
-    # 构造 ToolListChangedNotification 样本
-    msg = SimpleNamespace(root=SimpleNamespace(__class__=type("ToolListChangedNotification", (), {})))
     # 直接设置类型名不方便，使用 mcp.types 实例化更复杂；这里依赖 isinstance 仅检查类名不可靠。
     # 因 computer.py 使用 'from mcp.types import ToolListChangedNotification' 并直接 isinstance，
     # 我们改为导入真实类型来创建对象。
@@ -123,7 +120,7 @@ async def test_acollect_window_uris_filters_and_none_manager(monkeypatch: pytest
     assert await comp._acollect_window_uris() == set()
 
     # 注入假的 manager 和资源
-    class _Res:
+    class _Res:  # noqa: B903
         def __init__(self, uri: str) -> None:
             self.uri = uri
 

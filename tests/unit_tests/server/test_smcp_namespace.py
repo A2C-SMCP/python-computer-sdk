@@ -17,8 +17,16 @@ from a2c_smcp.server import (
     DefaultAuthenticationProvider,
     SMCPNamespace,
 )
-from a2c_smcp.smcp import SMCP_NAMESPACE, EnterOfficeReq, LeaveOfficeReq
-from a2c_smcp.smcp import GetDeskTopReq, GetDeskTopRet, UPDATE_DESKTOP_NOTIFICATION, UPDATE_DESKTOP_EVENT, GET_DESKTOP_EVENT
+from a2c_smcp.smcp import (
+    GET_DESKTOP_EVENT,
+    SMCP_NAMESPACE,
+    UPDATE_DESKTOP_EVENT,
+    UPDATE_DESKTOP_NOTIFICATION,
+    EnterOfficeReq,
+    GetDeskTopReq,
+    GetDeskTopRet,
+    LeaveOfficeReq,
+)
 
 
 class MockAuthProvider(AuthenticationProvider):

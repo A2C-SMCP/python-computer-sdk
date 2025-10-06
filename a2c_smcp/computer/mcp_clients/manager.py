@@ -396,9 +396,21 @@ class MCPServerManager:
                     # English: Try to serialize CallToolResult to dict as VRL Event input
                     event = result.model_dump(mode="json")
 
-                    # 中文: 执行VRL转换
-                    # English: Execute VRL transformation
-                    vrl_result = VRLRuntime.run(config.vrl, event)
+                    # 中文: 执行VRL转换（使用系统本地时区）
+                    # English: Execute VRL transformation (use system local timezone)
+                    # 获取系统时区名称，例如 "Asia/Shanghai" 或 "America/New_York"
+                    # Get system timezone name, e.g., "Asia/Shanghai" or "America/New_York"
+                    # VRL需要IANA时区名称，尝试从tzlocal获取；若失败则使用UTC
+                    # VRL requires IANA timezone name; try to get from tzlocal, fallback to UTC
+                    try:
+                        import tzlocal
+
+                        timezone_name = str(tzlocal.get_localzone())
+                    except Exception:
+                        # 如果无法获取本地时区，回退到UTC / Fallback to UTC if local timezone unavailable
+                        timezone_name = "UTC"
+
+                    vrl_result = VRLRuntime.run(config.vrl, event, timezone=timezone_name)
                     transformed_event = vrl_result.processed_event
 
                     # 中文: 将转换后的结果压缩为JSON字符串存入Meta（因为Meta要求简单数据结构）

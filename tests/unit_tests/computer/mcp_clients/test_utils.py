@@ -22,13 +22,28 @@ from a2c_smcp.computer.mcp_clients.utils import client_factory
 class StdioServerConfigFactory(ModelFactory[StdioServerConfig]):
     __model__ = StdioServerConfig
 
+    @classmethod
+    def vrl(cls) -> str | None:
+        """生成有效的VRL脚本或None / Generate valid VRL script or None"""
+        return cls.__random__.choice([None, '.result = "success"', '.transformed = true'])
+
 
 class SseServerConfigFactory(ModelFactory[SseServerConfig]):
     __model__ = SseServerConfig
 
+    @classmethod
+    def vrl(cls) -> str | None:
+        """生成有效的VRL脚本或None / Generate valid VRL script or None"""
+        return cls.__random__.choice([None, '.result = "success"', '.transformed = true'])
+
 
 class StreamableHttpServerConfigFactory(ModelFactory[StreamableHttpServerConfig]):
     __model__ = StreamableHttpServerConfig
+
+    @classmethod
+    def vrl(cls) -> str | None:
+        """生成有效的VRL脚本或None / Generate valid VRL script or None"""
+        return cls.__random__.choice([None, '.result = "success"', '.transformed = true'])
 
 
 @pytest.mark.parametrize(

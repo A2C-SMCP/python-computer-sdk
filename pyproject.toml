@@ -13,6 +13,7 @@ dependencies = [
     "pydantic (>=2.11.7,<3.0.0)",
     "transitions (>=0.9.3,<0.10.0)",
     "python-socketio (>=5.13.0,<6.0.0)",
+    "vrl-python (>=0.1.0,<0.2.0)",
 ]
 
 [project.optional-dependencies]

@@ -5,14 +5,16 @@
 # @Software: PyCharm
 import asyncio
 import copy
+import json
 from collections import defaultdict
 from collections.abc import AsyncGenerator, Iterable
 from typing import Any
 
 from mcp.client.session import MessageHandlerFnT
 from mcp.types import CallToolResult, ReadResourceResult, Resource, Tool
+from vrl_python import VRLRuntime
 
-from a2c_smcp.computer.mcp_clients.model import A2C_TOOL_META, MCPClientProtocol, MCPServerConfig, ToolMeta
+from a2c_smcp.computer.mcp_clients.model import A2C_TOOL_META, A2C_VRL_TRANSFORMED, MCPClientProtocol, MCPServerConfig, ToolMeta
 from a2c_smcp.computer.mcp_clients.utils import client_factory
 from a2c_smcp.types import SERVER_NAME, TOOL_NAME
 from a2c_smcp.utils.logger import logger
@@ -385,6 +387,35 @@ class MCPServerManager:
                     result.meta.setdefault(A2C_TOOL_META, {}).update(tool_meta)
                 else:
                     result.meta = {A2C_TOOL_META: tool_meta}
+
+            # 中文: 如果配置了VRL脚本，尝试对返回值进行转换
+            # English: If VRL script is configured, try to transform the return value
+            if config.vrl:
+                try:
+                    # 中文: 尝试将CallToolResult序列化为字典作为VRL的Event输入
+                    # English: Try to serialize CallToolResult to dict as VRL Event input
+                    event = result.model_dump(mode="json")
+
+                    # 中文: 执行VRL转换
+                    # English: Execute VRL transformation
+                    vrl_result = VRLRuntime.run(config.vrl, event)
+                    transformed_event = vrl_result.processed_event
+
+                    # 中文: 将转换后的结果压缩为JSON字符串存入Meta（因为Meta要求简单数据结构）
+                    # English: Compress transformed result to JSON string for Meta (Meta requires simple data structure)
+                    if result.meta is None:
+                        result.meta = {}
+                    result.meta[A2C_VRL_TRANSFORMED] = json.dumps(transformed_event, ensure_ascii=False)
+
+                    logger.debug(f"VRL转换成功 / VRL transformation succeeded for tool '{tool_name}'")
+                except Exception as e:
+                    # 中文: VRL转换失败不影响正常返回，仅记录警告日志
+                    # English: VRL transformation failure doesn't affect normal return, just log warning
+                    logger.warning(
+                        f"VRL转换失败 / VRL transformation failed for tool '{tool_name}': {e}. "
+                        f"原始结果将正常返回 / Original result will be returned normally.",
+                    )
+
             return result
         except TimeoutError:
             raise TimeoutError(f"Tool '{tool_name}' execution timed out") from None

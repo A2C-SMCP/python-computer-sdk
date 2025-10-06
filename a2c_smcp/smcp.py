@@ -111,6 +111,9 @@ class BaseMCPServerConfig(TypedDict):
     # 默认工具元数据（可选）。当某个具体工具未在 tool_meta 中提供专门配置时，使用该默认配置。
     # Default tool metadata (optional). Used when a specific tool has no explicit entry in tool_meta.
     default_tool_meta: NotRequired[ToolMeta | None]
+    # VRL脚本（可选）。用于对工具返回值进行动态转换和格式化。如果配置了VRL脚本，在初始化时会进行语法检查。
+    # VRL script (optional). Used to dynamically transform and format tool return values. Syntax check on initialization.
+    vrl: NotRequired[str | None]
 
 
 # --- MCPServer 配置，参考借鉴： ---

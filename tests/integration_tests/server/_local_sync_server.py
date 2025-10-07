@@ -16,13 +16,7 @@ from a2c_smcp.server.sync_auth import SyncAuthenticationProvider
 
 
 class _PassSyncAuth(SyncAuthenticationProvider):
-    def get_agent_id(self, sio: Server, environ: dict) -> str:  # type: ignore[override]
-        return "test-agent"
-
-    def authenticate(self, sio: Server, agent_id: str, auth: dict | None, headers: list) -> bool:  # type: ignore[override]
-        return True
-
-    def has_admin_permission(self, sio: Server, agent_id: str, secret: str) -> bool:  # type: ignore[override]
+    def authenticate(self, sio: Server, environ: dict, auth: dict | None, headers: list) -> bool:  # type: ignore[override]
         return True
 
 

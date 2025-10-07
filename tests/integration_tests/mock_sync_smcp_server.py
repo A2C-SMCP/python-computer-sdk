@@ -18,8 +18,11 @@ from a2c_smcp.smcp import (
     ENTER_OFFICE_NOTIFICATION,
     SMCP_NAMESPACE,
     UPDATE_CONFIG_NOTIFICATION,
+    UPDATE_DESKTOP_NOTIFICATION,
     EnterOfficeNotification,
     EnterOfficeReq,
+    GetDeskTopReq,
+    GetDeskTopRet,
     GetToolsReq,
     GetToolsRet,
     SMCPTool,
@@ -111,6 +114,19 @@ class MockSyncSMCPNamespace(Namespace):
         ]
 
         return GetToolsRet(tools=tools, req_id=data["req_id"])
+
+    def on_client_get_desktop(self, sid: str, data: GetDeskTopReq) -> GetDeskTopRet:
+        """处理获取桌面请求（返回固定桌面数据）。"""
+        logger.info(f"Agent {sid} 拉取桌面数据 size={data.get('desktop_size')}")
+        desktops = ["window://mock\n\nhello world"]
+        return GetDeskTopRet(desktops=desktops, req_id=data["req_id"])
+
+    def on_server_update_desktop(self, sid: str, data: dict) -> tuple[bool, str | None]:
+        """处理桌面更新请求并广播通知。"""
+        logger.info(f"Computer {sid} 请求广播桌面更新")
+        computer = data.get("computer", sid)
+        self.emit(UPDATE_DESKTOP_NOTIFICATION, {"computer": computer}, skip_sid=sid)
+        return True, None
 
 
 def create_sync_smcp_socketio() -> Server:

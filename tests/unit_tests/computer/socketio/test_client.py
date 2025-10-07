@@ -79,9 +79,9 @@ async def test_on_tool_call_error_handling():
     }
 
     ret = await client.on_tool_call(req)
-    assert ret.isError is True
-    assert ret.structuredContent is not None
-    assert ret.structuredContent.get("error_type") == "RuntimeError"
+    assert ret["isError"] is True
+    assert ret["structuredContent"] is not None
+    assert ret["structuredContent"].get("error_type") == "RuntimeError"
 
 
 @pytest.mark.asyncio

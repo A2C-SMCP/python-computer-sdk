@@ -26,6 +26,7 @@ from a2c_smcp.computer.computer import Computer
 from a2c_smcp.computer.mcp_clients.model import MCPServerInput as MCPServerInputModel
 from a2c_smcp.smcp import MCPServerConfig as SMCPServerConfigDict
 from a2c_smcp.smcp import MCPServerInput as SMCPServerInputDict
+from a2c_smcp.smcp import ToolCallReq as SMCPToolCallReq
 
 # 定义上下文管理器类型
 ContextManager = AbstractContextManager[None]
@@ -98,6 +99,12 @@ async def interactive_loop(
             help_table.add_row("inputs value set <id> <json|text>", "设置指定 id 的值 / set cached value by id")
             help_table.add_row("inputs value rm <id>", "删除指定 id 的值 / remove cached value by id")
             help_table.add_row("inputs value clear [<id>]", "清空全部或指定 id 的缓存 / clear all or one cached value")
+            help_table.add_row("tc <json|@file>", "使用与 Socket.IO 一致的 JSON 结构调试工具 / debug tool with Socket.IO-compatible JSON")
+            help_table.add_row(
+                "desktop [size] [window_uri]",
+                "获取当前桌面窗口组合（可选限制条数与指定URI） / get current desktop (optional size and URI)",
+            )
+            help_table.add_row("history [n]", "显示最近的工具调用历史（默认最多10条）/ show recent tool call history (default up to 10)")
             help_table.add_row(
                 "socket connect [<url>]",
                 "连接 Socket.IO（省略 URL 将进入引导式输入） / connect to Socket.IO (guided if URL omitted)",
@@ -132,6 +139,27 @@ async def interactive_loop(
                     servers[cfg.name] = json.loads(json.dumps(cfg.model_dump(mode="json")))
                 inputs = [json.loads(json.dumps(i.model_dump(mode="json"))) for i in comp.inputs]
                 print_mcp_config({"servers": servers, "inputs": inputs})
+
+            elif cmd == "desktop":
+                # 中文: 解析可选参数：size 与 window_uri（顺序不固定，数字视为 size，其它作为 URI）
+                # English: Parse optional args: size and window_uri (order-agnostic; digits -> size, else -> URI)
+                size: int | None = None
+                window_uri: str | None = None
+                for arg in parts[1:]:
+                    if size is None and arg.isdigit():
+                        try:
+                            size = int(arg)
+                        except Exception:
+                            size = None
+                    elif window_uri is None:
+                        window_uri = arg
+
+                try:
+                    desktops = await comp.get_desktop(size=size, window_uri=window_uri)
+                    # 直接以 JSON 输出，便于上层消费 / print as JSON for easy consumption
+                    console.print_json(data=desktops)
+                except Exception as e:
+                    console.print(f"[red]获取桌面失败 / Failed to get desktop: {e}[/red]")
 
             elif cmd == "server" and len(parts) >= 2:
                 sub = parts[1].lower()
@@ -388,6 +416,73 @@ async def interactive_loop(
                     lambda x: comp._input_resolver.aresolve_by_id(x, session=session),
                 )
                 console.print_json(data=rendered)
+
+            elif cmd == "tc":
+                # 中文: 工具调用调试命令，参数需为与 Socket.IO 请求一致的 JSON（参见 a2c_smcp/smcp.py 的 ToolCallReq）
+                # English: Tool call debug command. Argument must be a JSON matching Socket.IO request (see ToolCallReq in a2c_smcp/smcp.py)
+                if len(parts) < 2:
+                    console.print("[yellow]用法: tc <json|@file.json>[/yellow]")
+                    continue
+                payload = raw.split(" ", 1)[1]
+                try:
+                    if payload.startswith("@"):
+                        data = json.loads(Path(payload[1:]).read_text(encoding="utf-8"))
+                    else:
+                        data = json.loads(payload)
+
+                    # 中文: 使用 TypedDict 校验与规范化请求结构
+                    # English: Validate and normalize request using TypedDict
+                    req = TypeAdapter(SMCPToolCallReq).validate_python(data)
+
+                    # 前置检查：需要已有活跃的 MCP 管理器
+                    # Pre-check: require active MCP manager
+                    if not comp.mcp_manager:
+                        console.print(
+                            "[yellow]MCP 管理器未初始化。请先添加并启动服务器 (server add/start) / MCP manager not initialized."
+                            " Add and start a server first.[/yellow]",
+                        )
+                        continue
+
+                    # 从请求中提取字段并调用
+                    # Extract fields and execute
+                    req_id: str = req["req_id"]
+                    tool_name: str = req["tool_name"]
+                    parameters: dict = req.get("params", {}) or {}
+                    # ToolCallReq.timeout 定义为 int（秒）。转为 float 传入底层以兼容。
+                    # ToolCallReq.timeout defined as int (seconds). Convert to float.
+                    timeout_val = req.get("timeout")
+                    timeout: float | None = float(timeout_val) if isinstance(timeout_val, (int, float)) else None
+
+                    result = await comp.aexecute_tool(req_id, tool_name, parameters, timeout)
+
+                    # 结果输出：优先以 JSON 打印
+                    # Output result: prefer JSON
+                    try:
+                        if hasattr(result, "model_dump"):
+                            console.print_json(data=result.model_dump(mode="json"))
+                        else:
+                            # 尝试通用序列化
+                            console.print_json(data=json.loads(json.dumps(result, default=lambda o: getattr(o, "__dict__", str(o)))))
+                    except Exception:
+                        console.print(repr(result))
+                except Exception as e:
+                    console.print(f"[red]❌ 工具调用失败 / Tool call failed: {e}[/red]")
+
+            elif cmd == "history":
+                # 中文: 显示最近的调用历史。可选参数 n 指定返回条数，默认显示全部（最多10条）。
+                # English: Show recent call history. Optional n limits number of returned entries (default all, up to 10).
+                try:
+                    n: int | None = None
+                    if len(parts) >= 2:
+                        try:
+                            n = int(parts[1])
+                        except Exception:
+                            n = None
+                    history = await comp.aget_tool_call_history()
+                    items = list(history)[-n:] if n is not None and n > 0 else list(history)
+                    console.print_json(data=items)
+                except Exception as e:  # pragma: no cover
+                    console.print(f"[red]❌ 读取历史失败 / Failed to read history: {e}[/red]")
 
             else:
                 console.print("[yellow]未知命令 / Unknown command[/yellow]")

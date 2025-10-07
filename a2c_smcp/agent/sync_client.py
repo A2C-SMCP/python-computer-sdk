@@ -19,13 +19,16 @@ from a2c_smcp.agent.types import AgentEventHandler
 from a2c_smcp.smcp import (
     CANCEL_TOOL_CALL_EVENT,
     ENTER_OFFICE_NOTIFICATION,
+    GET_DESKTOP_EVENT,
     GET_TOOLS_EVENT,
     LEAVE_OFFICE_NOTIFICATION,
     SMCP_NAMESPACE,
     TOOL_CALL_EVENT,
     UPDATE_CONFIG_NOTIFICATION,
+    UPDATE_DESKTOP_NOTIFICATION,
     AgentCallData,
     EnterOfficeNotification,
+    GetDeskTopRet,
     GetToolsRet,
     LeaveOfficeNotification,
     UpdateMCPConfigNotification,
@@ -204,7 +207,7 @@ class SMCPAgentClient(Client, BaseAgentClient):
             return GetToolsRet(tools=response.get("tools", []), req_id=response["req_id"])
 
         except Exception as e:
-            logger.error(f"Failed to get tools from computer {computer}: {e}")
+            logger.error(f"Failed to get tools from computer {computer}: {e}", exc_info=True)
             raise
 
     def register_event_handlers(self) -> None:
@@ -215,6 +218,7 @@ class SMCPAgentClient(Client, BaseAgentClient):
         self.on(ENTER_OFFICE_NOTIFICATION, self._on_computer_enter_office, namespace=SMCP_NAMESPACE)
         self.on(LEAVE_OFFICE_NOTIFICATION, self._on_computer_leave_office, namespace=SMCP_NAMESPACE)
         self.on(UPDATE_CONFIG_NOTIFICATION, self._on_computer_update_config, namespace=SMCP_NAMESPACE)
+        self.on(UPDATE_DESKTOP_NOTIFICATION, self._on_desktop_updated, namespace=SMCP_NAMESPACE)
 
     def _on_computer_enter_office(self, data: EnterOfficeNotification) -> None:
         """
@@ -231,7 +235,7 @@ class SMCPAgentClient(Client, BaseAgentClient):
             self.process_tools_response(tools_response, computer)
 
         except Exception as e:
-            logger.error(f"Error in _on_computer_enter_office: {e}")
+            logger.error(f"Error in _on_computer_enter_office: {e}", exc_info=True)
 
     def _on_computer_leave_office(self, data: LeaveOfficeNotification) -> None:
         """
@@ -256,3 +260,38 @@ class SMCPAgentClient(Client, BaseAgentClient):
 
         except Exception as e:
             logger.error(f"Error in _on_computer_update_config: {e}")
+
+    def get_desktop_from_computer(
+        self, computer: str, *, size: int | None = None, window: str | None = None, timeout: int = 20,
+    ) -> GetDeskTopRet:
+        """
+        从指定计算机获取桌面信息
+        Get desktop from specified computer
+
+        Args:
+            computer (str): 计算机ID / Computer ID
+            size (int | None): 限制窗口数量 / Limit windows count
+            window (str | None): 指定窗口URI / Specific window URI
+            timeout (int): 超时时间 / Timeout
+        """
+        req = self.create_get_desktop_request(computer, size=size, window=window)
+        logger.debug(f"Getting desktop from computer {computer}, size={size}, window={window}")
+        response = self.call(GET_DESKTOP_EVENT, req, namespace=SMCP_NAMESPACE, timeout=timeout)
+        if response.get("req_id") != req["req_id"]:
+            raise ValueError("Invalid response with mismatched req_id for desktop")
+        return GetDeskTopRet(desktops=response.get("desktops", []), req_id=response["req_id"])  # type: ignore[return-value]
+
+    def _on_desktop_updated(self, data: dict) -> None:
+        """
+        处理桌面更新通知：默认自动拉取一次桌面。
+        Handle desktop updated notification: automatically fetch desktop once.
+        """
+        try:
+            computer = data.get("computer")
+            if not computer:
+                logger.warning("UPDATE_DESKTOP_NOTIFICATION missing 'computer'")
+                return
+            ret = self.get_desktop_from_computer(computer)
+            self.process_desktop_response(ret, computer)
+        except Exception as e:
+            logger.error(f"Error handling desktop updated notification: {e}")

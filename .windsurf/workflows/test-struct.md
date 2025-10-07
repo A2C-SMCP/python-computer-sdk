@@ -24,6 +24,13 @@ e2e 测试
 
 e2e测试用例位于： tests/e2e/ 之内
 
+e2e 测试模式简介：
+
+1. 使用pexpect运行真实的spawn进程。不需要使用mockeypatch，所有的e2e追求完美复现真实场景
+2. computer/agent/server 也需要独立进行e2e测试。
+3. computer中如果需要一些常见的可用的真实MCP Server服务器等，可以从 @tests/e2e/computer/configs 去寻找，常用配置均在此记录。多数时候你都需要对配置进行一些自定义，因此多数时候可以参考后再自己写一个可用配置，配合tmppath写入临时文件进行测试。
+4. 对于需要验证真实环境中与Socket.IO连接使用的场景测试时，以Computer测试为例，在测试时，需要启动一个真实的Socket.IO服务器，基于@a2c_smcp/server模块来实现，也需要启动一个真实的AgentClient，基于 @a2c_smcp/agent 模块来实现。目前所有的模块其业务实现均是通过标准封装引入。因此可以Mock相应的业务封装来测试不同的场景。唯一需要注意的是，如果测试同步原语的代码能力，需要使用multiprocess模块来进行测试，需要记录的验证数据，你可以挑选合适的信息记录方式来实现，方便后续断言，因为GIL的存在，如果使用thread模块或者其它模式容易造成阻塞。目前有一个参考位于：tests/integration_tests/server/test_namespace_sync.py 仅作参考。
+
 ---
 
 测试文件创建原则：

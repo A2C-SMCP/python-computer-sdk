@@ -18,20 +18,25 @@ from a2c_smcp.server.types import OFFICE_ID, SID
 from a2c_smcp.smcp import (
     CANCEL_TOOL_CALL_NOTIFICATION,
     ENTER_OFFICE_NOTIFICATION,
+    GET_DESKTOP_EVENT,
     GET_TOOLS_EVENT,
     LEAVE_OFFICE_NOTIFICATION,
     SMCP_NAMESPACE,
     TOOL_CALL_EVENT,
     UPDATE_CONFIG_NOTIFICATION,
+    UPDATE_DESKTOP_NOTIFICATION,
+    UPDATE_TOOL_LIST_NOTIFICATION,
     AgentCallData,
     EnterOfficeNotification,
     EnterOfficeReq,
+    GetDeskTopReq,
+    GetDeskTopRet,
     GetToolsReq,
     GetToolsRet,
     LeaveOfficeNotification,
     LeaveOfficeReq,
     ToolCallReq,
-    UpdateConfigReq,
+    UpdateComputerConfigReq,
     UpdateMCPConfigNotification,
 )
 from a2c_smcp.utils.logger import logger
@@ -88,9 +93,11 @@ class SMCPNamespace(BaseNamespace):
             elif not session.get("office_id"):
                 # 获取房间内所有参与者
                 # Get all participants in the room
+                participants = self.server.manager.get_participants(SMCP_NAMESPACE, room)
+
                 # 检查房间内是否已有Agent
                 # Check if there's already an Agent in the room
-                for participant_sid, _participant_eio_sid in self.server.manager.get_participants(SMCP_NAMESPACE, room):
+                for participant_sid, _participant_eio_sid in participants:
                     participant_session = await self.get_session(participant_sid)
                     if participant_session.get("role") == "agent":
                         raise ValueError("Agent already in room")
@@ -115,11 +122,18 @@ class SMCPNamespace(BaseNamespace):
         session["office_id"] = room
         await self.save_session(sid, session)
 
+        # 根据角色发送不同的通知 / Send different notifications based on role
+        notification_data: EnterOfficeNotification = {"office_id": room}
+        if session.get("role") == "computer":
+            notification_data["computer"] = sid
+        else:
+            notification_data["agent"] = sid
+
         # 广播加入新房间的消息至房间内其它人
         # Broadcast join message to others in the room
         await self.emit(
             ENTER_OFFICE_NOTIFICATION,
-            EnterOfficeNotification(office_id=room, computer=sid),
+            notification_data,
             skip_sid=sid,
             room=room,
         )
@@ -238,31 +252,54 @@ class SMCPNamespace(BaseNamespace):
         agent_call = TypeAdapter(AgentCallData).validate_python(data)
         assert sid == agent_call["robot_id"], "取消工具调用的广播仅可以由对应Agent发出"
 
+        # 广播到 office 房间，而不是 Agent 的私有房间 / Broadcast to office room, not Agent's private room
+        office_id = session.get("office_id")
         await self.emit(
             CANCEL_TOOL_CALL_NOTIFICATION,
             agent_call,
-            room=agent_call["robot_id"],
+            room=office_id,
             skip_sid=sid,
         )
 
-    async def on_server_update_config(self, sid: str, data: UpdateConfigReq) -> None:
+    async def on_server_update_config(self, sid: str, data: UpdateComputerConfigReq) -> None:
         """
         将事件广播至对应的房间内所有Computer，通知更新MCP配置
         Broadcast event to all Computers in the corresponding room, notifying MCP config update
 
         Args:
             sid (str): 发起者ID，应该是Computer / Initiator ID, should be Computer
-            data (UpdateConfigReq): 更新配置请求数据 / Update config request data
+            data (UpdateComputerConfigReq): 更新配置请求数据 / Update config request data
         """
         session = await self.get_session(sid)
         assert session["role"] == "computer", "目前仅支持Computer调用更新MCP配置的操作"
 
-        update_config = TypeAdapter(UpdateConfigReq).validate_python(data)
+        update_config = TypeAdapter(UpdateComputerConfigReq).validate_python(data)
 
         await self.emit(
             UPDATE_CONFIG_NOTIFICATION,
             UpdateMCPConfigNotification(computer=update_config["computer"]),
             room=session["office_id"],
+            skip_sid=sid,
+        )
+
+    async def on_server_update_tool_list(self, sid: str, data: UpdateComputerConfigReq) -> None:
+        """
+        将事件广播至对应的房间内其他参与者，通知工具列表更新。
+        Broadcast to others in the room to notify tool list update.
+
+        Args:
+            sid (str): 发起者ID，应为Computer / Initiator ID, should be Computer
+            data (UpdateComputerConfigReq): 载荷复用 UpdateConfigReq，仅需 computer 标识 / Reuse UpdateConfigReq for payload
+        """
+        session = await self.get_session(sid)
+        assert session["role"] == "computer", "目前仅支持Computer上报工具列表变更"
+
+        update_req = TypeAdapter(UpdateComputerConfigReq).validate_python(data)
+
+        await self.emit(
+            UPDATE_TOOL_LIST_NOTIFICATION,
+            {"computer": update_req["computer"]},
+            room=session.get("office_id"),
             skip_sid=sid,
         )
 
@@ -327,3 +364,47 @@ class SMCPNamespace(BaseNamespace):
         )
 
         return TypeAdapter(GetToolsRet).validate_python(client_response)
+
+    async def on_client_get_desktop(self, sid: str, data: GetDeskTopReq) -> GetDeskTopRet:
+        """
+        获取指定Computer的桌面信息（窗口组织后的视图）。
+        Get desktop view from specified Computer.
+
+        要求：Agent 与 Computer 需在同一 office。
+        """
+        computer_sid = data["computer"]
+        session = await self.get_session(computer_sid)
+        assert session["role"] == "computer", "目前仅支持Computer获取桌面"
+
+        agent_session = await self.get_session(sid)
+        computer_office_id = session.get("office_id")
+        agent_office_id = agent_session.get("office_id")
+        assert computer_office_id == agent_office_id, "目前仅支持Agent获取自己房间内Computer的桌面"
+
+        client_response = await self.call(
+            GET_DESKTOP_EVENT,
+            data,
+            to=data["computer"],
+            namespace=SMCP_NAMESPACE,
+        )
+        return TypeAdapter(GetDeskTopRet).validate_python(client_response)
+
+    async def on_server_update_desktop(self, sid: str, data: UpdateComputerConfigReq) -> None:
+        """
+        将事件广播至对应的房间内其他参与者，通知桌面刷新。
+        Broadcast to others in the room to notify desktop update.
+
+        Args:
+            sid (str): 发起者ID，应为Computer / Initiator ID, should be Computer
+            data (UpdateComputerConfigReq): 载荷复用 UpdateConfigReq，仅需 computer 标识
+        """
+        session = await self.get_session(sid)
+        assert session["role"] == "computer", "目前仅支持Computer上报桌面刷新"
+
+        update_req = TypeAdapter(UpdateComputerConfigReq).validate_python(data)
+        await self.emit(
+            UPDATE_DESKTOP_NOTIFICATION,
+            {"computer": update_req["computer"]},
+            room=session.get("office_id"),
+            skip_sid=sid,
+        )

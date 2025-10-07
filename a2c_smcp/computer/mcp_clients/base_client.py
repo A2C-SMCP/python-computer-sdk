@@ -13,11 +13,12 @@ from typing import cast
 
 from mcp import ClientSession, Tool
 from mcp.client.session import MessageHandlerFnT
-from mcp.types import CallToolResult, InitializeResult
+from mcp.types import AnyUrl, CallToolResult, InitializeResult, ReadResourceResult, Resource, TextResourceContents
 from pydantic import BaseModel
 from transitions.core import EventData
 from transitions.extensions import AsyncMachine
 
+from a2c_smcp.utils import WindowURI, is_window_uri
 from a2c_smcp.utils.async_property import async_property
 from a2c_smcp.utils.logger import logger
 
@@ -342,13 +343,89 @@ class BaseMCPClient(ABC):
         if self.state != STATES.connected:
             raise ConnectionError("Not connected to server")
         tools: list[Tool] = []
-        asession = cast(ClientSession, await self.async_session)
-        ret = await asession.list_tools()
-        tools.extend(ret.tools)
-        while ret.nextCursor:
-            ret = await asession.list_tools(cursor=ret.nextCursor)
+        if self.initialize_result and self.initialize_result.capabilities.tools:
+            asession = cast(ClientSession, await self.async_session)
+            ret = await asession.list_tools()
             tools.extend(ret.tools)
+            while ret.nextCursor:
+                ret = await asession.list_tools(cursor=ret.nextCursor)
+                tools.extend(ret.tools)
         return tools
+
+    async def list_windows(self) -> list[Resource]:
+        """
+        列出当前MCP服务可用的窗口资源列表。需要注意MCP Server如果想开启桌面模式必须打开 resources/subscribe
+
+        同时开发者需要注意维护好 window:// 状态
+
+        Returns:
+            list[Resource]: 当前可用的窗口类资源
+        """
+        if (
+            self.initialize_result
+            and self.initialize_result.capabilities.resources
+            and self.initialize_result.capabilities.resources.subscribe
+        ):
+            # Get available resources directly from client session
+            try:
+                asession = cast(ClientSession, await self.async_session)
+                # 中文: 支持分页获取资源；与 list_tools 一致，穷举所有页后再进行过滤与订阅
+                # 英文: Support pagination; same as list_tools, exhaust all pages then filter and subscribe
+                resources: list[Resource] = []
+                ret = await asession.list_resources()
+                if ret:
+                    resources.extend(ret.resources)
+                    while ret.nextCursor:
+                        ret = await asession.list_resources(cursor=ret.nextCursor)
+                        resources.extend(ret.resources)
+                # 返回满足WindowURI协议要求的Resource
+                # Return only resources that conform to WindowURI (window:// scheme)
+                filtered: list[tuple[Resource, int]] = []
+                for res in resources:
+                    # 类型守卫：快速判定并过滤非 window:// 资源
+                    if not is_window_uri(res.uri):
+                        continue
+                    # 解析优先级（缺省为0）
+                    uri = WindowURI(str(res.uri))
+                    prio = uri.priority if uri.priority is not None else 0
+                    filtered.append((res, prio))
+
+                # 同一 MCP 内按 priority 降序排序（仅在本客户端内比较）
+                filtered.sort(key=lambda x: x[1], reverse=True)
+                # 如果当前MCP Server开启了 resources 的订阅模式，则将过滤出来的Resources进行订阅
+                for r, _ in filtered:
+                    await asession.subscribe_resource(r.uri)
+                return [r for r, _ in filtered]
+            except Exception as e:
+                logger.error(f"Error listing resources for connector {self.params.model_dump(mode='json')}: {e}")
+                return []
+        else:
+            return []
+
+    async def get_window_detail(self, resource: Resource | str) -> ReadResourceResult:
+        """
+        中文: 读取单个窗口资源的详细内容（通过 MCP read_resource）。
+        英文: Read details for a single window resource via MCP read_resource.
+
+        Args:
+            resource (Resource | str): 要读取的资源（或其 URI 字符串）。
+
+        Returns:
+            list[object]: 资源内容块列表（如 TextContent/BlobContent 等）。读取失败返回空列表。
+        """
+        try:
+            asession = cast(ClientSession, await self.async_session)
+            uri_val: AnyUrl
+            if isinstance(resource, Resource):
+                uri_val = resource.uri  # type: ignore[assignment]
+            else:
+                # 当传入为字符串时，交由底层进行校验/解析
+                uri_val = AnyUrl(resource)  # type: ignore[call-arg]
+
+            return await asession.read_resource(uri_val)
+        except Exception as e:
+            logger.error(f"Read window resource failed: {resource}: {e}")
+            return ReadResourceResult(contents=[TextResourceContents(text="获取资源失败", uri=resource.uri)])
 
     async def call_tool(self, tool_name: str, params: dict) -> CallToolResult:
         """

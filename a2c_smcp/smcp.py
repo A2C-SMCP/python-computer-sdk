@@ -4,7 +4,7 @@
 # @Author  : JQQ
 # @Email   : jqq1716@gmail.com
 # @Software: PyCharm
-from typing import Any, Literal, NotRequired
+from typing import Any, Literal, NotRequired, TypeAlias
 
 from typing_extensions import TypedDict
 
@@ -19,10 +19,15 @@ SMCP_NAMESPACE = "/smcp"
 TOOL_CALL_EVENT = "client:tool_call"
 GET_CONFIG_EVENT = "client:get_config"
 GET_TOOLS_EVENT = "client:get_tools"
+GET_DESKTOP_EVENT = "client:get_desktop"
 # 服务端事件 由server:开头的事件服务端执行
 JOIN_OFFICE_EVENT = "server:join_office"
 LEAVE_OFFICE_EVENT = "server:leave_office"
 UPDATE_CONFIG_EVENT = "server:update_config"
+UPDATE_TOOL_LIST_EVENT = "server:update_tool_list"
+# 桌面刷新事件：当资源列表或资源内容变化时，由Computer端通知Server广播。
+# 中文: 当需要让Agent刷新桌面时，由Computer触发此事件。英文: Computer emits this when Agent should refresh desktop.
+UPDATE_DESKTOP_EVENT = "server:update_desktop"
 CANCEL_TOOL_CALL_EVENT = "server:tool_call_cancel"
 # NOTIFY 通知事件  通知事件全部由Server发出（一般由Client触发其它事件，在响应这些事件时，Server发出通知）
 #   1. 比如 AgentClient 发出 server:tool_call_cancel 事件，服务端接收后，发起 notify:tool_call_cancel 通知
@@ -31,7 +36,10 @@ CANCEL_TOOL_CALL_EVENT = "server:tool_call_cancel"
 CANCEL_TOOL_CALL_NOTIFICATION = "notify:tool_call_cancel"
 ENTER_OFFICE_NOTIFICATION = "notify:enter_office"  # AgentClient必须实现 以此，配合 client:get_config 与 client:get_tools 更新工具配置
 LEAVE_OFFICE_NOTIFICATION = "notify:leave_office"  # AgentClient必须实现 以此，配合 client:get_config 与 client:get_tools 更新工具配置
-UPDATE_CONFIG_NOTIFICATION = "notify:update_config"  # AgentClient必须实现 以此，配合 client:get_config 与 client:get_tools 更新工具配置
+UPDATE_CONFIG_NOTIFICATION = "notify:update_config"  # AgentClient必须实现 以此，配合 client:get_config
+UPDATE_TOOL_LIST_NOTIFICATION = "notify:update_tool_list"  # AgentClient必须实现，通过 client:get_tools 实现更新工具配置
+# 桌面刷新通知：Server接收 server:update_desktop 后广播。Agent据此拉取最新桌面。
+UPDATE_DESKTOP_NOTIFICATION = "notify:update_desktop"
 
 
 class AgentCallData(TypedDict):
@@ -75,11 +83,11 @@ class LeaveOfficeReq(TypedDict):
     office_id: str
 
 
-class UpdateConfigReq(TypedDict):
+class UpdateComputerConfigReq(TypedDict):
     computer: str  # 机器人计算机sid
 
 
-class GetConfigReq(AgentCallData):
+class GetComputerConfigReq(AgentCallData):
     computer: str
 
 
@@ -103,6 +111,9 @@ class BaseMCPServerConfig(TypedDict):
     # 默认工具元数据（可选）。当某个具体工具未在 tool_meta 中提供专门配置时，使用该默认配置。
     # Default tool metadata (optional). Used when a specific tool has no explicit entry in tool_meta.
     default_tool_meta: NotRequired[ToolMeta | None]
+    # VRL脚本（可选）。用于对工具返回值进行动态转换和格式化。如果配置了VRL脚本，在初始化时会进行语法检查。
+    # VRL script (optional). Used to dynamically transform and format tool return values. Syntax check on initialization.
+    vrl: NotRequired[str | None]
 
 
 # --- MCPServer 配置，参考借鉴： ---
@@ -225,8 +236,8 @@ class MCPSSEConfig(BaseMCPServerConfig):
 MCPServerConfig = MCPServerStdioConfig | MCPServerStreamableHttpConfig | MCPSSEConfig
 
 
-class GetMCPConfigRet(TypedDict):
-    """完整的MCP配置文件类型"""
+class GetComputerConfigRet(TypedDict):
+    """完整的Computer配置文件类型"""
 
     inputs: NotRequired[list[MCPServerInput] | None]
     servers: dict[str, MCPServerConfig]
@@ -254,3 +265,35 @@ class UpdateMCPConfigNotification(TypedDict, total=False):
     """
 
     computer: str  # 被更新的Computer sid
+
+
+class UpdateToolListNotification(TypedDict, total=False):
+    """
+    工具列表更新的通知，需要向房间内其他人广播。
+    Notification of tool list update, should be broadcast to others in the room.
+    """
+
+    computer: str  # 被更新的Computer sid / The computer SID whose tools changed
+
+
+class GetDeskTopReq(AgentCallData, total=True):
+    """
+    获取当前Computer的桌面信息。
+    """
+
+    computer: str
+    desktop_size: NotRequired[int]  # 指定希望获取的桌面内容长度。如果不指定，则会全量返回，由调用方进行处理。
+    window: NotRequired[str]  # 指定获取的WindowURI，如果不指定则由Desktop自动组织，如果指定，会尝试获取指定的Window
+
+
+Desktop: TypeAlias = str
+
+
+class GetDeskTopRet(TypedDict, total=False):
+    """
+    Computer的桌面布局与内容信息。Agent可以通过相应指令来获取。
+    The layout and content on Computer. Agent get it by spec event.
+    """
+
+    desktops: list[Desktop]
+    req_id: str

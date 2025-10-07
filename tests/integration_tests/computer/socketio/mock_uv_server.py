@@ -58,7 +58,22 @@ class UvicornTestServer(uvicorn.Server):
         self._serve_task = asyncio.create_task(self.serve())
         await self._startup_done.wait()
 
-    async def down(self) -> None:
-        """Shut down server asynchronously"""
+    async def down(self, force: bool = False) -> None:
+        """Shut down server asynchronously
+
+        Args:
+            force (bool): 中文: 是否强制快速关闭，跳过优雅关闭等待 / English: Force fast shutdown without graceful wait
+        """
         self.should_exit = True
-        await self._serve_task
+        if force:
+            # 中文: 强制退出，不等待连接清理 / English: Force exit without waiting for connection cleanup
+            self.force_exit = True
+            # 中文: 取消服务任务以立即停止 / English: Cancel serve task to stop immediately
+            if hasattr(self, "_serve_task") and not self._serve_task.done():
+                self._serve_task.cancel()
+                try:
+                    await asyncio.wait_for(self._serve_task, timeout=1.0)
+                except (TimeoutError, asyncio.CancelledError):
+                    pass
+        else:
+            await self._serve_task

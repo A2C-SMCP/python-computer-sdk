@@ -57,6 +57,18 @@ class BaseMCPServerConfigFactory(ModelFactory):
             meta[f"tool_{index}"] = tool_meta
         return meta
 
+    @classmethod
+    def vrl(cls) -> str | None:
+        """生成有效的VRL脚本或None / Generate valid VRL script or None"""
+        # 随机返回None或一个简单的有效VRL脚本
+        # Randomly return None or a simple valid VRL script
+        return cls.__random__.choice([
+            None,
+            '.result = "success"',
+            ".transformed = true",
+            '.status = "ok"',
+        ])
+
 
 # 使用模拟参数创建子类工厂
 class StdioServerConfigFactory(BaseMCPServerConfigFactory):
@@ -184,3 +196,194 @@ def test_server_config_tool_meta_overrides_default():
     # 验证模型层面字段存在
     assert cfg.tool_meta["t"].auto_apply is True
     assert cfg.default_tool_meta.ret_object_mapper == {"a": 1}
+
+
+# ----------- VRL 验证器测试用例 -----------
+def test_vrl_validator_with_valid_script():
+    """
+    测试VRL验证器：有效的VRL脚本应该通过验证
+    Test VRL validator: valid VRL script should pass validation
+    """
+    valid_vrl = '.result = "success"'
+    cfg = StdioServerConfig(
+        name="test_vrl_valid",
+        disabled=False,
+        forbidden_tools=[],
+        tool_meta={},
+        vrl=valid_vrl,
+        server_parameters=ModelFactory.create_factory(StdioServerParameters).build(),
+    )
+    assert cfg.vrl == valid_vrl
+
+
+def test_vrl_validator_with_invalid_script():
+    """
+    测试VRL验证器：无效的VRL脚本应该抛出ValueError
+    Test VRL validator: invalid VRL script should raise ValueError
+    """
+    invalid_vrl = "this is not valid vrl syntax!!!"
+
+    with pytest.raises(ValueError, match="VRL语法错误"):
+        StdioServerConfig(
+            name="test_vrl_invalid",
+            disabled=False,
+            forbidden_tools=[],
+            tool_meta={},
+            vrl=invalid_vrl,
+            server_parameters=ModelFactory.create_factory(StdioServerParameters).build(),
+        )
+
+
+def test_vrl_validator_with_none():
+    """
+    测试VRL验证器：None值应该被接受
+    Test VRL validator: None value should be accepted
+    """
+    cfg = StdioServerConfig(
+        name="test_vrl_none",
+        disabled=False,
+        forbidden_tools=[],
+        tool_meta={},
+        vrl=None,
+        server_parameters=ModelFactory.create_factory(StdioServerParameters).build(),
+    )
+    assert cfg.vrl is None
+
+
+def test_vrl_validator_with_empty_string():
+    """
+    测试VRL验证器：空字符串应该被接受
+    Test VRL validator: empty string should be accepted
+    """
+    cfg = SseServerConfig(
+        name="test_vrl_empty",
+        disabled=False,
+        forbidden_tools=[],
+        tool_meta={},
+        vrl="",
+        server_parameters=ModelFactory.create_factory(SseServerParameters).build(),
+    )
+    assert cfg.vrl == ""
+
+
+def test_vrl_validator_with_whitespace_only():
+    """
+    测试VRL验证器：仅包含空白字符的字符串应该被接受（视为空）
+    Test VRL validator: whitespace-only string should be accepted (treated as empty)
+    """
+    cfg = StreamableHttpServerConfig(
+        name="test_vrl_whitespace",
+        disabled=False,
+        forbidden_tools=[],
+        tool_meta={},
+        vrl="   \n\t  ",
+        server_parameters=ModelFactory.create_factory(StreamableHttpParameters).build(),
+    )
+    assert cfg.vrl == "   \n\t  "
+
+
+def test_vrl_validator_with_complex_valid_script():
+    """
+    测试VRL验证器：复杂的有效VRL脚本应该通过验证
+    Test VRL validator: complex valid VRL script should pass validation
+    """
+    complex_vrl = """
+    .status = "processed"
+    .timestamp = now()
+    .transformed = true
+    """
+    cfg = StdioServerConfig(
+        name="test_vrl_complex",
+        disabled=False,
+        forbidden_tools=[],
+        tool_meta={},
+        vrl=complex_vrl,
+        server_parameters=ModelFactory.create_factory(StdioServerParameters).build(),
+    )
+    assert cfg.vrl == complex_vrl
+
+
+def test_vrl_validator_with_conditional_logic():
+    """
+    测试VRL验证器：带条件逻辑的VRL脚本应该通过验证
+    Test VRL validator: VRL script with conditional logic should pass validation
+    """
+    conditional_vrl = """
+    if .isError == true {
+        .status = "error"
+    } else {
+        .status = "success"
+    }
+    """
+    cfg = SseServerConfig(
+        name="test_vrl_conditional",
+        disabled=False,
+        forbidden_tools=[],
+        tool_meta={},
+        vrl=conditional_vrl,
+        server_parameters=ModelFactory.create_factory(SseServerParameters).build(),
+    )
+    assert cfg.vrl == conditional_vrl
+
+
+def test_vrl_validator_error_message_format():
+    """
+    测试VRL验证器：验证错误消息格式包含详细的诊断信息
+    Test VRL validator: validation error message contains detailed diagnostic info
+    """
+    invalid_vrl = "undefined_variable_xyz"
+
+    with pytest.raises(ValueError) as exc_info:
+        StdioServerConfig(
+            name="test_vrl_error_msg",
+            disabled=False,
+            forbidden_tools=[],
+            tool_meta={},
+            vrl=invalid_vrl,
+            server_parameters=ModelFactory.create_factory(StdioServerParameters).build(),
+        )
+
+    error_message = str(exc_info.value)
+    # 验证错误消息包含中英文提示
+    assert "VRL语法错误" in error_message or "VRL syntax error" in error_message
+    # 验证错误消息包含详细诊断信息（VRL Runtime提供的格式化消息）
+    assert "undefined variable" in error_message.lower() or "error" in error_message.lower()
+
+
+@pytest.mark.parametrize(
+    "config_class,param_factory",
+    [
+        (StdioServerConfig, lambda: ModelFactory.create_factory(StdioServerParameters).build()),
+        (SseServerConfig, lambda: ModelFactory.create_factory(SseServerParameters).build()),
+        (StreamableHttpServerConfig, lambda: ModelFactory.create_factory(StreamableHttpParameters).build()),
+    ],
+)
+def test_vrl_validator_across_all_config_types(config_class, param_factory):
+    """
+    测试VRL验证器：在所有配置类型中都能正常工作
+    Test VRL validator: works correctly across all config types
+    """
+    valid_vrl = ".validated = true"
+
+    # 测试有效脚本
+    cfg_valid = config_class(
+        name="test_vrl_all_types_valid",
+        disabled=False,
+        forbidden_tools=[],
+        tool_meta={},
+        vrl=valid_vrl,
+        server_parameters=param_factory(),
+    )
+    assert cfg_valid.vrl == valid_vrl
+
+    # 测试无效脚本
+    invalid_vrl = "invalid syntax here!!!"
+    with pytest.raises(ValueError, match="VRL语法错误"):
+        config_class(
+            name="test_vrl_all_types_invalid",
+            disabled=False,
+            forbidden_tools=[],
+            tool_meta={},
+            vrl=invalid_vrl,
+            server_parameters=param_factory(),
+        )

@@ -5,14 +5,16 @@
 # @Software: PyCharm
 import asyncio
 import copy
+import json
 from collections import defaultdict
 from collections.abc import AsyncGenerator, Iterable
 from typing import Any
 
 from mcp.client.session import MessageHandlerFnT
-from mcp.types import CallToolResult, Tool
+from mcp.types import CallToolResult, ReadResourceResult, Resource, Tool
+from vrl_python import VRLRuntime
 
-from a2c_smcp.computer.mcp_clients.model import A2C_TOOL_META, MCPClientProtocol, MCPServerConfig, ToolMeta
+from a2c_smcp.computer.mcp_clients.model import A2C_TOOL_META, A2C_VRL_TRANSFORMED, MCPClientProtocol, MCPServerConfig, ToolMeta
 from a2c_smcp.computer.mcp_clients.utils import client_factory
 from a2c_smcp.types import SERVER_NAME, TOOL_NAME
 from a2c_smcp.utils.logger import logger
@@ -60,6 +62,21 @@ class MCPServerManager:
     def get_server_config(self, server_name: SERVER_NAME) -> MCPServerConfig:
         """通过名称获取服务配置"""
         return self._servers_config[server_name]
+
+    def get_tool_meta(self, server_name: SERVER_NAME, tool_name: TOOL_NAME) -> ToolMeta | None:
+        """
+        中文: 获取指定服务器下某工具合并后的元数据（优先具体 tool_meta，缺失字段回落 default_tool_meta）。
+        English: Get merged ToolMeta for a tool under the given server (specific overrides; fallback to default).
+
+        Args:
+            server_name (SERVER_NAME): 服务器名称 / server name
+            tool_name (TOOL_NAME): 工具原始名称或别名解析后的名称 / tool name
+
+        Returns:
+            ToolMeta | None: 合并后的工具元数据；若两侧均为空返回 None / merged ToolMeta or None if both absent.
+        """
+        config = self.get_server_config(server_name)
+        return self._merged_tool_meta(config, tool_name)
 
     async def enable_auto_connect(self) -> None:
         """启用自动连接"""
@@ -330,10 +347,14 @@ class MCPServerManager:
         return server_name, tool_name
 
     async def acall_tool(
-        self, server_name: SERVER_NAME, tool_name: TOOL_NAME, parameters: dict, timeout: float | None = None,
+        self,
+        server_name: SERVER_NAME,
+        tool_name: TOOL_NAME,
+        parameters: dict,
+        timeout: float | None = None,
     ) -> CallToolResult:
         """
-        触发MCP工具的调用
+        触发MCP工具的调用。注意此方法tool_name必须是工具原始名称，如果是alias别名调用，需要使用 aexecute_tool
 
         Args:
             server_name (str): 服务名称
@@ -366,6 +387,47 @@ class MCPServerManager:
                     result.meta.setdefault(A2C_TOOL_META, {}).update(tool_meta)
                 else:
                     result.meta = {A2C_TOOL_META: tool_meta}
+
+            # 中文: 如果配置了VRL脚本，尝试对返回值进行转换
+            # English: If VRL script is configured, try to transform the return value
+            if config.vrl:
+                try:
+                    # 中文: 尝试将CallToolResult序列化为字典作为VRL的Event输入
+                    # English: Try to serialize CallToolResult to dict as VRL Event input
+                    event = result.model_dump(mode="json")
+
+                    # 中文: 执行VRL转换（使用系统本地时区）
+                    # English: Execute VRL transformation (use system local timezone)
+                    # 获取系统时区名称，例如 "Asia/Shanghai" 或 "America/New_York"
+                    # Get system timezone name, e.g., "Asia/Shanghai" or "America/New_York"
+                    # VRL需要IANA时区名称，尝试从tzlocal获取；若失败则使用UTC
+                    # VRL requires IANA timezone name; try to get from tzlocal, fallback to UTC
+                    try:
+                        import tzlocal
+
+                        timezone_name = str(tzlocal.get_localzone())
+                    except Exception:
+                        # 如果无法获取本地时区，回退到UTC / Fallback to UTC if local timezone unavailable
+                        timezone_name = "UTC"
+
+                    vrl_result = VRLRuntime.run(config.vrl, event, timezone=timezone_name)
+                    transformed_event = vrl_result.processed_event
+
+                    # 中文: 将转换后的结果压缩为JSON字符串存入Meta（因为Meta要求简单数据结构）
+                    # English: Compress transformed result to JSON string for Meta (Meta requires simple data structure)
+                    if result.meta is None:
+                        result.meta = {}
+                    result.meta[A2C_VRL_TRANSFORMED] = json.dumps(transformed_event, ensure_ascii=False)
+
+                    logger.debug(f"VRL转换成功 / VRL transformation succeeded for tool '{tool_name}'")
+                except Exception as e:
+                    # 中文: VRL转换失败不影响正常返回，仅记录警告日志
+                    # English: VRL transformation failure doesn't affect normal return, just log warning
+                    logger.warning(
+                        f"VRL转换失败 / VRL transformation failed for tool '{tool_name}': {e}. "
+                        f"原始结果将正常返回 / Original result will be returned normally.",
+                    )
+
             return result
         except TimeoutError:
             raise TimeoutError(f"Tool '{tool_name}' execution timed out") from None
@@ -373,7 +435,7 @@ class MCPServerManager:
             raise RuntimeError(f"Tool execution failed: {e}") from e
 
     async def aexecute_tool(self, tool_name: TOOL_NAME, parameters: dict, timeout: float | None = None) -> CallToolResult:
-        """执行指定工具"""
+        """执行指定工具 与 acall_tool 的区别在于此方法支持使用alias别名进行调用。"""
         server_name, tool_name = await self.avalidate_tool_call(tool_name, parameters)
         return await self.acall_tool(server_name, tool_name, parameters, timeout)
 
@@ -414,6 +476,60 @@ class MCPServerManager:
                             tool.meta.update({A2C_TOOL_META: a2c_meta})
                     yield tool
 
+    async def list_windows(self, window_uri: str | None = None) -> list[tuple[SERVER_NAME, Resource]]:
+        """
+        列出所有活动MCP服务器的窗口资源，并附带其归属的server名称。
+        List window resources from all active MCP servers with owning server name.
+
+        Args:
+            window_uri (str | None): 若提供，则仅返回URI完全匹配的窗口；否则返回所有窗口。
+
+        Returns:
+            list[tuple[SERVER_NAME, Resource]]: [(server_name, resource), ...]
+        """
+        results: list[tuple[SERVER_NAME, Resource]] = []
+        # 不加锁读取活跃客户端快照，避免长时间持锁阻塞 I/O
+        active_snapshot = list(self._active_clients.items())
+        for server_name, client in active_snapshot:
+            try:
+                resources = await client.list_windows()
+            except Exception as e:
+                logger.error(f"Error listing windows for {server_name}: {e}")
+                continue
+
+            for res in resources:
+                if window_uri is not None and str(res.uri) != window_uri:
+                    continue
+                results.append((server_name, res))
+        return results
+
+    async def get_windows_details(self, window_uri: str | None = None) -> list[tuple[SERVER_NAME, Resource, ReadResourceResult]]:
+        """
+        中文: 读取所有活动 MCP 服务器的窗口资源详情。由于 MCP 协议中的 Resource 仅为标识，需要通过 read_resource 获取内容。
+        英文: Read detailed contents for window resources from all active MCP servers. Resource is an identifier; use read_resource.
+
+        Args:
+            window_uri (str | None): 若提供，则仅读取该 URI 完全匹配的窗口；否则读取所有窗口。
+
+        Returns:
+            list[tuple[SERVER_NAME, Resource, list[object]]]: 列表项为 (server_name, resource, contents)。
+        """
+        details: list[tuple[SERVER_NAME, Resource, ReadResourceResult]] = []
+        active_snapshot = list(self._active_clients.items())
+        for server_name, client in active_snapshot:
+            try:
+                resources = await client.list_windows()
+            except Exception as e:
+                logger.error(f"Error listing windows for {server_name}: {e}")
+                continue
+
+            for res in resources:
+                if window_uri is not None and str(res.uri) != window_uri:
+                    continue
+                content = await client.get_window_detail(res)
+                details.append((server_name, res, content))
+        return details
+
     @staticmethod
     def _merged_tool_meta(config: MCPServerConfig, tool_name: TOOL_NAME) -> ToolMeta | None:
         """
@@ -421,7 +537,7 @@ class MCPServerManager:
         Shallow merge ToolMeta: prefer per-tool meta; fallback to default for missing root-level fields.
         """
         specific = (config.tool_meta or {}).get(tool_name)
-        default = getattr(config, "default_tool_meta", None)
+        default = config.default_tool_meta
         if specific is None and default is None:
             return None
         if specific is None:

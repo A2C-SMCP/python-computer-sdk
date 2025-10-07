@@ -20,26 +20,19 @@ class SyncAuthenticationProvider(ABC):
     """
 
     @abstractmethod
-    def get_agent_id(self, sio: Server, environ: dict) -> str:
-        """
-        获取agent_id，由用户实现具体逻辑
-        Get agent_id, implemented by user with specific logic
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def authenticate(self, sio: Server, agent_id: str, auth: dict | None, headers: list) -> bool:
+    def authenticate(self, sio: Server, environ: dict, auth: dict | None, headers: list) -> bool:
         """
         认证连接请求
         Authenticate connection request
-        """
-        raise NotImplementedError
 
-    @abstractmethod
-    def has_admin_permission(self, sio: Server, agent_id: str, secret: str) -> bool:
-        """
-        检查是否具有管理员权限
-        Check if has admin permission
+        Args:
+            sio (Server): Socket.IO服务器实例 / Socket.IO server instance
+            environ (dict): 请求环境变量 / Request environment variables
+            auth (dict | None): 原始认证数据 / Raw authentication data
+            headers (list): 原始请求头列表 / Raw request headers list
+
+        Returns:
+            bool: 认证是否成功 / Whether authentication succeeded
         """
         raise NotImplementedError
 
@@ -51,17 +44,22 @@ class DefaultSyncAuthenticationProvider(SyncAuthenticationProvider):
     """
 
     def __init__(self, admin_secret: str | None = None, api_key_name: str = "x-api-key") -> None:
+        """
+        初始化默认同步认证提供者
+        Initialize default sync authentication provider
+
+        Args:
+            admin_secret (str | None): 管理员密钥 / Admin secret
+            api_key_name (str): API密钥字段名 / API key field name
+        """
         self.admin_secret = admin_secret
         self.api_key_name = api_key_name
 
-    def get_agent_id(self, sio: Server, environ: dict) -> str:
-        # 默认获取agent_id逻辑：从FastAPI应用状态中获取
-        # Default agent_id retrieval logic: get from FastAPI application state
-        if hasattr(sio, "app") and hasattr(sio.app, "state") and hasattr(sio.app.state, "agent_id"):
-            return sio.app.state.agent_id
-        return "default_agent"
-
-    def authenticate(self, sio: Server, agent_id: str, auth: dict | None, headers: list) -> bool:
+    def authenticate(self, sio: Server, environ: dict, auth: dict | None, headers: list) -> bool:
+        """
+        默认认证逻辑：从headers中提取API密钥进行认证
+        Default authentication logic: extract API key from headers for authentication
+        """
         # 从headers中提取API密钥
         # Extract API key from headers
         api_key = None
@@ -75,16 +73,11 @@ class DefaultSyncAuthenticationProvider(SyncAuthenticationProvider):
         if not api_key:
             return False
 
-        # 管理员权限
-        # Admin permission
-        if self.has_admin_permission(sio, agent_id, api_key):
+        # 检查管理员权限：与配置的管理员密钥比较
+        # Check admin permission: compare with configured admin secret
+        if self.admin_secret is not None and api_key == self.admin_secret:
             return True
 
-        # 可在此扩展其他认证逻辑
-        # Extend with other authentication logic here
+        # 这里可以添加其他认证逻辑，如数据库验证等
+        # Additional authentication logic can be added here, such as database validation
         return False
-
-    def has_admin_permission(self, sio: Server, agent_id: str, secret: str) -> bool:
-        # 默认管理员权限检查：与配置的管理员密钥比较
-        # Default admin permission check: compare with configured admin secret
-        return self.admin_secret is not None and secret == self.admin_secret

@@ -13,14 +13,8 @@ from a2c_smcp.server.base import BaseNamespace
 
 
 class DummyAuth(AuthenticationProvider):
-    async def get_agent_id(self, sio, environ):
-        return "agent1"
-
-    async def authenticate(self, sio, agent_id, auth, headers):
+    async def authenticate(self, sio, environ, auth, headers):
         return True
-
-    async def has_admin_permission(self, sio, agent_id, secret):
-        return False
 
 
 @pytest.fixture
@@ -41,7 +35,7 @@ async def test_on_connect_success_and_extract_headers_paths(ns):
 
     # 路径2：从 HTTP_HEADERS
     class Auth2(DummyAuth):
-        async def authenticate(self, sio, agent_id, auth, headers):  # noqa: D401
+        async def authenticate(self, sio, environ, auth, headers):  # noqa: D401
             assert headers == [(b"h1", b"v1")]
             return True
 

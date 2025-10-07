@@ -47,4 +47,5 @@ async def socketio_server(basic_server_port: int) -> AsyncGenerator[MockComputer
     try:
         yield sio.namespace_handlers[SMCP_NAMESPACE]  # type: ignore[index]
     finally:
-        await server.down()
+        # 强制快速关闭，不等待连接清理 / Force fast shutdown without waiting for connection cleanup
+        await server.down(force=True)

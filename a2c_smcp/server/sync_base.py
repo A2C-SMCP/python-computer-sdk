@@ -39,17 +39,13 @@ class SyncBaseNamespace(Namespace):
         try:
             logger.info(f"SocketIO Client {sid} connecting to {self.namespace}...")
 
-            # 获取agent_id
-            # Get agent_id
-            agent_id = self.auth_provider.get_agent_id(self.server, environ)  # type: ignore[arg-type]
-
             # 提取原始请求头
             # Extract raw request headers
             headers = self._extract_headers(environ)
 
-            # 认证
-            # Authenticate
-            is_authenticated = self.auth_provider.authenticate(self.server, agent_id, auth, headers)  # type: ignore[arg-type]
+            # 认证逻辑，直接传递原始数据给用户
+            # Authentication logic, pass raw data directly to user
+            is_authenticated = self.auth_provider.authenticate(self.server, environ, auth, headers)  # type: ignore[arg-type]
             if not is_authenticated:
                 raise ConnectionRefusedError("Authentication failed")
 

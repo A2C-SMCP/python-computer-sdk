@@ -12,21 +12,26 @@ from socketio import AsyncClient
 from a2c_smcp.computer.computer import Computer
 from a2c_smcp.smcp import (
     GET_CONFIG_EVENT,
+    GET_DESKTOP_EVENT,
     GET_TOOLS_EVENT,
     JOIN_OFFICE_EVENT,
     LEAVE_OFFICE_EVENT,
     SMCP_NAMESPACE,
     TOOL_CALL_EVENT,
     UPDATE_CONFIG_EVENT,
+    UPDATE_DESKTOP_EVENT,
+    UPDATE_TOOL_LIST_EVENT,
     EnterOfficeReq,
-    GetConfigReq,
-    GetMCPConfigRet,
+    GetComputerConfigReq,
+    GetComputerConfigRet,
+    GetDeskTopReq,
+    GetDeskTopRet,
     GetToolsReq,
     GetToolsRet,
     LeaveOfficeReq,
     MCPServerInput,
     ToolCallReq,
-    UpdateConfigReq,
+    UpdateComputerConfigReq,
 )
 from a2c_smcp.smcp import (
     MCPServerConfig as SMCPServerConfigDict,
@@ -47,6 +52,7 @@ class SMCPComputerClient(AsyncClient):
         self.on(TOOL_CALL_EVENT, self.on_tool_call, namespace=SMCP_NAMESPACE)
         self.on(GET_TOOLS_EVENT, self.on_get_tools, namespace=SMCP_NAMESPACE)
         self.on(GET_CONFIG_EVENT, self.on_get_config, namespace=SMCP_NAMESPACE)
+        self.on(GET_DESKTOP_EVENT, self.on_get_desktop, namespace=SMCP_NAMESPACE)
         self.office_id: str | None = None
 
     async def emit(self, event: str, data: Any = None, namespace: str | None = SMCP_NAMESPACE, callback: Any = None) -> None:
@@ -100,7 +106,7 @@ class SMCPComputerClient(AsyncClient):
         不需要传递当前的配置参数，因为Agnet会通过其它接口进行刷新
         """
         if self.office_id:
-            await self.emit(UPDATE_CONFIG_EVENT, UpdateConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
+            await self.emit(UPDATE_CONFIG_EVENT, UpdateComputerConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
 
     async def update_config(self) -> None:
         """
@@ -108,24 +114,48 @@ class SMCPComputerClient(AsyncClient):
 
         不需要传递当前的配置参数，因为Agnet会通过其它接口进行刷新
         """
-        await self.emit(UPDATE_CONFIG_EVENT, UpdateConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
+        await self.emit(UPDATE_CONFIG_EVENT, UpdateComputerConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
 
-    async def on_tool_call(self, data: ToolCallReq) -> CallToolResult:
+    async def emit_update_tool_list(self) -> None:
+        """
+        工具列表变更时需要触发此事件向信令服务器推送，服务端会广播 notify:update_tool_list。
+        When tool list changes, emit event to server; it will broadcast notify:update_tool_list.
+        """
+        if self.office_id:
+            await self.emit(UPDATE_TOOL_LIST_EVENT, UpdateComputerConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
+
+    async def emit_refresh_desktop(self) -> None:
+        """
+        桌面刷新触发：当资源列表或资源内容变化时，通知信令服务器。服务端会广播 notify:update_desktop。
+        Desktop refresh trigger: notify server when resources list/content changed; server will broadcast notify:update_desktop.
+        """
+        if self.office_id:
+            await self.emit(UPDATE_DESKTOP_EVENT, UpdateComputerConfigReq(computer=self.namespaces[SMCP_NAMESPACE]))
+
+    async def on_tool_call(self, data: ToolCallReq) -> dict:
         """
         信令服务器通知计算机端，有工具调用请求
 
         Args:
             data (ToolCallReq): 请求数据
+
+        Returns:
+            dict: 工具调用结果的字典表示（JSON 可序列化）
         """
         assert self.office_id == data["robot_id"], "房间名称与Agent信息名称不匹配"
         assert self.namespaces[SMCP_NAMESPACE] == data["computer"], "计算机标识不匹配"
         try:
             ret = await self.computer.aexecute_tool(
-                req_id=data["req_id"], tool_name=data["tool_name"], parameters=data["params"], timeout=data["timeout"],
+                req_id=data["req_id"],
+                tool_name=data["tool_name"],
+                parameters=data["params"],
+                timeout=data["timeout"],
             )
-            return ret
+            # 将 CallToolResult 转换为字典以便 JSON 序列化 / Convert CallToolResult to dict for JSON serialization
+            return ret.model_dump(mode="json")
         except Exception as e:
-            return CallToolResult(isError=True, structuredContent={"error": str(e), "error_type": type(e).__name__}, content=[])
+            error_result = CallToolResult(isError=True, structuredContent={"error": str(e), "error_type": type(e).__name__}, content=[])
+            return error_result.model_dump(mode="json")
 
     async def on_get_tools(self, data: GetToolsReq) -> GetToolsRet:
         """
@@ -141,7 +171,25 @@ class SMCPComputerClient(AsyncClient):
 
         return GetToolsRet(tools=mcp_tools, req_id=data["req_id"])
 
-    async def on_get_config(self, data: GetConfigReq) -> GetMCPConfigRet:
+    async def on_get_desktop(self, data: GetDeskTopReq) -> GetDeskTopRet:
+        """
+        获取当前计算机桌面（窗口资源组织后的视图）。
+        Get current desktop organized from window resources.
+
+        Args:
+            data (GetDeskTopReq): 请求数据（包含 computer, robot_id, req_id 等）。
+
+        Returns:
+            GetDeskTopRet: 桌面数据与 req_id。
+        """
+        assert self.office_id == data["robot_id"], "房间名称与Agent信息名称不匹配"
+        assert self.namespaces[SMCP_NAMESPACE] == data["computer"], "计算机标识不匹配"
+        size = data.get("desktop_size")
+        window_uri = data.get("window")
+        desktops = await self.computer.get_desktop(size=size, window_uri=window_uri)
+        return GetDeskTopRet(desktops=desktops, req_id=data["req_id"])
+
+    async def on_get_config(self, data: GetComputerConfigReq) -> GetComputerConfigRet:
         """
         获取当前计算机的 MCP 配置（供 Agent 端刷新使用）。
         Get current machine MCP configuration for Agent refresh.
@@ -151,10 +199,10 @@ class SMCPComputerClient(AsyncClient):
         into SMCP protocol defined structure.
 
         Args:
-            data (GetConfigReq): 请求数据。Request payload.
+            data (GetComputerConfigReq): 请求数据。Request payload.
 
         Returns:
-            GetMCPConfigRet: SMCP 协议定义的 MCP 配置返回。SMCP formatted MCP configuration.
+            GetComputerConfigRet: SMCP 协议定义的 MCP 配置返回。SMCP formatted MCP configuration.
         """
         # 校验上下文一致性（中英双语）/ Validate context consistency (bilingual)
         assert self.office_id == data["robot_id"], "房间名称与Agent信息名称不匹配"
@@ -175,5 +223,5 @@ class SMCPComputerClient(AsyncClient):
             inputs.append(validated_input)
 
         # 端到端返回强校验（中英双语）/ End-to-end response strict validation (bilingual)
-        ret = TypeAdapter(GetMCPConfigRet).validate_python({"servers": servers, "inputs": inputs})
+        ret = TypeAdapter(GetComputerConfigRet).validate_python({"servers": servers, "inputs": inputs})
         return ret

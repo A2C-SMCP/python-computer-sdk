@@ -17,17 +17,22 @@ from a2c_smcp.server import (
     DefaultAuthenticationProvider,
     SMCPNamespace,
 )
-from a2c_smcp.smcp import SMCP_NAMESPACE, EnterOfficeReq, LeaveOfficeReq
+from a2c_smcp.smcp import (
+    GET_DESKTOP_EVENT,
+    SMCP_NAMESPACE,
+    UPDATE_DESKTOP_EVENT,
+    UPDATE_DESKTOP_NOTIFICATION,
+    EnterOfficeReq,
+    GetDeskTopReq,
+    GetDeskTopRet,
+    LeaveOfficeReq,
+)
 
 
 class MockAuthProvider(AuthenticationProvider):
     """Mock认证提供者用于测试 / Mock authentication provider for testing"""
 
-    async def get_agent_id(self, sio: AsyncMock, environ: dict) -> str:
-        """Mock获取agent_id逻辑 / Mock agent_id retrieval logic"""
-        return "test_agent"
-
-    async def authenticate(self, sio: AsyncMock, agent_id: str, auth: dict | None, headers: list) -> bool:
+    async def authenticate(self, sio: AsyncMock, environ: dict, auth: dict | None, headers: list) -> bool:
         """简单的Mock认证逻辑 / Simple mock authentication logic"""
         # 从headers中提取API密钥进行认证
         # Extract API key from headers for authentication

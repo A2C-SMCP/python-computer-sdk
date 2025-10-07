@@ -18,10 +18,7 @@ from a2c_smcp.smcp import (
 
 
 class _DummyAuthProv:
-    def get_agent_id(self, sio, environ):  # pragma: no cover - not used here
-        return "aid"
-
-    def authenticate(self, sio, agent_id, auth, headers):  # pragma: no cover - not used here
+    def authenticate(self, sio, environ, auth, headers):  # pragma: no cover - not used here
         return True
 
 
@@ -178,14 +175,14 @@ def test_on_server_tool_call_cancel_and_update_config_and_client_paths():
     _args2, kwargs2 = ns.emit.call_args
     assert kwargs2.get("room") == "roomR"
 
-    # client tool_call：仅允许 agent，直接 emit
+    # client tool_call：仅允许 agent，使用 call 等待响应
     ns.get_session = MagicMock(return_value={"role": "agent"})
-    ns.emit = MagicMock()
-    ret = ns.on_client_tool_call("a1", {"robot_id": "a1", "computer": "c1", "tool_name": "t", "params": {}})
-    assert ret == {"status": "sent"}
-    ns.emit.assert_called_once()
-    args, kwargs = ns.emit.call_args
-    assert kwargs.get("room") == "c1"
+    ns.call = MagicMock(return_value={"ok": True, "result": "success"})
+    ret = ns.on_client_tool_call("a1", {"robot_id": "a1", "computer": "c1", "tool_name": "t", "params": {}, "timeout": 5})
+    assert ret == {"ok": True, "result": "success"}
+    ns.call.assert_called_once()
+    args, kwargs = ns.call.call_args
+    assert kwargs.get("to") == "c1"
 
     # client get_tools：校验在同一房间并转发
     ns.get_session = MagicMock(side_effect=[

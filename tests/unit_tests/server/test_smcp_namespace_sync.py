@@ -23,10 +23,7 @@ from a2c_smcp.smcp import SMCP_NAMESPACE, EnterOfficeReq, LeaveOfficeReq
 class MockSyncAuthProvider(SyncAuthenticationProvider):
     """Mock同步认证提供者 / Mock sync authentication provider"""
 
-    def get_agent_id(self, sio, environ: dict) -> str:  # noqa: D401 - bilingual comment above
-        return "test_agent"
-
-    def authenticate(self, sio, agent_id: str, auth: dict | None, headers: list) -> bool:  # noqa: D401
+    def authenticate(self, sio, environ: dict, auth: dict | None, headers: list) -> bool:  # noqa: D401
         for header in headers:
             if isinstance(header, (list, tuple)) and len(header) >= 2:
                 header_name = header[0].decode("utf-8").lower() if isinstance(header[0], bytes) else str(header[0]).lower()
@@ -34,9 +31,6 @@ class MockSyncAuthProvider(SyncAuthenticationProvider):
                 if header_name == "x-api-key" and header_value == "valid_key":
                     return True
         return False
-
-    def has_admin_permission(self, sio, agent_id: str, secret: str) -> bool:  # noqa: D401
-        return secret == "admin_secret"
 
 
 @pytest.fixture

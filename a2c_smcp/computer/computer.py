@@ -25,25 +25,37 @@ All classes and methods use Google style docstrings (bilingual: Chinese and Engl
     - a2c_smcp_cc.utils.logger
 """
 
+import asyncio
 import json
 import weakref
+from collections import deque
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Optional
 
 from mcp import Tool, types
 from mcp.shared.session import RequestResponder
-from mcp.types import CallToolResult, TextContent, ToolListChangedNotification
+from mcp.types import (
+    CallToolResult,
+    ResourceListChangedNotification,
+    ResourceUpdatedNotification,
+    TextContent,
+    ToolListChangedNotification,
+)
 from prompt_toolkit import PromptSession
-from pydantic import TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 
 from a2c_smcp.computer.base import BaseComputer
+from a2c_smcp.computer.desktop.organize import organize_desktop
 from a2c_smcp.computer.inputs.render import ConfigRender
 from a2c_smcp.computer.inputs.resolver import InputNotFoundError, InputResolver
 from a2c_smcp.computer.mcp_clients.manager import MCPServerManager
 from a2c_smcp.computer.mcp_clients.model import MCPServerConfig, MCPServerInput
-from a2c_smcp.smcp import SMCPTool
+from a2c_smcp.computer.types import ToolCallRecord
+from a2c_smcp.smcp import Desktop, SMCPTool
 from a2c_smcp.types import AttributeValue
 from a2c_smcp.utils.logger import logger
+from a2c_smcp.utils.window_uri import is_window_uri
 
 if TYPE_CHECKING:
     # 仅用于类型检查，避免运行时引入依赖/循环引用
@@ -91,6 +103,17 @@ class Computer(BaseComputer[PromptSession]):
         # 通过 weakref 存储 Socket.IO 客户端，避免与客户端互相强引用导致循环与内存泄露
         # Hold Socket.IO client via weakref to avoid strong reference cycle
         self._socketio_client_ref: weakref.ReferenceType[SMCPComputerClient] | None = None
+
+        # 中文: 工具调用历史（仅保存最近10条），使用 asyncio.Lock 确保跨协程安全
+        # English: Tool call history (keep last 10). Protected by asyncio.Lock for cross-coroutine safety
+        self._tool_call_history = deque(maxlen=10)
+        self._tool_call_history_lock = asyncio.Lock()
+        # 窗口缓存（仅记录满足 WindowURI 的资源 URI，避免无关资源导致刷新）
+        # Windows cache (only URIs that conform to WindowURI to avoid irrelevant refresh triggers)
+        self._windows_cache: set[str] = set()
+
+    # 工具调用历史类型已抽取到 a2c_smcp/computer/types.py 的 ToolCallRecord 供多处复用
+    # The tool call record type is extracted to ToolCallRecord for reuse across modules
 
     @property
     def socketio_client(self) -> Optional["SMCPComputerClient"]:
@@ -157,13 +180,13 @@ class Computer(BaseComputer[PromptSession]):
         await self.mcp_manager.ainitialize(validated_servers)
 
     async def _on_manager_change(
-            self,
-            message: RequestResponder[types.ServerRequest, types.ClientResult] | types.ServerNotification | Exception,
+        self,
+        message: RequestResponder[types.ServerRequest, types.ClientResult] | types.ServerNotification | Exception,
     ) -> None:
         """
         当 MCPServerManager 检测到变化时的回调。
 
-        目前仅处理工具列表变化：若存在 Socket.IO 连接，则向服务端发送 UPDATE_CONFIG_EVENT。
+        目前仅处理工具列表变化：若存在 Socket.IO 连接，则向服务端发送 UPDATE_TOOL_LIST_EVENT。
         其它变化类型暂未实现，打印 Warning 日志。
         """
         if isinstance(message.root, ToolListChangedNotification):
@@ -172,15 +195,81 @@ class Computer(BaseComputer[PromptSession]):
                 logger.debug("Socket.IO 客户端不存在或已释放，忽略更新上报")
                 return
             try:
-                # 直接通过事件常量发送
-                await client.emit_update_config()
+                # 直接通过事件常量发送（工具列表更新）
+                # Directly emit tool list update event
+                await client.emit_update_tool_list()
             except Exception as e:  # pragma: no cover
                 logger.error(f"上报工具变更失败: {e}")
+        elif isinstance(message.root, ResourceListChangedNotification):
+            # 仅当 window:// 集合发生变化时触发刷新；否则记录日志以便后续策略调整
+            client = self.socketio_client
+            if client is None:
+                logger.debug("Socket.IO 客户端不存在或已释放，忽略桌面刷新上报")
+                return
+            try:
+                new_windows = await self._acollect_window_uris()
+            except Exception as e:  # pragma: no cover
+                logger.error(f"收集窗口资源失败，跳过刷新: {e}")
+                return
+
+            if new_windows != self._windows_cache:
+                added = sorted(new_windows - self._windows_cache)
+                removed = sorted(self._windows_cache - new_windows)
+                logger.info(
+                    "WindowURI 列表发生变化，将触发桌面刷新 | Window list changed, refreshing desktop. "
+                    f"added={len(added)}, removed={len(removed)}",
+                )
+                if added:
+                    logger.debug(f"新增窗口: {added}")
+                if removed:
+                    logger.debug(f"移除窗口: {removed}")
+                self._windows_cache = new_windows
+                try:
+                    await client.emit_refresh_desktop()
+                except Exception as e:  # pragma: no cover
+                    logger.error(f"上报桌面刷新失败: {e}")
+            else:
+                # 打印关键信息帮助开发者判断策略是否需要更新
+                logger.info(
+                    "收到 ResourceListChangedNotification 但 WindowURI 未变化，跳过刷新 / "
+                    "Resource list changed but WindowURI set unchanged, skip refresh",
+                )
+        elif isinstance(message.root, ResourceUpdatedNotification):
+            # 资源内容更新：若是 window:// 则直接触发刷新（不比较集合，降低延迟）
+            client = self.socketio_client
+            if client is None:
+                logger.debug("Socket.IO 客户端不存在或已释放，忽略桌面刷新上报")
+                return
+            try:
+                uri = getattr(getattr(message.root, "params", None), "uri", None)
+                if uri is None or not is_window_uri(str(uri)):
+                    logger.debug("收到资源更新但非 WindowURI，放行 / Non-window resource updated, ignore")
+                    return
+                await client.emit_refresh_desktop()
+            except Exception as e:  # pragma: no cover
+                logger.error(f"上报桌面刷新失败: {e}")
         else:
             logger.warning(f"收到未处理的变化类型: {message}，当前版本仅处理工具列表变化")
 
+    async def _acollect_window_uris(self) -> set[str]:
+        """
+        收集当前所有 MCP Server 的 WindowURI 集合（去重）。
+        Collect deduplicated set of WindowURIs across all active MCP servers.
+
+        Returns:
+            set[str]: WindowURI 集合
+        """
+        if not self.mcp_manager:
+            return set()
+        pairs = await self.mcp_manager.list_windows()
+        # 仅保留符合 WindowURI 协议的资源
+        return {str(res.uri) for _srv, res in pairs if is_window_uri(str(res.uri))}
+
     async def _arender_and_validate_server(
-        self, server: MCPServerConfig | dict[str, Any], *, session: PromptSession | None = None,
+        self,
+        server: MCPServerConfig | dict[str, Any],
+        *,
+        session: PromptSession | None = None,
     ) -> MCPServerConfig:
         """
         动态渲染并校验单个 MCP 服务器配置，支持原始字典或模型实例。
@@ -492,14 +581,16 @@ class Computer(BaseComputer[PromptSession]):
                 for k, v in t.meta.items():
                     if not is_attr(v):
                         try:
-                            meta[k] = json.dumps(v)
+                            # 无论是 BaseModel 还是其他复杂类型，都序列化为 JSON 字符串
+                            # Serialize both BaseModel and other complex types to JSON string
+                            meta[k] = json.dumps(v.model_dump(mode="json")) if isinstance(v, BaseModel) else json.dumps(v)
                         except Exception as e:
                             logger.error(f"无法序列化工具元数据{k}:{v}", exc_info=e)
                             meta[k] = str(v)
                     else:
                         meta[k] = v
             if t.annotations:
-                meta["MCP_TOOL_ANNOTATION"] = t.annotations.model_dump(mode="json")
+                meta["MCP_TOOL_ANNOTATION"] = json.dumps(t.annotations.model_dump(mode="json"))
             return SMCPTool(name=t.name, description=t.description, params_schema=t.inputSchema, return_schema=t.outputSchema, meta=meta)
 
         mcp_tools = [convert_tool(t) for t in tools]
@@ -519,34 +610,129 @@ class Computer(BaseComputer[PromptSession]):
         Returns:
             CallToolResult: MCP协议的标准返回
         """
+        # 中文: 统一记录输出，保证任何返回路径都能记录历史
+        # English: Unify return to ensure we always record call history
         server_name, tool_name = await self.mcp_manager.avalidate_tool_call(tool_name, parameters)
-        server_config = self.mcp_manager.get_server_config(server_name)
-        if server_config.tool_meta.get(tool_name) and server_config.tool_meta[tool_name].auto_apply:
-            return await self.mcp_manager.acall_tool(server_name, tool_name, parameters, timeout)
-        else:
-            # 除非明确允许 auto_apply 否则均需要调用二次确认回调进行确认
-            if self._confirm_callback:
-                try:
-                    apply = self._confirm_callback(req_id, server_name, tool_name, parameters)
-                except TimeoutError:
-                    return CallToolResult(
-                        content=[TextContent(text="当前工具需要用户二次确认是否可以调用，当前确认超时。", type="text")], isError=True,
-                    )
-                except Exception as e:
-                    logger.error(f"工具确认回调，调用失败:{e}")
-                    return CallToolResult(
-                        content=[TextContent(text=f"在工具调用二次确认时发生异常，异常信息：{e}", type="text")], isError=True,
-                    )
-                if apply:
-                    return await self.mcp_manager.acall_tool(server_name, tool_name, parameters, timeout)
-                else:
-                    return CallToolResult(content=[TextContent(text="工具调用二次确认被拒绝，请稍后再试", type="text")])
+
+        ts = datetime.now(UTC).isoformat()
+        success: bool = False
+        error_msg: str | None = None
+
+        try:
+            # 中文: 通过 Manager 获取合并后的 ToolMeta（specific 优先，缺失字段回落 default_tool_meta）
+            # English: Use Manager to get merged ToolMeta (specific overrides; fallback to default_tool_meta)
+            merged_meta = self.mcp_manager.get_tool_meta(server_name, tool_name)
+
+            # 中文: 仅当合并结果的 auto_apply 显式为 True 时直接执行；否则进入二次确认流程
+            # English: Only execute directly if merged auto_apply is explicitly True; otherwise require confirmation
+            if merged_meta is not None and merged_meta.auto_apply is True:
+                result = await self.mcp_manager.acall_tool(server_name, tool_name, parameters, timeout)
             else:
-                return CallToolResult(
-                    content=[
-                        TextContent(
-                            text="当前工具需要调用前进行二次确认，但客户端目前没有实现二次确认回调方法。请联系用户反馈此问题", type="text",
-                        ),
-                    ],
-                    isError=True,
-                )
+                # 除非明确允许 auto_apply 否则均需要调用二次确认回调进行确认
+                # Unless auto_apply is explicitly allowed, require confirm callback
+                if self._confirm_callback:
+                    try:
+                        apply = self._confirm_callback(req_id, server_name, tool_name, parameters)
+                    except TimeoutError:
+                        result = CallToolResult(
+                            content=[TextContent(text="当前工具需要用户二次确认是否可以调用，当前确认超时。", type="text")],
+                            isError=True,
+                        )
+                    except Exception as e:
+                        logger.error(f"工具确认回调，调用失败:{e}")
+                        error_msg = str(e)
+                        result = CallToolResult(
+                            content=[TextContent(text=f"在工具调用二次确认时发生异常，异常信息：{e}", type="text")],
+                            isError=True,
+                        )
+                    else:
+                        if apply:
+                            result = await self.mcp_manager.acall_tool(server_name, tool_name, parameters, timeout)
+                        else:
+                            result = CallToolResult(content=[TextContent(text="工具调用二次确认被拒绝，请稍后再试", type="text")])
+                else:
+                    result = CallToolResult(
+                        content=[
+                            TextContent(
+                                text="当前工具需要调用前进行二次确认，但客户端目前没有实现二次确认回调方法。请联系用户反馈此问题",
+                                type="text",
+                            ),
+                        ],
+                        isError=True,
+                    )
+
+            success = not result.isError
+        except Exception as e:  # pragma: no cover
+            # 中文: 兜底异常，转换为错误结果并记录
+            # English: Fallback for unexpected exception; convert to error result and record
+            error_msg = str(e)
+            result = CallToolResult(
+                content=[TextContent(text=f"调用异常: {e}", type="text")],
+                isError=True,
+            )
+            success = False
+        finally:
+            await self._append_tool_history(
+                {
+                    "timestamp": ts,
+                    "req_id": req_id,
+                    "server": server_name,
+                    "tool": tool_name,
+                    "parameters": parameters,
+                    "timeout": timeout,
+                    "success": success,
+                    "error": error_msg,
+                },
+            )
+
+        return result
+
+    async def get_desktop(self, size: int | None = None, window_uri: str | None = None) -> list[Desktop]:
+        """
+        获取当前Computer的桌面布局信息。桌面内容由各MCP工具的特定Resources组成。
+        Get the desktop layout/content by aggregating MCP window resources.
+
+        Args:
+            size (int | None): 可选，限制返回的桌面窗口组合长度；不填则返回全部。
+                               Optional max number of windows to include; None for all.
+            window_uri (str | None): 可选，若指定则优先获取该 URI 对应的窗口。
+                                     Optional specific WindowURI to fetch; otherwise organize all.
+
+        Returns:
+            list[Desktop]: 桌面组合列表。List of Desktop strings.
+        """
+        if not self.mcp_manager:
+            logger.warning("MCP 管理器尚未初始化，返回空桌面 / MCP manager not initialized, return empty desktop")
+            return []
+
+        # 1) 从 Manager 拉取窗口资源“及其详情”（含归属 server 元数据）
+        #    Fetch window resources WITH their details (and owning server name)
+        windows = await self.mcp_manager.get_windows_details(window_uri)
+
+        # 2) 读取近期工具调用历史，供组织策略使用
+        #    Read recent tool call history for organizing policy
+        history = await self.aget_tool_call_history()
+
+        # 3) 调用抽象组织函数（考虑资源详情进行组织，例如过滤无内容的窗口、按优先级等）
+        #    Delegate to organizing policy (consider contents, e.g., filter empty, keep priority ordering)
+        desktops = await organize_desktop(windows=windows, size=size, history=history)
+        return desktops
+
+    # ------------------------
+    # 工具调用历史接口 / Tool call history APIs
+    # ------------------------
+    async def _append_tool_history(self, record: ToolCallRecord) -> None:
+        """
+        中文: 追加一条工具调用历史（保持最多10条）。协程安全。
+        English: Append one tool call record (keep last 10). Coroutine-safe.
+        """
+        async with self._tool_call_history_lock:
+            self._tool_call_history.append(record)
+
+    async def aget_tool_call_history(self) -> tuple[ToolCallRecord, ...]:
+        """
+        中文: 获取只读的工具调用历史（按时间先后，最多10条）。
+        English: Get read-only tool call history (chronological, up to 10).
+        """
+        async with self._tool_call_history_lock:
+            return tuple(self._tool_call_history)

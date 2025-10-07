@@ -25,13 +25,7 @@ class _PassAuthenticationProvider(AuthenticationProvider):
     Simple auth provider: allow all connections in tests
     """
 
-    async def get_agent_id(self, sio, environ):  # type: ignore[override]
-        return "test_agent"
-
-    async def authenticate(self, sio, agent_id, auth, headers):  # type: ignore[override]
-        return True
-
-    async def has_admin_permission(self, sio, agent_id, secret):  # type: ignore[override]
+    async def authenticate(self, sio, environ, auth, headers):  # type: ignore[override]
         return True
 
 

@@ -12,10 +12,7 @@ from a2c_smcp.server.sync_base import SyncBaseNamespace
 
 
 class _DummyAuthProv:
-    def get_agent_id(self, sio, environ):  # pragma: no cover - trivial passthrough
-        return "aid"
-
-    def authenticate(self, sio, agent_id, auth, headers):
+    def authenticate(self, sio, environ, auth, headers):
         return True
 
 

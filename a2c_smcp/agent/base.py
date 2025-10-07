@@ -18,6 +18,8 @@ from a2c_smcp.agent.auth import AgentAuthProvider
 from a2c_smcp.agent.types import AgentEventHandler
 from a2c_smcp.smcp import (
     EnterOfficeNotification,
+    GetDeskTopReq,
+    GetDeskTopRet,
     GetToolsReq,
     GetToolsRet,
     LeaveOfficeNotification,
@@ -122,6 +124,42 @@ class BaseAgentClient(ABC):
             robot_id=agent_config["agent_id"],
             req_id=uuid.uuid4().hex,
         )
+
+    def create_get_desktop_request(self, computer: str, *, size: int | None = None, window: str | None = None) -> GetDeskTopReq:
+        """
+        创建获取桌面请求对象
+        Create get desktop request object
+
+        Args:
+            computer (str): 目标计算机ID / Target computer ID
+            size (int | None): 桌面窗口数量上限 / Max number of windows
+            window (str | None): 指定窗口URI / Specific window URI
+
+        Returns:
+            GetDeskTopReq: 获取桌面请求 / Get desktop request
+        """
+        agent_config = self.auth_provider.get_agent_config()
+        req: GetDeskTopReq = {
+            "computer": computer,
+            "robot_id": agent_config["agent_id"],
+            "req_id": uuid.uuid4().hex,
+        }
+        if size is not None:
+            req["desktop_size"] = size
+        if window is not None:
+            req["window"] = window
+        return req
+
+    def process_desktop_response(self, response: GetDeskTopRet, computer: str) -> None:
+        """
+        处理桌面响应（默认仅记录日志；留作后续扩展回调）。
+        Process desktop response (log only by default; placeholder for future callbacks).
+        """
+        try:
+            desktops = response.get("desktops", []) if isinstance(response, dict) else []
+            logger.info(f"Received desktop from computer {computer}, windows={len(desktops)}")
+        except Exception as e:
+            logger.error(f"Error processing desktop response: {e}")
 
     def handle_tool_call_timeout(self, req_id: str) -> CallToolResult:
         """

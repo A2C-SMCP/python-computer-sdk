@@ -38,13 +38,7 @@ from a2c_smcp.server.sync_auth import SyncAuthenticationProvider
 class _PassSyncAuth(SyncAuthenticationProvider):
     """中文: 测试用的放行认证提供者 / English: Permissive auth provider for testing"""
 
-    def get_agent_id(self, sio: Server, environ: dict) -> str:  # type: ignore[override]
-        return "test-agent"
-
-    def authenticate(self, sio: Server, agent_id: str, auth: dict | None, headers: list) -> bool:  # type: ignore[override]
-        return True
-
-    def has_admin_permission(self, sio: Server, agent_id: str, secret: str) -> bool:  # type: ignore[override]
+    def authenticate(self, sio: Server, environ: dict, auth: dict | None, headers: list) -> bool:  # type: ignore[override]
         return True
 
 
@@ -221,13 +215,7 @@ def create_local_async_server() -> tuple[socketio.AsyncServer, socketio.AsyncNam
     class _PassAsyncAuth(AuthenticationProvider):
         """中文: 测试用的放行认证提供者 / English: Permissive auth provider for testing"""
 
-        async def get_agent_id(self, sio: socketio.AsyncServer, environ: dict) -> str:  # type: ignore[override]
-            return "test-agent"
-
-        async def authenticate(self, sio: socketio.AsyncServer, agent_id: str, auth: dict | None, headers: list) -> bool:  # type: ignore[override]
-            return True
-
-        async def has_admin_permission(self, sio: socketio.AsyncServer, agent_id: str, secret: str) -> bool:  # type: ignore[override]
+        async def authenticate(self, sio: socketio.AsyncServer, environ: dict, auth: dict | None, headers: list) -> bool:  # type: ignore[override]
             return True
 
     class LocalAsyncSMCPNamespace(SMCPNamespace):

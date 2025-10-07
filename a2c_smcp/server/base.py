@@ -51,17 +51,13 @@ class BaseNamespace(AsyncNamespace):
         try:
             logger.info(f"SocketIO Client {sid} connecting to {self.namespace}...")
 
-            # 获取agent_id，由认证提供者实现具体逻辑
-            # Get agent_id, implemented by authentication provider with specific logic
-            agent_id = await self.auth_provider.get_agent_id(self.server, environ)
-
             # 提取原始请求头
             # Extract raw request headers
             headers = self._extract_headers(environ)
 
             # 认证逻辑，直接传递原始数据给用户
             # Authentication logic, pass raw data directly to user
-            is_authenticated = await self.auth_provider.authenticate(self.server, agent_id, auth, headers)
+            is_authenticated = await self.auth_provider.authenticate(self.server, environ, auth, headers)
             if not is_authenticated:
                 raise ConnectionRefusedError("Authentication failed")
 

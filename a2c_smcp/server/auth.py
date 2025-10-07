@@ -20,50 +20,19 @@ class AuthenticationProvider(ABC):
     """
 
     @abstractmethod
-    async def get_agent_id(self, sio: AsyncServer, environ: dict) -> str:
-        """
-        获取agent_id，由用户实现具体逻辑
-        Get agent_id, implemented by user with specific logic
-
-        Args:
-            sio (AsyncServer): Socket.IO服务器实例 / Socket.IO server instance
-            environ (dict): 请求环境变量 / Request environment variables
-
-        Returns:
-            str: agent_id
-        """
-        pass
-
-    @abstractmethod
-    async def authenticate(self, sio: AsyncServer, agent_id: str, auth: dict | None, headers: list) -> bool:
+    async def authenticate(self, sio: AsyncServer, environ: dict, auth: dict | None, headers: list) -> bool:
         """
         认证连接请求
         Authenticate connection request
 
         Args:
             sio (AsyncServer): Socket.IO服务器实例 / Socket.IO server instance
-            agent_id (str): 代理ID / Agent ID
+            environ (dict): 请求环境变量 / Request environment variables
             auth (dict | None): 原始认证数据 / Raw authentication data
             headers (list): 原始请求头列表 / Raw request headers list
 
         Returns:
             bool: 认证是否成功 / Whether authentication succeeded
-        """
-        pass
-
-    @abstractmethod
-    async def has_admin_permission(self, sio: AsyncServer, agent_id: str, secret: str) -> bool:
-        """
-        检查是否具有管理员权限
-        Check if has admin permission
-
-        Args:
-            sio (AsyncServer): Socket.IO服务器实例 / Socket.IO server instance
-            agent_id (str): 代理ID / Agent ID
-            secret (str): 密钥 / Secret
-
-        Returns:
-            bool: 是否具有管理员权限 / Whether has admin permission
         """
         pass
 
@@ -86,18 +55,7 @@ class DefaultAuthenticationProvider(AuthenticationProvider):
         self.admin_secret = admin_secret
         self.api_key_name = api_key_name
 
-    async def get_agent_id(self, sio: AsyncServer, environ: dict) -> str:
-        """
-        默认获取agent_id逻辑：从FastAPI应用状态中获取
-        Default agent_id retrieval logic: get from FastAPI application state
-        """
-        if hasattr(sio, 'app') and hasattr(sio.app, 'state') and hasattr(sio.app.state, 'agent_id'):
-            return sio.app.state.agent_id
-        # 如果无法从应用状态获取，返回默认值
-        # If cannot get from app state, return default value
-        return "default_agent"
-
-    async def authenticate(self, sio: AsyncServer, agent_id: str, auth: dict | None, headers: list) -> bool:
+    async def authenticate(self, sio: AsyncServer, environ: dict, auth: dict | None, headers: list) -> bool:
         """
         默认认证逻辑：从headers中提取API密钥进行认证
         Default authentication logic: extract API key from headers for authentication
@@ -117,18 +75,11 @@ class DefaultAuthenticationProvider(AuthenticationProvider):
         if not api_key:
             return False
 
-        # 检查管理员权限
-        # Check admin permission
-        if await self.has_admin_permission(sio, agent_id, api_key):
+        # 检查管理员权限：与配置的管理员密钥比较
+        # Check admin permission: compare with configured admin secret
+        if self.admin_secret is not None and api_key == self.admin_secret:
             return True
 
         # 这里可以添加其他认证逻辑，如数据库验证等
         # Additional authentication logic can be added here, such as database validation
         return False
-
-    async def has_admin_permission(self, sio: AsyncServer, agent_id: str, secret: str) -> bool:
-        """
-        默认管理员权限检查：与配置的管理员密钥比较
-        Default admin permission check: compare with configured admin secret
-        """
-        return self.admin_secret is not None and secret == self.admin_secret

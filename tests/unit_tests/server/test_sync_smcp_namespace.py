@@ -18,10 +18,7 @@ from a2c_smcp.smcp import (
 
 
 class _DummyAuthProv:
-    def get_agent_id(self, sio, environ):  # pragma: no cover - not used here
-        return "aid"
-
-    def authenticate(self, sio, agent_id, auth, headers):  # pragma: no cover - not used here
+    def authenticate(self, sio, environ, auth, headers):  # pragma: no cover - not used here
         return True
 
 

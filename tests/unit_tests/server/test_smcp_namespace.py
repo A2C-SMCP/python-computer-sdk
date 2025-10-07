@@ -32,11 +32,7 @@ from a2c_smcp.smcp import (
 class MockAuthProvider(AuthenticationProvider):
     """Mock认证提供者用于测试 / Mock authentication provider for testing"""
 
-    async def get_agent_id(self, sio: AsyncMock, environ: dict) -> str:
-        """Mock获取agent_id逻辑 / Mock agent_id retrieval logic"""
-        return "test_agent"
-
-    async def authenticate(self, sio: AsyncMock, agent_id: str, auth: dict | None, headers: list) -> bool:
+    async def authenticate(self, sio: AsyncMock, environ: dict, auth: dict | None, headers: list) -> bool:
         """简单的Mock认证逻辑 / Simple mock authentication logic"""
         # 从headers中提取API密钥进行认证
         # Extract API key from headers for authentication

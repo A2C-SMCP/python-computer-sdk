@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   build-and-publish:
-    name: Build and publish package
+    name: Build package
     runs-on: ubuntu-latest
 
     steps:
@@ -80,43 +80,55 @@ jobs:
           name: dist-artifacts
           path: dist/*
 
-      # 预发布（prerelease）发布到 TestPyPI
-      # Publish to TestPyPI when the GitHub Release is marked as prerelease
-      - name: Publish to TestPyPI (for prereleases, OIDC/Trusted Publishing)
-        if: ${{ github.event.release.prerelease == true }}
+  publish-testpypi:
+    name: Publish to TestPyPI (Pre-release)
+    needs: [build-and-publish]
+    runs-on: ubuntu-latest
+    if: ${{ github.event.release.prerelease == true }}
+    environment:
+      name: testpypi
+      # 环境展示链接：指向 TestPyPI 包页面 / Environment URL: link to TestPyPI project page
+      url: https://test.pypi.org/project/a2c-smcp/
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-artifacts
+          path: dist
+
+      - name: List distributions
+        run: ls -lh dist/
+
+      - name: Publish to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          # 使用 Trusted Publishing 时无需 password；需在 TestPyPI 配置 Trusted Publisher
-          # No password needed with Trusted Publishing; configure Trusted Publisher in TestPyPI
           repository-url: https://test.pypi.org/legacy/
           skip-existing: true
+          verbose: true
 
-      # 如需使用 Token 发布到 TestPyPI，请改用下方写法并在仓库 Secrets 配置 TEST_PYPI_API_TOKEN
-      # If you prefer Token for TestPyPI, use the step below instead and set TEST_PYPI_API_TOKEN
-      # - name: Publish to TestPyPI (Token-based)
-      #   if: ${{ github.event.release.prerelease == true }}
-      #   uses: pypa/gh-action-pypi-publish@release/v1
-      #   with:
-      #     password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-      #     repository-url: https://test.pypi.org/legacy/
-      #     skip-existing: true
+  publish-pypi:
+    name: Publish to PyPI (Release)
+    needs: [build-and-publish]
+    runs-on: ubuntu-latest
+    if: ${{ github.event.release.prerelease == false && github.event.release.target_commitish == 'main' }}
+    environment:
+      name: pypi
+      # 环境展示链接：指向 PyPI 包页面 / Environment URL: link to PyPI project page
+      url: https://pypi.org/project/a2c-smcp/
+    permissions:
+      id-token: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-artifacts
+          path: dist
 
-      # 正式发布到 PyPI
-      # Publish to PyPI when the GitHub Release is not a prerelease
-      - name: Publish to PyPI (for final releases, OIDC/Trusted Publishing)
-        # 仅当 Release 指向 main 分支且不是预发布时执行 / Only run when the release targets main and is not a prerelease
-        if: ${{ github.event.release.prerelease == false && github.event.release.target_commitish == 'main' }}
+      - name: List distributions
+        run: ls -lh dist/
+
+      - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          # 使用 Trusted Publishing 时无需 password；需在 PyPI 配置 Trusted Publisher
-          # No password needed with Trusted Publishing; configure Trusted Publisher in PyPI
           skip-existing: true
-
-      # 如需使用 Token 发布到 PyPI，请改用下方写法并在仓库 Secrets 配置 PYPI_API_TOKEN
-      # If you prefer Token for PyPI, use the step below instead and set PYPI_API_TOKEN
-      # - name: Publish to PyPI (Token-based)
-      #   if: ${{ github.event.release.prerelease == false }}
-      #   uses: pypa/gh-action-pypi-publish@release/v1
-      #   with:
-      #     password: ${{ secrets.PYPI_API_TOKEN }}
-      #     skip-existing: true
+          verbose: true

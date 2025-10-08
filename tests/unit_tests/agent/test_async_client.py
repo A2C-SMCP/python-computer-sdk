@@ -39,18 +39,27 @@ class _AsyncEH:
         self.leave_office_calls: list[LeaveOfficeNotification] = []
         self.update_config_calls: list[UpdateMCPConfigNotification] = []
         self.tools_received_calls: list[tuple[str, list[SMCPTool]]] = []
+        # 记录传入的client实例 / Record passed client instances
+        self.enter_office_clients: list[AsyncSMCPAgentClient] = []
+        self.leave_office_clients: list[AsyncSMCPAgentClient] = []
+        self.update_config_clients: list[AsyncSMCPAgentClient] = []
+        self.tools_received_clients: list[AsyncSMCPAgentClient] = []
 
-    async def on_computer_enter_office(self, data: EnterOfficeNotification) -> None:
+    async def on_computer_enter_office(self, data: EnterOfficeNotification, sio: AsyncSMCPAgentClient) -> None:
         self.enter_office_calls.append(data)
+        self.enter_office_clients.append(sio)
 
-    async def on_computer_leave_office(self, data: LeaveOfficeNotification) -> None:
+    async def on_computer_leave_office(self, data: LeaveOfficeNotification, sio: AsyncSMCPAgentClient) -> None:
         self.leave_office_calls.append(data)
+        self.leave_office_clients.append(sio)
 
-    async def on_computer_update_config(self, data: UpdateMCPConfigNotification) -> None:
+    async def on_computer_update_config(self, data: UpdateMCPConfigNotification, sio: AsyncSMCPAgentClient) -> None:
         self.update_config_calls.append(data)
+        self.update_config_clients.append(sio)
 
-    async def on_tools_received(self, computer: str, tools: list[SMCPTool]) -> None:
+    async def on_tools_received(self, computer: str, tools: list[SMCPTool], sio: AsyncSMCPAgentClient) -> None:
         self.tools_received_calls.append((computer, tools))
+        self.tools_received_clients.append(sio)
 
 
 @pytest.fixture
@@ -223,3 +232,89 @@ async def test_event_handlers_enter_leave_update(client: AsyncSMCPAgentClient, h
         await client._on_computer_update_config(update)
         # 不强校验次数，仅保证路径覆盖
         assert handler.update_config_calls
+
+
+@pytest.mark.asyncio
+async def test_sio_param_passed_to_enter_office_handler(client: AsyncSMCPAgentClient, handler: _AsyncEH) -> None:
+    """
+    中文：测试sio参数被正确传入enter_office处理器。
+    English: Test sio param is correctly passed to enter_office handler.
+    """
+
+    async def _mock_get_tools(_: str, timeout: int = 20) -> dict[str, Any]:  # noqa: ARG001
+        return {"tools": [], "req_id": "r"}
+
+    with patch.object(client, "get_tools_from_computer", new=AsyncMock(side_effect=_mock_get_tools)):
+        enter: EnterOfficeNotification = {"office_id": "test_office", "computer": "c1"}
+        await client._on_computer_enter_office(enter)
+
+        # 验证client实例被传入 / Verify client instance was passed
+        assert len(handler.enter_office_clients) == 1
+        passed_client = handler.enter_office_clients[0]
+
+        # 验证传入的是同一个client实例 / Verify it's the same client instance
+        assert passed_client is client
+        assert isinstance(passed_client, AsyncSMCPAgentClient)
+
+        # 验证可以访问client的属性 / Verify can access client properties
+        assert hasattr(passed_client, "auth_provider")
+        assert passed_client.auth_provider is not None
+
+
+@pytest.mark.asyncio
+async def test_sio_param_passed_to_leave_office_handler(client: AsyncSMCPAgentClient, handler: _AsyncEH) -> None:
+    """
+    中文：测试sio参数被正确传入leave_office处理器。
+    English: Test sio param is correctly passed to leave_office handler.
+    """
+    leave: LeaveOfficeNotification = {"office_id": "test_office", "computer": "c1"}
+    await client._on_computer_leave_office(leave)
+
+    # 验证client实例被传入 / Verify client instance was passed
+    assert len(handler.leave_office_clients) == 1
+    passed_client = handler.leave_office_clients[0]
+
+    # 验证传入的是同一个client实例 / Verify it's the same client instance
+    assert passed_client is client
+    assert isinstance(passed_client, AsyncSMCPAgentClient)
+
+
+@pytest.mark.asyncio
+async def test_sio_param_passed_to_update_config_handler(client: AsyncSMCPAgentClient, handler: _AsyncEH) -> None:
+    """
+    中文：测试sio参数被正确传入update_config处理器。
+    English: Test sio param is correctly passed to update_config handler.
+    """
+
+    async def _mock_get_tools(_: str, timeout: int = 20) -> dict[str, Any]:  # noqa: ARG001
+        return {"tools": [], "req_id": "r"}
+
+    with patch.object(client, "get_tools_from_computer", new=AsyncMock(side_effect=_mock_get_tools)):
+        update: UpdateMCPConfigNotification = {"computer": "c1"}
+        await client._on_computer_update_config(update)
+
+        # 验证client实例被传入 / Verify client instance was passed
+        assert len(handler.update_config_clients) == 1
+        passed_client = handler.update_config_clients[0]
+
+        # 验证传入的是同一个client实例 / Verify it's the same client instance
+        assert passed_client is client
+        assert isinstance(passed_client, AsyncSMCPAgentClient)
+
+
+@pytest.mark.asyncio
+async def test_sio_param_passed_to_tools_received_handler(client: AsyncSMCPAgentClient, handler: _AsyncEH) -> None:
+    """
+    中文：测试sio参数被正确传入tools_received处理器。
+    English: Test sio param is correctly passed to tools_received handler.
+    """
+    tools = [{"name": "test_tool"}]
+    await client.process_tools_response({"tools": tools, "req_id": "x"}, "comp-1")
+
+    # 验证client实例被传入 / Verify client instance was passed
+    assert len(handler.tools_received_clients) == 1
+    passed_client = handler.tools_received_clients[0]
+
+    # 验证传入的是同一个client实例 / Verify it's the same client instance
+    assert passed_client is client
+    assert isinstance(passed_client, AsyncSMCPAgentClient)

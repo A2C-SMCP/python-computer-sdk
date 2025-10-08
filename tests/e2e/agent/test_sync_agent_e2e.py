@@ -53,18 +53,27 @@ class MockEventHandler:
         self.leave_office_events: list[LeaveOfficeNotification] = []
         self.update_config_events: list[UpdateMCPConfigNotification] = []
         self.tools_received_events: list[tuple[str, list[SMCPTool]]] = []
+        # 记录传入的client实例 / Record passed client instances
+        self.enter_office_clients: list[SMCPAgentClient] = []
+        self.leave_office_clients: list[SMCPAgentClient] = []
+        self.update_config_clients: list[SMCPAgentClient] = []
+        self.tools_received_clients: list[SMCPAgentClient] = []
 
-    def on_computer_enter_office(self, data: EnterOfficeNotification) -> None:
+    def on_computer_enter_office(self, data: EnterOfficeNotification, sio: SMCPAgentClient) -> None:
         self.enter_office_events.append(data)
+        self.enter_office_clients.append(sio)
 
-    def on_computer_leave_office(self, data: LeaveOfficeNotification) -> None:
+    def on_computer_leave_office(self, data: LeaveOfficeNotification, sio: SMCPAgentClient) -> None:
         self.leave_office_events.append(data)
+        self.leave_office_clients.append(sio)
 
-    def on_computer_update_config(self, data: UpdateMCPConfigNotification) -> None:
+    def on_computer_update_config(self, data: UpdateMCPConfigNotification, sio: SMCPAgentClient) -> None:
         self.update_config_events.append(data)
+        self.update_config_clients.append(sio)
 
-    def on_tools_received(self, computer: str, tools: list[SMCPTool]) -> None:
+    def on_tools_received(self, computer: str, tools: list[SMCPTool], sio: SMCPAgentClient) -> None:
         self.tools_received_events.append((computer, tools))
+        self.tools_received_clients.append(sio)
 
 
 def test_sync_agent_connect_and_join_office(server_endpoint: str, mock_computer_client):
@@ -341,6 +350,163 @@ def test_sync_agent_computer_leave_notification(server_endpoint: str, mock_compu
         leave_event = event_handler.leave_office_events[0]
         assert leave_event["office_id"] == "office-sync-4"
         assert "computer" in leave_event
+
+    finally:
+        agent_client.disconnect()
+
+
+def test_sync_agent_sio_param_with_real_connection(server_endpoint: str, mock_computer_client):
+    """
+    中文:
+      - 验证在真实连接场景下，sio参数被正确传入事件处理器
+      - 验证可以通过sio访问客户端属性和元数据（如sid）
+    English:
+      - Verify sio param is correctly passed to event handlers in real connection scenario
+      - Verify can access client properties and metadata (like sid) via sio
+    """
+    # 创建认证提供者 / Create auth provider
+    auth_provider = DefaultAgentAuthProvider(
+        agent_id="test-agent-sio",
+        office_id="office-sio-test",
+    )
+
+    # 创建事件处理器 / Create event handler
+    event_handler = MockEventHandler()
+
+    # 创建 Agent 客户端 / Create Agent client
+    agent_client = SMCPAgentClient(
+        auth_provider=auth_provider,
+        event_handler=event_handler,
+    )
+
+    try:
+        # 连接到服务器 / Connect to server
+        agent_client.connect_to_server(server_endpoint)
+        time.sleep(0.1)
+
+        # Agent 加入办公室 / Agent joins office
+        ok, err = agent_client.call(
+            JOIN_OFFICE_EVENT,
+            {"role": "agent", "name": "test-agent-sio", "office_id": "office-sio-test"},
+            namespace=SMCP_NAMESPACE,
+            timeout=5,
+        )
+        assert ok is True
+        assert err is None
+
+        # 获取Agent的SID / Get Agent's SID
+        agent_sid = agent_client.get_sid(namespace=SMCP_NAMESPACE)
+        assert agent_sid is not None
+
+        # Computer 加入办公室 / Computer joins office
+        ok, err = mock_computer_client.call(
+            JOIN_OFFICE_EVENT,
+            {"role": "computer", "name": "test-computer-sio", "office_id": "office-sio-test"},
+            namespace=SMCP_NAMESPACE,
+            timeout=5,
+        )
+        assert ok is True
+        assert err is None
+
+        # 等待事件处理 / Wait for event processing
+        assert _wait_until(lambda: len(event_handler.enter_office_events) >= 1, timeout=3)
+
+        # 验证sio参数被传入 / Verify sio param was passed
+        assert len(event_handler.enter_office_clients) >= 1
+        passed_client = event_handler.enter_office_clients[0]
+
+        # 验证传入的是同一个client实例 / Verify it's the same client instance
+        assert passed_client is agent_client
+        assert isinstance(passed_client, SMCPAgentClient)
+
+        # 验证可以访问client的属性 / Verify can access client properties
+        assert hasattr(passed_client, "auth_provider")
+        assert passed_client.auth_provider is not None
+
+        # 验证可以访问sid等元数据 / Verify can access sid and other metadata
+        passed_client_sid = passed_client.get_sid(namespace=SMCP_NAMESPACE)
+        assert passed_client_sid == agent_sid
+        assert passed_client_sid is not None
+
+        # 验证可以调用client的方法 / Verify can call client methods
+        agent_config = passed_client.auth_provider.get_agent_config()
+        assert agent_config["agent_id"] == "test-agent-sio"
+        assert agent_config["office_id"] == "office-sio-test"
+
+        # 验证tools_received也收到了sio参数 / Verify tools_received also received sio param
+        assert _wait_until(lambda: len(event_handler.tools_received_clients) >= 1, timeout=3)
+        tools_client = event_handler.tools_received_clients[0]
+        assert tools_client is agent_client
+        assert tools_client.get_sid(namespace=SMCP_NAMESPACE) == agent_sid
+
+    finally:
+        # 清理连接 / Cleanup connection
+        agent_client.disconnect()
+
+
+def test_sync_agent_sio_param_in_leave_event(server_endpoint: str, mock_computer_client):
+    """
+    中文:
+      - 验证Computer离开办公室时，sio参数也被正确传入
+    English:
+      - Verify sio param is correctly passed when Computer leaves office
+    """
+    auth_provider = DefaultAgentAuthProvider(
+        agent_id="test-agent-leave",
+        office_id="office-leave-test",
+    )
+
+    event_handler = MockEventHandler()
+
+    agent_client = SMCPAgentClient(
+        auth_provider=auth_provider,
+        event_handler=event_handler,
+    )
+
+    try:
+        # 连接并加入办公室 / Connect and join office
+        agent_client.connect_to_server(server_endpoint)
+        time.sleep(0.1)
+
+        agent_client.call(
+            JOIN_OFFICE_EVENT,
+            {"role": "agent", "name": "test-agent-leave", "office_id": "office-leave-test"},
+            namespace=SMCP_NAMESPACE,
+            timeout=5,
+        )
+
+        # Computer 加入办公室 / Computer joins office
+        mock_computer_client.call(
+            JOIN_OFFICE_EVENT,
+            {"role": "computer", "name": "test-computer-leave", "office_id": "office-leave-test"},
+            namespace=SMCP_NAMESPACE,
+            timeout=5,
+        )
+
+        # 等待加入事件处理完成 / Wait for join event processing
+        assert _wait_until(lambda: len(event_handler.enter_office_events) >= 1, timeout=3)
+
+        # Computer 离开办公室 / Computer leaves office
+        mock_computer_client.call(
+            LEAVE_OFFICE_EVENT,
+            {"office_id": "office-leave-test"},
+            namespace=SMCP_NAMESPACE,
+            timeout=5,
+        )
+
+        # 等待离开事件 / Wait for leave event
+        assert _wait_until(lambda: len(event_handler.leave_office_events) >= 1, timeout=3)
+
+        # 验证sio参数被传入leave_office处理器 / Verify sio param was passed to leave_office handler
+        assert len(event_handler.leave_office_clients) >= 1
+        passed_client = event_handler.leave_office_clients[0]
+
+        # 验证传入的是同一个client实例 / Verify it's the same client instance
+        assert passed_client is agent_client
+        assert isinstance(passed_client, SMCPAgentClient)
+
+        # 验证可以访问sid / Verify can access sid
+        assert passed_client.get_sid(namespace=SMCP_NAMESPACE) is not None
 
     finally:
         agent_client.disconnect()

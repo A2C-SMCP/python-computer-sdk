@@ -70,16 +70,16 @@ class MockAsyncEventHandler(AsyncAgentEventHandler):
         self.update_config_events: list[UpdateMCPConfigNotification] = []
         self.tools_received_events: list[tuple[str, list[SMCPTool]]] = []
 
-    async def on_computer_enter_office(self, data: EnterOfficeNotification) -> None:
+    async def on_computer_enter_office(self, data: EnterOfficeNotification, sio: AsyncSMCPAgentClient) -> None:
         self.enter_office_events.append(data)
 
-    async def on_computer_leave_office(self, data: LeaveOfficeNotification) -> None:
+    async def on_computer_leave_office(self, data: LeaveOfficeNotification, sio: AsyncSMCPAgentClient) -> None:
         self.leave_office_events.append(data)
 
-    async def on_computer_update_config(self, data: UpdateMCPConfigNotification) -> None:
+    async def on_computer_update_config(self, data: UpdateMCPConfigNotification, sio: AsyncSMCPAgentClient) -> None:
         self.update_config_events.append(data)
 
-    async def on_tools_received(self, computer: str, tools: list[SMCPTool]) -> None:
+    async def on_tools_received(self, computer: str, tools: list[SMCPTool], sio: AsyncSMCPAgentClient) -> None:
         self.tools_received_events.append((computer, tools))
 
 
@@ -535,9 +535,7 @@ async def test_async_integration_vrl_preserves_original_result(
         # 7. 验证原始内容保持不变
         # Verify original content remains unchanged
         assert len(result.content) >= 1, "Tool result content is empty"
-        assert "ok:mark_a" in result.content[0].text, (
-            f"Original content should contain 'ok:mark_a', got {result.content[0].text}"
-        )
+        assert "ok:mark_a" in result.content[0].text, f"Original content should contain 'ok:mark_a', got {result.content[0].text}"
 
         # 8. 验证 VRL 转换结果存在于 meta 中，但不影响 content
         # Verify VRL transformation exists in meta but doesn't affect content

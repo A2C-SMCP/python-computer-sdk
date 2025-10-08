@@ -208,10 +208,10 @@ class BaseAgentClient(ABC):
             computer = self.validate_office_data(data)
             logger.info(f"Computer {computer} entered office {data['office_id']}")
 
-            # 调用异步事件处理器
-            # Call async event handler
+            # 调用异步事件处理器（强制携带 client 引用）
+            # Call async event handler (force passing client reference)
             if self.event_handler:
-                await self.event_handler.on_computer_enter_office(data)
+                await self.event_handler.on_computer_enter_office(data, self)  # type: ignore[arg-type]
 
         except Exception as e:
             logger.error(f"Error handling computer enter office: {e}")
@@ -228,10 +228,10 @@ class BaseAgentClient(ABC):
             computer = self.validate_office_data(data)
             logger.info(f"Computer {computer} left office {data['office_id']}")
 
-            # 调用异步事件处理器
-            # Call async event handler
+            # 调用异步事件处理器（强制携带 client 引用）
+            # Call async event handler (force passing client reference)
             if self.event_handler:
-                await self.event_handler.on_computer_leave_office(data)
+                await self.event_handler.on_computer_leave_office(data, self)  # type: ignore[arg-type]
 
         except Exception as e:
             logger.error(f"Error handling computer leave office: {e}")
@@ -248,10 +248,10 @@ class BaseAgentClient(ABC):
             computer = data["computer"]
             logger.info(f"Computer {computer} updated config")
 
-            # 调用异步事件处理器
-            # Call async event handler
+            # 调用异步事件处理器（强制携带 client 引用）
+            # Call async event handler (force passing client reference)
             if self.event_handler:
-                await self.event_handler.on_computer_update_config(data)
+                await self.event_handler.on_computer_update_config(data, self)  # type: ignore[arg-type]
 
         except Exception as e:
             logger.error(f"Error handling computer update config: {e}")
@@ -269,10 +269,10 @@ class BaseAgentClient(ABC):
             if tools := response.get("tools"):
                 logger.info(f"Received {len(tools)} tools from computer {computer}")
 
-                # 调用异步事件处理器
-                # Call async event handler
+                # 调用异步事件处理器（强制携带 client 引用）
+                # Call async event handler (force passing client reference)
                 if self.event_handler:
-                    await self.event_handler.on_tools_received(computer, tools)
+                    await self.event_handler.on_tools_received(computer, tools, self)  # type: ignore[arg-type]
 
         except Exception as e:
             logger.error(f"Error processing tools response: {e}")
@@ -467,10 +467,10 @@ class BaseAgentSyncClient(ABC):
             computer = self.validate_office_data(data)
             logger.info(f"Computer {computer} entered office {data['office_id']}")
 
-            # 调用事件处理器
-            # Call event handler
+            # 调用事件处理器（强制携带 client 引用）
+            # Call event handler (force passing client reference)
             if self.event_handler:
-                self.event_handler.on_computer_enter_office(data)
+                self.event_handler.on_computer_enter_office(data, self)  # type: ignore[arg-type]
 
         except Exception as e:
             logger.error(f"Error handling computer enter office: {e}")
@@ -487,10 +487,10 @@ class BaseAgentSyncClient(ABC):
             computer = self.validate_office_data(data)
             logger.info(f"Computer {computer} left office {data['office_id']}")
 
-            # 调用事件处理器
-            # Call event handler
+            # 调用事件处理器（强制携带 client 引用）
+            # Call event handler (force passing client reference)
             if self.event_handler:
-                self.event_handler.on_computer_leave_office(data)
+                self.event_handler.on_computer_leave_office(data, self)  # type: ignore[arg-type]
 
         except Exception as e:
             logger.error(f"Error handling computer leave office: {e}")
@@ -507,10 +507,10 @@ class BaseAgentSyncClient(ABC):
             computer = data["computer"]
             logger.info(f"Computer {computer} updated config")
 
-            # 调用事件处理器
-            # Call event handler
+            # 调用事件处理器（强制携带 client 引用）
+            # Call event handler (force passing client reference)
             if self.event_handler:
-                self.event_handler.on_computer_update_config(data)
+                self.event_handler.on_computer_update_config(data, self)  # type: ignore[arg-type]
 
         except Exception as e:
             logger.error(f"Error handling computer update config: {e}")
@@ -528,10 +528,10 @@ class BaseAgentSyncClient(ABC):
             if tools := response.get("tools"):
                 logger.info(f"Received {len(tools)} tools from computer {computer}")
 
-                # 调用事件处理器
-                # Call event handler
+                # 调用事件处理器（强制携带 client 引用）
+                # Call event handler (force passing client reference)
                 if self.event_handler:
-                    self.event_handler.on_tools_received(computer, tools)
+                    self.event_handler.on_tools_received(computer, tools, self)  # type: ignore[arg-type]
 
         except Exception as e:
             logger.error(f"Error processing tools response: {e}")

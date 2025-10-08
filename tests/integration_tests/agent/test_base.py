@@ -49,18 +49,27 @@ class MockEventHandler(AgentEventHandler):
         self.leave_events = []
         self.update_events = []
         self.tools_received = []
+        # 记录传入的client实例 / Record passed client instances
+        self.enter_clients = []
+        self.leave_clients = []
+        self.update_clients = []
+        self.tools_clients = []
 
-    def on_computer_enter_office(self, data):
+    def on_computer_enter_office(self, data, sio):
         self.enter_events.append(data)
+        self.enter_clients.append(sio)
 
-    def on_computer_leave_office(self, data):
+    def on_computer_leave_office(self, data, sio):
         self.leave_events.append(data)
+        self.leave_clients.append(sio)
 
-    def on_computer_update_config(self, data):
+    def on_computer_update_config(self, data, sio):
         self.update_events.append(data)
+        self.update_clients.append(sio)
 
-    def on_tools_received(self, computer, tools):
+    def on_tools_received(self, computer, tools, sio):
         self.tools_received.append((computer, tools))
+        self.tools_clients.append(sio)
 
 
 def test_base_agent_client_initialization():
@@ -416,3 +425,101 @@ def test_base_agent_client_without_event_handler():
 
     # 验证没有异常抛出
     assert client.event_handler is None
+
+
+def test_sio_param_passed_to_handlers():
+    """
+    中文：验证sio参数被正确传入所有事件处理器。
+    English: Verify sio param is correctly passed to all event handlers.
+    """
+    office_id = "test-office-sio"
+    auth = DefaultAgentAuthProvider(agent_id="test-agent", office_id=office_id)
+    handler = MockEventHandler()
+    client = MockAgentClient(auth_provider=auth, event_handler=handler)
+
+    # 测试enter_office / Test enter_office
+    enter_data: EnterOfficeNotification = {
+        "office_id": office_id,
+        "computer": "test-computer-1",
+        "agent": None,
+    }
+    client.handle_computer_enter_office(enter_data)
+    
+    assert len(handler.enter_clients) == 1
+    assert handler.enter_clients[0] is client
+    assert isinstance(handler.enter_clients[0], MockAgentClient)
+
+    # 测试leave_office / Test leave_office
+    leave_data: LeaveOfficeNotification = {
+        "office_id": office_id,
+        "computer": "test-computer-2",
+        "agent": None,
+    }
+    client.handle_computer_leave_office(leave_data)
+    
+    assert len(handler.leave_clients) == 1
+    assert handler.leave_clients[0] is client
+
+    # 测试update_config / Test update_config
+    update_data: UpdateMCPConfigNotification = {
+        "computer": "test-computer-3",
+    }
+    client.handle_computer_update_config(update_data)
+    
+    assert len(handler.update_clients) == 1
+    assert handler.update_clients[0] is client
+
+    # 测试tools_received / Test tools_received
+    tools = [
+        SMCPTool(
+            name="tool1",
+            description="Test tool 1",
+            params_schema={"type": "object"},
+            return_schema=None,
+        ),
+    ]
+    response: GetToolsRet = {
+        "tools": tools,
+        "req_id": "test-req-id",
+    }
+    client.process_tools_response(response, "test-computer-4")
+    
+    assert len(handler.tools_clients) == 1
+    assert handler.tools_clients[0] is client
+
+
+def test_sio_param_client_properties_accessible():
+    """
+    中文：验证通过sio参数可以访问client的属性和方法。
+    English: Verify client properties and methods are accessible via sio param.
+    """
+    office_id = "test-office-props"
+    agent_id = "test-agent-props"
+    auth = DefaultAgentAuthProvider(agent_id=agent_id, office_id=office_id)
+    handler = MockEventHandler()
+    client = MockAgentClient(auth_provider=auth, event_handler=handler)
+
+    enter_data: EnterOfficeNotification = {
+        "office_id": office_id,
+        "computer": "test-computer",
+        "agent": None,
+    }
+    client.handle_computer_enter_office(enter_data)
+
+    # 验证可以通过sio访问client属性 / Verify can access client properties via sio
+    passed_client = handler.enter_clients[0]
+    
+    # 验证auth_provider可访问 / Verify auth_provider is accessible
+    assert hasattr(passed_client, "auth_provider")
+    assert passed_client.auth_provider is not None
+    agent_config = passed_client.auth_provider.get_agent_config()
+    assert agent_config["agent_id"] == agent_id
+    assert agent_config["office_id"] == office_id
+    
+    # 验证event_handler可访问 / Verify event_handler is accessible
+    assert hasattr(passed_client, "event_handler")
+    assert passed_client.event_handler is handler
+    
+    # 验证方法可调用 / Verify methods are callable
+    assert hasattr(passed_client, "validate_emit_event")
+    assert callable(passed_client.validate_emit_event)

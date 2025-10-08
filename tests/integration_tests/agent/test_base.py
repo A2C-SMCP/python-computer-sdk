@@ -13,12 +13,12 @@ import pytest
 from mcp.types import CallToolResult, TextContent
 
 from a2c_smcp.agent.auth import DefaultAgentAuthProvider
-from a2c_smcp.agent.base import BaseAgentClient
+from a2c_smcp.agent.base import BaseAgentSyncClient
 from a2c_smcp.agent.types import AgentEventHandler
 from a2c_smcp.smcp import EnterOfficeNotification, GetToolsRet, LeaveOfficeNotification, SMCPTool, UpdateMCPConfigNotification
 
 
-class MockAgentClient(BaseAgentClient):
+class MockAgentClient(BaseAgentSyncClient):
     """
     中文：用于测试的 Mock Agent 客户端实现。
     English: Mock Agent client implementation for testing.

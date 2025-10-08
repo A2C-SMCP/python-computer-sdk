@@ -9,6 +9,7 @@
 English: Integration tests for SMCPAgentClient (synchronous).
 """
 
+import socket
 import threading
 import time
 from typing import Literal
@@ -34,8 +35,14 @@ from a2c_smcp.smcp import (
 from a2c_smcp.utils.logger import logger
 from tests.integration_tests.mock_sync_smcp_server import create_sync_smcp_socketio
 
-# 测试服务器端口
-TEST_PORT = 8008
+
+@pytest.fixture
+def sync_server_port() -> int:
+    """动态分配可用端口 / Dynamically allocate available port"""
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
 
 # 创建同步 SMCP 服务器
 sio = create_sync_smcp_socketio()
@@ -88,13 +95,13 @@ class _EH(AgentEventHandler):
 
 
 @pytest.fixture
-def startup_and_shutdown_sync_smcp_server():
+def startup_and_shutdown_sync_smcp_server(sync_server_port: int):
     """启动和关闭同步 SMCP 服务器的测试夹具"""
-    server_thread = ServerThread(wsgi_app, "localhost", TEST_PORT)
+    server_thread = ServerThread(wsgi_app, "localhost", sync_server_port)
     server_thread.start()
     logger.info("Starting SMCP server...")
     time.sleep(0.5)  # 等待服务器启动
-    yield
+    yield sync_server_port
     logger.info("Shutting down SMCP server...")
     server_thread.shutdown()
 
@@ -114,6 +121,7 @@ def test_agent_receives_enter_and_tools_sync(startup_and_shutdown_sync_smcp_serv
     中文：验证同步Agent收到Computer进入办公室事件，并自动拉取工具列表。
     English: Verify sync Agent receives enter event and auto fetches tools.
     """
+    port = startup_and_shutdown_sync_smcp_server
     handler = _EH()
     office_id = "office-sync-1"
     auth = DefaultAgentAuthProvider(agent_id="robot-sync-1", office_id=office_id)
@@ -121,7 +129,7 @@ def test_agent_receives_enter_and_tools_sync(startup_and_shutdown_sync_smcp_serv
 
     # Agent 连接并加入办公室
     agent.connect_to_server(
-        f"http://localhost:{TEST_PORT}",
+        f"http://localhost:{port}",
         namespace=SMCP_NAMESPACE,
         socketio_path="/socket.io",
     )
@@ -137,7 +145,7 @@ def test_agent_receives_enter_and_tools_sync(startup_and_shutdown_sync_smcp_serv
         logger.info("Starting Computer Client...")
         computer = Client()
         computer.connect(
-            f"http://localhost:{TEST_PORT}",
+            f"http://localhost:{port}",
             namespaces=[SMCP_NAMESPACE],
             socketio_path="/socket.io",
         )
@@ -170,6 +178,7 @@ def test_agent_tool_call_roundtrip_sync(startup_and_shutdown_sync_smcp_server):
     中文：验证同步Agent发起工具调用，Computer返回CallToolResult。
     English: Verify sync Agent tool-call roundtrip.
     """
+    port = startup_and_shutdown_sync_smcp_server
     handler = _EH()
     office_id = "office-sync-2"
     auth = DefaultAgentAuthProvider(agent_id="robot-sync-2", office_id=office_id)
@@ -177,7 +186,7 @@ def test_agent_tool_call_roundtrip_sync(startup_and_shutdown_sync_smcp_server):
 
     # Agent 连接并加入办公室
     agent.connect_to_server(
-        f"http://localhost:{TEST_PORT}",
+        f"http://localhost:{port}",
         namespace=SMCP_NAMESPACE,
         socketio_path="/socket.io",
     )
@@ -193,7 +202,7 @@ def test_agent_tool_call_roundtrip_sync(startup_and_shutdown_sync_smcp_server):
         logger.info("Starting Computer Client...")
         computer = Client()
         computer.connect(
-            f"http://localhost:{TEST_PORT}",
+            f"http://localhost:{port}",
             namespaces=[SMCP_NAMESPACE],
             socketio_path="/socket.io",
         )
@@ -233,6 +242,7 @@ def test_agent_receives_update_config_sync(startup_and_shutdown_sync_smcp_server
     中文：验证当Computer发出更新配置，Agent收到并再次拉取工具列表（同步）。
     English: Verify sync Agent receives update-config and re-fetches tools.
     """
+    port = startup_and_shutdown_sync_smcp_server
     handler = _EH()
     office_id = "office-sync-3"
     auth = DefaultAgentAuthProvider(agent_id="robot-sync-3", office_id=office_id)
@@ -240,7 +250,7 @@ def test_agent_receives_update_config_sync(startup_and_shutdown_sync_smcp_server
 
     # Agent 连接并加入办公室
     agent.connect_to_server(
-        f"http://localhost:{TEST_PORT}",
+        f"http://localhost:{port}",
         namespace=SMCP_NAMESPACE,
         socketio_path="/socket.io",
     )
@@ -256,7 +266,7 @@ def test_agent_receives_update_config_sync(startup_and_shutdown_sync_smcp_server
         logger.info("Starting Computer Client...")
         computer = Client()
         computer.connect(
-            f"http://localhost:{TEST_PORT}",
+            f"http://localhost:{port}",
             namespaces=[SMCP_NAMESPACE],
             socketio_path="/socket.io",
         )
@@ -314,15 +324,16 @@ def test_sync_agent_on_computer_enter_office_with_mock(startup_and_shutdown_sync
     中文：测试同步Agent Client能自动响应Computer Client的ENTER_OFFICE_EVENT。
     English: Test that sync Agent Client responds to Computer Client's ENTER_OFFICE_EVENT.
     """
+    port = startup_and_shutdown_sync_smcp_server
     office_id = "test-office-mock"
     auth = DefaultAgentAuthProvider(agent_id="mock_robot_id", office_id=office_id)
     agent_client = SMCPAgentClient(auth_provider=auth)
 
     # Mock process_tools_response 方法来验证是否被调用
-    with patch.object(agent_client, 'process_tools_response') as mock_process_tools_response:
+    with patch.object(agent_client, "process_tools_response") as mock_process_tools_response:
         # Agent 连接并加入办公室
         agent_client.connect_to_server(
-            f"http://localhost:{TEST_PORT}",
+            f"http://localhost:{port}",
             namespace=SMCP_NAMESPACE,
             socketio_path="/socket.io",
         )
@@ -339,7 +350,7 @@ def test_sync_agent_on_computer_enter_office_with_mock(startup_and_shutdown_sync
             computer_id = "mock_computer_sid"
             computer_client = Client()
             computer_client.connect(
-                f"http://localhost:{TEST_PORT}",
+                f"http://localhost:{port}",
                 namespaces=[SMCP_NAMESPACE],
                 socketio_path="/socket.io",
             )

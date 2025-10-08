@@ -20,6 +20,7 @@ from a2c_smcp.smcp import (
     CANCEL_TOOL_CALL_EVENT,
     SMCP_NAMESPACE,
     EnterOfficeNotification,
+    GetToolsRet,
     LeaveOfficeNotification,
     SMCPTool,
     UpdateMCPConfigNotification,
@@ -34,18 +35,27 @@ class MockEventHandler:
         self.leave_office_calls: list[LeaveOfficeNotification] = []
         self.update_config_calls: list[UpdateMCPConfigNotification] = []
         self.tools_received_calls: list[tuple[str, list[SMCPTool]]] = []
+        # 记录传入的client实例 / Record passed client instances
+        self.enter_office_clients: list[SMCPAgentClient] = []
+        self.leave_office_clients: list[SMCPAgentClient] = []
+        self.update_config_clients: list[SMCPAgentClient] = []
+        self.tools_received_clients: list[SMCPAgentClient] = []
 
-    def on_computer_enter_office(self, data: EnterOfficeNotification) -> None:
+    def on_computer_enter_office(self, data: EnterOfficeNotification, sio: SMCPAgentClient) -> None:
         self.enter_office_calls.append(data)
+        self.enter_office_clients.append(sio)
 
-    def on_computer_leave_office(self, data: LeaveOfficeNotification) -> None:
+    def on_computer_leave_office(self, data: LeaveOfficeNotification, sio: SMCPAgentClient) -> None:
         self.leave_office_calls.append(data)
+        self.leave_office_clients.append(sio)
 
-    def on_computer_update_config(self, data: UpdateMCPConfigNotification) -> None:
+    def on_computer_update_config(self, data: UpdateMCPConfigNotification, sio: SMCPAgentClient) -> None:
         self.update_config_calls.append(data)
+        self.update_config_clients.append(sio)
 
-    def on_tools_received(self, computer: str, tools: list[SMCPTool]) -> None:
+    def on_tools_received(self, computer: str, tools: list[SMCPTool], sio: SMCPAgentClient) -> None:
         self.tools_received_calls.append((computer, tools))
+        self.tools_received_clients.append(sio)
 
 
 class TestSMCPAgentClient:
@@ -87,14 +97,14 @@ class TestSMCPAgentClient:
 
     def test_validate_emit_event_valid(self, client: SMCPAgentClient) -> None:
         """测试验证有效事件通过 / Test validate valid events pass"""
-        with patch.object(client, 'emit', wraps=client.emit) as mock_emit:
+        with patch.object(client, "emit", wraps=client.emit) as mock_emit:
             # 模拟父类emit方法
             # Mock parent class emit method
-            with patch('socketio.Client.emit'):
+            with patch("socketio.Client.emit"):
                 client.emit("client:test_event")
                 mock_emit.assert_called_once()
 
-    @patch('socketio.Client.call')
+    @patch("socketio.Client.call")
     def test_emit_tool_call_success(self, mock_call: MagicMock, client: SMCPAgentClient) -> None:
         """测试成功的工具调用 / Test successful tool call"""
         # 模拟成功响应
@@ -116,8 +126,8 @@ class TestSMCPAgentClient:
         assert not result.isError
         mock_call.assert_called_once()
 
-    @patch('socketio.Client.call')
-    @patch('socketio.Client.emit')
+    @patch("socketio.Client.call")
+    @patch("socketio.Client.emit")
     def test_emit_tool_call_timeout(self, mock_emit: MagicMock, mock_call: MagicMock, client: SMCPAgentClient) -> None:
         """测试工具调用超时 / Test tool call timeout"""
         # 模拟超时异常
@@ -142,7 +152,7 @@ class TestSMCPAgentClient:
         assert args[0] == CANCEL_TOOL_CALL_EVENT
         assert args[2] == SMCP_NAMESPACE  # namespace 是第三个位置参数
 
-    @patch('socketio.Client.call')
+    @patch("socketio.Client.call")
     def test_get_tools_from_computer_success(self, mock_call: MagicMock, client: SMCPAgentClient) -> None:
         """测试成功获取工具列表 / Test successful get tools list"""
         # 模拟工具响应
@@ -160,7 +170,7 @@ class TestSMCPAgentClient:
             "req_id": req_id,
         }
 
-        with patch('uuid.uuid4') as mock_uuid:
+        with patch("uuid.uuid4") as mock_uuid:
             mock_uuid.return_value.hex = req_id
             mock_call.return_value = mock_response
 
@@ -171,7 +181,7 @@ class TestSMCPAgentClient:
             assert len(result["tools"]) == 1
             assert result["req_id"] == req_id
 
-    @patch('socketio.Client.call')
+    @patch("socketio.Client.call")
     def test_get_tools_from_computer_invalid_response(self, mock_call: MagicMock, client: SMCPAgentClient) -> None:
         """测试获取工具列表响应无效 / Test get tools list invalid response"""
         # 模拟无效响应
@@ -192,7 +202,7 @@ class TestSMCPAgentClient:
             "computer": "test_computer",
         }
 
-        with patch.object(client, 'get_tools_from_computer') as mock_get_tools:
+        with patch.object(client, "get_tools_from_computer") as mock_get_tools:
             mock_get_tools.return_value = {"tools": [], "req_id": "test_req"}
 
             client._on_computer_enter_office(data)
@@ -220,13 +230,98 @@ class TestSMCPAgentClient:
         assert len(event_handler.leave_office_calls) == 1
         assert event_handler.leave_office_calls[0] == data
 
+    def test_sio_param_passed_to_enter_office_handler(self, client: SMCPAgentClient, event_handler: MockEventHandler) -> None:
+        """测试sio参数被正确传入enter_office处理器 / Test sio param is correctly passed to enter_office handler"""
+        data: EnterOfficeNotification = {
+            "office_id": "test_office",
+            "computer": "test_computer",
+        }
+
+        with patch.object(client, "get_tools_from_computer") as mock_get_tools:
+            mock_get_tools.return_value = {"tools": [], "req_id": "test_req"}
+
+            client._on_computer_enter_office(data)
+
+            # 验证client实例被传入 / Verify client instance was passed
+            assert len(event_handler.enter_office_clients) == 1
+            passed_client = event_handler.enter_office_clients[0]
+
+            # 验证传入的是同一个client实例 / Verify it's the same client instance
+            assert passed_client is client
+
+            # 验证可以访问client的属性 / Verify can access client properties
+            assert hasattr(passed_client, "auth_provider")
+            assert passed_client.auth_provider is not None
+            assert hasattr(passed_client, "event_handler")
+
+    def test_sio_param_passed_to_leave_office_handler(self, client: SMCPAgentClient, event_handler: MockEventHandler) -> None:
+        """测试sio参数被正确传入leave_office处理器 / Test sio param is correctly passed to leave_office handler"""
+        data: LeaveOfficeNotification = {
+            "office_id": "test_office",
+            "computer": "test_computer",
+        }
+
+        client._on_computer_leave_office(data)
+
+        # 验证client实例被传入 / Verify client instance was passed
+        assert len(event_handler.leave_office_clients) == 1
+        passed_client = event_handler.leave_office_clients[0]
+
+        # 验证传入的是同一个client实例 / Verify it's the same client instance
+        assert passed_client is client
+        assert isinstance(passed_client, SMCPAgentClient)
+
+    def test_sio_param_passed_to_update_config_handler(self, client: SMCPAgentClient, event_handler: MockEventHandler) -> None:
+        """测试sio参数被正确传入update_config处理器 / Test sio param is correctly passed to update_config handler"""
+        data: UpdateMCPConfigNotification = {
+            "computer": "test_computer",
+        }
+
+        with patch.object(client, "get_tools_from_computer") as mock_get_tools:
+            mock_get_tools.return_value = {"tools": [], "req_id": "test_req"}
+
+            client._on_computer_update_config(data)
+
+            # 验证client实例被传入 / Verify client instance was passed
+            assert len(event_handler.update_config_clients) == 1
+            passed_client = event_handler.update_config_clients[0]
+
+            # 验证传入的是同一个client实例 / Verify it's the same client instance
+            assert passed_client is client
+            assert isinstance(passed_client, SMCPAgentClient)
+
+    def test_sio_param_passed_to_tools_received_handler(self, client: SMCPAgentClient, event_handler: MockEventHandler) -> None:
+        """测试sio参数被正确传入tools_received处理器 / Test sio param is correctly passed to tools_received handler"""
+        tools = [
+            SMCPTool(
+                name="test_tool",
+                description="Test tool",
+                params_schema={},
+                return_schema=None,
+            ),
+        ]
+        response: GetToolsRet = {
+            "tools": tools,
+            "req_id": "test_req",
+        }
+
+        client.process_tools_response(response, "test_computer")
+
+        # 验证client实例被传入 / Verify client instance was passed
+        assert len(event_handler.tools_received_clients) == 1
+        passed_client = event_handler.tools_received_clients[0]
+
+        # 验证传入的是同一个client实例 / Verify it's the same client instance
+        assert passed_client is client
+        assert isinstance(passed_client, SMCPAgentClient)
+
     def test_handle_computer_update_config(self, client: SMCPAgentClient, event_handler: MockEventHandler) -> None:
         """测试处理Computer更新配置事件 / Test handle Computer update config event"""
         data: UpdateMCPConfigNotification = {
             "computer": "test_computer",
         }
 
-        with patch.object(client, 'get_tools_from_computer') as mock_get_tools:
+        with patch.object(client, "get_tools_from_computer") as mock_get_tools:
             mock_get_tools.return_value = {"tools": [], "req_id": "test_req"}
 
             client._on_computer_update_config(data)

@@ -81,16 +81,16 @@ class _EH(AgentEventHandler):
         self.update_events: list[UpdateMCPConfigNotification] = []
         self.tools_received: list[tuple[str, list[SMCPTool]]] = []
 
-    def on_computer_enter_office(self, data: EnterOfficeNotification) -> None:
+    def on_computer_enter_office(self, data: EnterOfficeNotification, sio: SMCPAgentClient) -> None:
         self.enter_events.append(data)
 
-    def on_computer_leave_office(self, data: LeaveOfficeNotification) -> None:
+    def on_computer_leave_office(self, data: LeaveOfficeNotification, sio: SMCPAgentClient) -> None:
         self.leave_events.append(data)
 
-    def on_computer_update_config(self, data: UpdateMCPConfigNotification) -> None:
+    def on_computer_update_config(self, data: UpdateMCPConfigNotification, sio: SMCPAgentClient) -> None:
         self.update_events.append(data)
 
-    def on_tools_received(self, computer: str, tools: list[SMCPTool]) -> None:
+    def on_tools_received(self, computer: str, tools: list[SMCPTool], sio: SMCPAgentClient) -> None:
         self.tools_received.append((computer, tools))
 
 

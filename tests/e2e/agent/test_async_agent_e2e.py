@@ -54,16 +54,16 @@ class MockAsyncEventHandler:
         self.update_config_events: list[UpdateMCPConfigNotification] = []
         self.tools_received_events: list[tuple[str, list[SMCPTool]]] = []
 
-    async def on_computer_enter_office(self, data: EnterOfficeNotification) -> None:
+    async def on_computer_enter_office(self, data: EnterOfficeNotification, sio: AsyncSMCPAgentClient) -> None:
         self.enter_office_events.append(data)
 
-    async def on_computer_leave_office(self, data: LeaveOfficeNotification) -> None:
+    async def on_computer_leave_office(self, data: LeaveOfficeNotification, sio: AsyncSMCPAgentClient) -> None:
         self.leave_office_events.append(data)
 
-    async def on_computer_update_config(self, data: UpdateMCPConfigNotification) -> None:
+    async def on_computer_update_config(self, data: UpdateMCPConfigNotification, sio: AsyncSMCPAgentClient) -> None:
         self.update_config_events.append(data)
 
-    async def on_tools_received(self, computer: str, tools: list[SMCPTool]) -> None:
+    async def on_tools_received(self, computer: str, tools: list[SMCPTool], sio: AsyncSMCPAgentClient) -> None:
         self.tools_received_events.append((computer, tools))
 
 

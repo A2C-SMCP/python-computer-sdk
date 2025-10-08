@@ -271,7 +271,6 @@ class AsyncSMCPAgentClient(AsyncClient, BaseAgentClient):
         except Exception as e:
             logger.error(f"Error in _on_computer_update_config: {e}")
 
-
     async def get_desktop_from_computer(
         self,
         computer: str,

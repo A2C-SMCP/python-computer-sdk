@@ -62,11 +62,7 @@ class AsyncSMCPAgentClient(AsyncClient, BaseAgentClient):
         # 分别初始化 AsyncClient 与 BaseAgentClient
         # Initialize AsyncClient and BaseAgentClient respectively
         AsyncClient.__init__(self, *args, **kwargs)
-        BaseAgentClient.__init__(self, auth_provider=auth_provider, event_handler=None)
-
-        # 使用异步事件处理器（与Base中的同步处理器隔离）
-        # Use async event handler (isolated from Base's sync handler)
-        self.event_handler = event_handler
+        BaseAgentClient.__init__(self, auth_provider=auth_provider, event_handler=event_handler)
 
         # 注册事件处理器
         # Register event handlers
@@ -230,16 +226,13 @@ class AsyncSMCPAgentClient(AsyncClient, BaseAgentClient):
         Internal method to handle Computer enter office event
         """
         try:
-            computer = self.validate_office_data(data)
-            logger.info(f"Computer {computer} entered office {data['office_id']}")
-
-            # 调用事件处理器
-            # Call event handler
-            if self.event_handler:
-                await self.event_handler.on_computer_enter_office(data)
+            # 使用父类的异步处理方法
+            # Use parent class async handling method
+            await self.handle_computer_enter_office(data)
 
             # 自动获取工具列表
             # Automatically get tools list
+            computer = self.validate_office_data(data)
             tools_response = await self.get_tools_from_computer(computer)
             await self.process_tools_response(tools_response, computer)
 
@@ -252,13 +245,9 @@ class AsyncSMCPAgentClient(AsyncClient, BaseAgentClient):
         Internal method to handle Computer leave office event
         """
         try:
-            computer = self.validate_office_data(data)
-            logger.info(f"Computer {computer} left office {data['office_id']}")
-
-            # 调用事件处理器
-            # Call event handler
-            if self.event_handler:
-                await self.event_handler.on_computer_leave_office(data)
+            # 使用父类的异步处理方法
+            # Use parent class async handling method
+            await self.handle_computer_leave_office(data)
 
         except Exception as e:
             logger.error(f"Error in _on_computer_leave_office: {e}")
@@ -269,42 +258,19 @@ class AsyncSMCPAgentClient(AsyncClient, BaseAgentClient):
         Internal method to handle Computer update config event
         """
         try:
-            computer = data["computer"]
-            logger.info(f"Computer {computer} updated config")
-
-            # 调用事件处理器
-            # Call event handler
-            if self.event_handler:
-                await self.event_handler.on_computer_update_config(data)
+            # 使用父类的异步处理方法
+            # Use parent class async handling method
+            await self.handle_computer_update_config(data)
 
             # 重新获取工具列表
             # Re-get tools list
+            computer = data["computer"]
             tools_response = await self.get_tools_from_computer(computer)
             await self.process_tools_response(tools_response, computer)
 
         except Exception as e:
             logger.error(f"Error in _on_computer_update_config: {e}")
 
-    async def process_tools_response(self, response: GetToolsRet, computer: str) -> None:
-        """
-        异步处理工具响应
-        Async process tools response
-
-        Args:
-            response: 工具响应数据 / Tools response data
-            computer: 计算机ID / Computer ID
-        """
-        try:
-            if tools := response.get("tools"):
-                logger.info(f"Received {len(tools)} tools from computer {computer}")
-
-                # 调用事件处理器
-                # Call event handler
-                if self.event_handler:
-                    await self.event_handler.on_tools_received(computer, tools)
-
-        except Exception as e:
-            logger.error(f"Error processing tools response: {e}")
 
     async def get_desktop_from_computer(
         self,

@@ -14,7 +14,7 @@ from mcp.types import CallToolResult, TextContent
 from socketio import Client  # type: ignore[import-untyped]
 
 from a2c_smcp.agent.auth import AgentAuthProvider
-from a2c_smcp.agent.base import BaseAgentClient
+from a2c_smcp.agent.base import BaseAgentSyncClient
 from a2c_smcp.agent.types import AgentEventHandler
 from a2c_smcp.smcp import (
     CANCEL_TOOL_CALL_EVENT,
@@ -36,7 +36,7 @@ from a2c_smcp.smcp import (
 from a2c_smcp.utils.logger import logger
 
 
-class SMCPAgentClient(Client, BaseAgentClient):
+class SMCPAgentClient(Client, BaseAgentSyncClient):
     """
     SMCP协议的同步Agent客户端实现
     Synchronous SMCP protocol Agent client implementation
@@ -65,7 +65,7 @@ class SMCPAgentClient(Client, BaseAgentClient):
         # 初始化基类
         # Initialize base classes
         Client.__init__(self, *args, **kwargs)
-        BaseAgentClient.__init__(self, auth_provider, event_handler)
+        BaseAgentSyncClient.__init__(self, auth_provider, event_handler)
 
         # 注册事件处理器
         # Register event handlers
@@ -226,6 +226,8 @@ class SMCPAgentClient(Client, BaseAgentClient):
         Internal method to handle Computer enter office event
         """
         try:
+            # 使用父类的处理方法
+            # Use parent class handling method
             self.handle_computer_enter_office(data)
 
             # 自动获取工具列表
@@ -242,6 +244,8 @@ class SMCPAgentClient(Client, BaseAgentClient):
         处理Computer离开办公室事件的内部方法
         Internal method to handle Computer leave office event
         """
+        # 使用父类的处理方法
+        # Use parent class handling method
         self.handle_computer_leave_office(data)
 
     def _on_computer_update_config(self, data: UpdateMCPConfigNotification) -> None:
@@ -250,6 +254,8 @@ class SMCPAgentClient(Client, BaseAgentClient):
         Internal method to handle Computer update config event
         """
         try:
+            # 使用父类的处理方法
+            # Use parent class handling method
             self.handle_computer_update_config(data)
 
             # 重新获取工具列表

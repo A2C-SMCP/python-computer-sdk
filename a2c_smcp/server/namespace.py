@@ -15,6 +15,7 @@ from pydantic import TypeAdapter
 from a2c_smcp.server.auth import AuthenticationProvider
 from a2c_smcp.server.base import BaseNamespace
 from a2c_smcp.server.types import OFFICE_ID, SID
+from a2c_smcp.server.utils import aget_all_sessions_in_office
 from a2c_smcp.smcp import (
     CANCEL_TOOL_CALL_NOTIFICATION,
     ENTER_OFFICE_NOTIFICATION,
@@ -35,6 +36,9 @@ from a2c_smcp.smcp import (
     GetToolsRet,
     LeaveOfficeNotification,
     LeaveOfficeReq,
+    ListRoomReq,
+    ListRoomRet,
+    SessionInfo,
     ToolCallReq,
     UpdateComputerConfigReq,
     UpdateMCPConfigNotification,
@@ -374,7 +378,7 @@ class SMCPNamespace(BaseNamespace):
         """
         computer_sid = data["computer"]
         session = await self.get_session(computer_sid)
-        assert session["role"] == "computer", "目前仅支持Computer获取桌面"
+        assert session["role"] == "computer", "目前仅支持获取Computer桌面"
 
         agent_session = await self.get_session(sid)
         computer_office_id = session.get("office_id")
@@ -408,3 +412,43 @@ class SMCPNamespace(BaseNamespace):
             room=session.get("office_id"),
             skip_sid=sid,
         )
+
+    async def on_server_list_room(self, sid: str, data: ListRoomReq) -> ListRoomRet:
+        """
+        列出指定房间内的所有会话信息。Agent可以通过此事件查询房间内的所有Computer和Agent。
+        List all sessions in the specified room. Agent can query all Computers and Agents in the room via this event.
+
+        Args:
+            sid (str): 发起者ID，一般是Agent / Initiator ID, usually Agent
+            data (ListRoomReq): 列出房间请求数据，包含office_id和req_id / List room request data with office_id and req_id
+
+        Returns:
+            ListRoomRet: 房间内所有会话信息列表 / List of all session info in the room
+        """
+        # 验证请求数据 / Validate request data
+        list_room_req = TypeAdapter(ListRoomReq).validate_python(data)
+        office_id = list_room_req["office_id"]
+        req_id = list_room_req["req_id"]
+
+        # 验证发起者权限：确保Agent在请求的房间内 / Verify initiator permission: ensure Agent is in the requested room
+        agent_session = await self.get_session(sid)
+        agent_office_id = agent_session.get("office_id")
+
+        assert agent_office_id == office_id, f"Agent只能查询自己所在房间的会话信息。Agent office: {agent_office_id}, requested: {office_id}"
+
+        # 使用工具函数获取房间内所有会话信息 / Use utility function to get all session info in the room
+        all_sessions = await aget_all_sessions_in_office(office_id, self.server)
+
+        # 转换为SessionInfo格式 / Convert to SessionInfo format
+        sessions: list[SessionInfo] = []
+        for session in all_sessions:
+            if session.get("role") in ["computer", "agent"]:
+                session_info: SessionInfo = {
+                    "sid": session.get("sid", ""),
+                    "name": session.get("name", ""),
+                    "role": session["role"],
+                    "office_id": session.get("office_id", ""),
+                }
+                sessions.append(session_info)
+
+        return ListRoomRet(sessions=sessions, req_id=req_id)

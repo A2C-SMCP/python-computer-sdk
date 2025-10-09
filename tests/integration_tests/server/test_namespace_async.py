@@ -282,3 +282,112 @@ async def test_update_config_broadcast(socketio_server, basic_server_port: int):
 
     await agent.disconnect()
     await computer.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_list_room_success(socketio_server, basic_server_port: int):
+    """
+    中文：测试 Agent 成功列出房间内所有会话信息
+    English: Test Agent successfully lists all sessions in a room
+    """
+    from a2c_smcp.smcp import LIST_ROOM_EVENT, ListRoomReq
+
+    agent = AsyncClient()
+    computer1 = AsyncClient()
+    computer2 = AsyncClient()
+
+    # 连接所有客户端 / Connect all clients
+    await agent.connect(
+        f"http://localhost:{basic_server_port}",
+        namespaces=[SMCP_NAMESPACE],
+        socketio_path="/socket.io",
+    )
+    await computer1.connect(
+        f"http://localhost:{basic_server_port}",
+        namespaces=[SMCP_NAMESPACE],
+        socketio_path="/socket.io",
+    )
+    await computer2.connect(
+        f"http://localhost:{basic_server_port}",
+        namespaces=[SMCP_NAMESPACE],
+        socketio_path="/socket.io",
+    )
+
+    # 让所有客户端加入同一房间 / All clients join the same room
+    office_id = "office-list-room-1"
+    await _join_office(agent, role="agent", office_id=office_id, name="robot-list")
+    await _join_office(computer1, role="computer", office_id=office_id, name="comp-list-1")
+    await _join_office(computer2, role="computer", office_id=office_id, name="comp-list-2")
+
+    # 等待所有客户端加入 / Wait for all clients to join
+    await asyncio.sleep(0.2)
+
+    # Agent 调用 list_room 事件 / Agent calls list_room event
+    list_req: ListRoomReq = {
+        "robot_id": agent.sid,
+        "req_id": "list_req_1",
+        "office_id": office_id,
+    }
+    result = await agent.call(LIST_ROOM_EVENT, list_req, namespace=SMCP_NAMESPACE)
+
+    # 验证结果 / Verify result
+    assert result is not None
+    assert result["req_id"] == "list_req_1"
+    assert "sessions" in result
+    assert len(result["sessions"]) == 3  # 1 agent + 2 computers
+
+    # 验证会话信息 / Verify session info
+    sessions = result["sessions"]
+    roles = [s["role"] for s in sessions]
+    assert roles.count("agent") == 1
+    assert roles.count("computer") == 2
+    assert all(s["office_id"] == office_id for s in sessions)
+
+    # 断开连接 / Disconnect
+    await agent.disconnect()
+    await computer1.disconnect()
+    await computer2.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_list_room_empty_office(socketio_server, basic_server_port: int):
+    """
+    中文：测试 Agent 查询只有自己的房间
+    English: Test Agent queries a room with only itself
+    """
+    from a2c_smcp.smcp import LIST_ROOM_EVENT, ListRoomReq
+
+    agent = AsyncClient()
+
+    await agent.connect(
+        f"http://localhost:{basic_server_port}",
+        namespaces=[SMCP_NAMESPACE],
+        socketio_path="/socket.io",
+    )
+
+    # Agent 加入 office_empty
+    # Agent joins office_empty
+    office_id = "office_empty"
+    await _join_office(agent, role="agent", office_id=office_id, name="robot-alone")
+
+    await asyncio.sleep(0.2)
+
+    # Agent 查询自己所在的房间（只有自己）
+    # Agent queries its own room (only itself)
+    list_req: ListRoomReq = {
+        "robot_id": agent.sid,
+        "req_id": "list_req_empty",
+        "office_id": office_id,
+    }
+    result = await agent.call(LIST_ROOM_EVENT, list_req, namespace=SMCP_NAMESPACE)
+
+    # 验证结果：应该只有 1 个会话（Agent 自己）
+    # Verify result: should only have 1 session (Agent itself)
+    assert result is not None
+    assert result["req_id"] == "list_req_empty"
+    assert "sessions" in result
+    assert len(result["sessions"]) == 1
+    assert result["sessions"][0]["role"] == "agent"
+    assert result["sessions"][0]["office_id"] == office_id
+
+    await agent.disconnect()

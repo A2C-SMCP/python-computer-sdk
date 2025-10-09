@@ -29,6 +29,9 @@ UPDATE_TOOL_LIST_EVENT = "server:update_tool_list"
 # 中文: 当需要让Agent刷新桌面时，由Computer触发此事件。英文: Computer emits this when Agent should refresh desktop.
 UPDATE_DESKTOP_EVENT = "server:update_desktop"
 CANCEL_TOOL_CALL_EVENT = "server:tool_call_cancel"
+# 列出房间内所有会话事件：Agent可以通过此事件查询指定房间内的所有会话信息。
+# List all sessions in room event: Agent can query all session info in a specific room via this event.
+LIST_ROOM_EVENT = "server:list_room"
 # NOTIFY 通知事件  通知事件全部由Server发出（一般由Client触发其它事件，在响应这些事件时，Server发出通知）
 #   1. 比如 AgentClient 发出 server:tool_call_cancel 事件，服务端接收后，发起 notify:tool_call_cancel 通知
 #   2. 比如 ComputerClient 发出 server:join_office 事件，服务端接收后，发起 notify:enter_office 通知
@@ -297,3 +300,34 @@ class GetDeskTopRet(TypedDict, total=False):
 
     desktops: list[Desktop]
     req_id: str
+
+
+class ListRoomReq(AgentCallData):
+    """
+    列出房间内所有会话的请求。Agent通过此请求获取指定房间内的所有Computer和Agent会话信息。
+    Request to list all sessions in a room. Agent uses this to get all Computer and Agent session info in a specific room.
+    """
+
+    office_id: str  # 房间ID / Room ID
+
+
+class SessionInfo(TypedDict, total=False):
+    """
+    会话信息，包含sid、name、role等基础信息。
+    Session information, includes sid, name, role and other basic info.
+    """
+
+    sid: str  # 会话ID / Session ID
+    name: str  # 会话名称 / Session name
+    role: Literal["computer", "agent"]  # 会话角色 / Session role
+    office_id: str  # 所属房间ID / Office ID
+
+
+class ListRoomRet(TypedDict):
+    """
+    列出房间内所有会话的响应。返回房间内所有Computer和Agent的会话信息列表。
+    Response for listing all sessions in a room. Returns list of all Computer and Agent session info in the room.
+    """
+
+    sessions: list[SessionInfo]  # 会话列表 / Session list
+    req_id: str  # 请求ID / Request ID

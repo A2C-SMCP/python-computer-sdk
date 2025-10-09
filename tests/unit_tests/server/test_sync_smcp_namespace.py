@@ -203,3 +203,118 @@ def test_on_server_tool_call_cancel_and_update_config_and_client_paths():
     ret2 = ns.on_client_get_tools("a1", {"computer": "c1", "req_id": "r3", "robot_id": "a1"})
     assert isinstance(ret2, dict) and ret2["req_id"] == "r3" and isinstance(ret2.get("tools"), list)
     ns.call.assert_called_once()
+
+
+def test_on_server_list_room_success(monkeypatch):
+    """
+    测试成功列出房间内所有会话信息（同步版本）
+    Test successfully listing all sessions in a room (sync version)
+    """
+    ns = SyncSMCPNamespace(_DummyAuthProv())
+    server = MagicMock()
+    ns.server = server
+
+    # 准备测试数据：Agent 和两个 Computer 在同一房间
+    # Prepare test data: Agent and two Computers in the same room
+    agent_sid = "agent_1"
+    comp_sid_1 = "comp_1"
+    comp_sid_2 = "comp_2"
+    office_id = "test_office"
+
+    # Mock 会话数据 / Mock session data
+    sessions_data = [
+        {"sid": agent_sid, "name": "Test Agent", "role": "agent", "office_id": office_id},
+        {"sid": comp_sid_1, "name": "Computer 1", "role": "computer", "office_id": office_id},
+        {"sid": comp_sid_2, "name": "Computer 2", "role": "computer", "office_id": office_id},
+    ]
+
+    # Mock get_session 返回 Agent 会话 / Mock get_session to return Agent session
+    ns.get_session = MagicMock(return_value={"sid": agent_sid, "name": "Test Agent", "role": "agent", "office_id": office_id})
+
+    # 使用 monkeypatch Mock get_all_sessions_in_office
+    def mock_get_all_sessions(office_id_param, sio):
+        return sessions_data
+
+    monkeypatch.setattr("a2c_smcp.server.sync_namespace.get_all_sessions_in_office", mock_get_all_sessions)
+
+    # 执行测试 / Execute test
+    result = ns.on_server_list_room(
+        agent_sid,
+        {"robot_id": agent_sid, "req_id": "req_123", "office_id": office_id},
+    )
+
+    # 验证结果 / Verify result
+    assert result["req_id"] == "req_123"
+    assert len(result["sessions"]) == 3
+    assert all(s["office_id"] == office_id for s in result["sessions"])
+    assert any(s["sid"] == agent_sid for s in result["sessions"])
+    assert any(s["sid"] == comp_sid_1 for s in result["sessions"])
+    assert any(s["sid"] == comp_sid_2 for s in result["sessions"])
+
+
+def test_on_server_list_room_permission_denied():
+    """
+    测试权限检查：Agent 只能查询自己所在房间（同步版本）
+    Test permission check: Agent can only query their own room (sync version)
+    """
+    from a2c_smcp.smcp import ListRoomReq
+
+    ns = SyncSMCPNamespace(_DummyAuthProv())
+    server = MagicMock()
+    ns.server = server
+
+    # Agent 在 office_A，但请求查询 office_B
+    # Agent is in office_A but requests to query office_B
+    agent_sid = "agent_1"
+    agent_session = {"sid": agent_sid, "name": "Test Agent", "role": "agent", "office_id": "office_A"}
+
+    ns.get_session = MagicMock(return_value=agent_session)
+
+    # 执行测试，应该抛出 AssertionError / Execute test, should raise AssertionError
+    import pytest
+
+    with pytest.raises(AssertionError, match="Agent只能查询自己所在房间的会话信息"):
+        ns.on_server_list_room(
+            agent_sid,
+            {"robot_id": agent_sid, "req_id": "req_456", "office_id": "office_B"},
+        )
+
+
+def test_on_server_list_room_filters_invalid_sessions(monkeypatch):
+    """
+    测试过滤无效会话：只返回有效的 computer 和 agent 角色（同步版本）
+    Test filtering invalid sessions: only return valid computer and agent roles (sync version)
+    """
+    ns = SyncSMCPNamespace(_DummyAuthProv())
+    server = MagicMock()
+    ns.server = server
+
+    agent_sid = "agent_1"
+    office_id = "test_office"
+
+    # Mock 会话数据，包含一些无效的会话 / Mock session data with some invalid sessions
+    sessions_data = [
+        {"sid": agent_sid, "name": "Test Agent", "role": "agent", "office_id": office_id},
+        {"sid": "comp_1", "name": "Computer 1", "role": "computer", "office_id": office_id},
+        {"sid": "invalid_1", "name": "Invalid", "role": "unknown", "office_id": office_id},  # 无效角色
+        {"sid": "comp_2", "name": "Computer 2", "role": "computer", "office_id": office_id},
+    ]
+
+    agent_session = {"sid": agent_sid, "name": "Test Agent", "role": "agent", "office_id": office_id}
+    ns.get_session = MagicMock(return_value=agent_session)
+
+    # 使用 monkeypatch Mock get_all_sessions_in_office
+    def mock_get_all_sessions(office_id_param, sio):
+        return sessions_data
+
+    monkeypatch.setattr("a2c_smcp.server.sync_namespace.get_all_sessions_in_office", mock_get_all_sessions)
+
+    result = ns.on_server_list_room(
+        agent_sid,
+        {"robot_id": agent_sid, "req_id": "req_789", "office_id": office_id},
+    )
+
+    # 验证结果：应该只包含 3 个有效会话（排除 unknown 角色）
+    # Verify result: should only contain 3 valid sessions (excluding unknown role)
+    assert len(result["sessions"]) == 3
+    assert all(s["role"] in ["computer", "agent"] for s in result["sessions"])

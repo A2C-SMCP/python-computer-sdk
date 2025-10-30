@@ -71,8 +71,16 @@ python -m a2c_smcp.computer.cli
 
 #### 2. 在 CLI 中添加配置
 
+**方式 1：使用文件（推荐）**
+
 ```bash
 a2c> server add @stdio_config.json
+```
+
+**方式 2：使用行内 JSON（直接输入）**
+
+```bash
+server add {"name": "python-ide-stdio", "type": "stdio", "disabled": false, "forbidden_tools": [], "tool_meta": {}, "default_tool_meta": {"auto_apply": true}, "server_parameters": {"command": "uv", "args": ["run", "py-ide4ai-mcp", "--transport", "stdio", "--root-dir", "需要替换为实际的项目文件夹", "--project-name", "test-project", "--cmd-white-list", "ls,pwd,echo,cat,grep,find,head,tail,wc", "--cmd-timeout", "30"], "env": null, "cwd": "如果可执行文件在本地，需要指定至可执行文件的文件夹位置。如果是全局安装，设置为null", "encoding": "utf-8", "encoding_error_handler": "strict"}}
 ```
 
 **预期输出**:
@@ -114,8 +122,7 @@ a2c> tools
 使用行内 JSON 格式调用工具:
 
 ```bash
-# 因为是测试过程，因此robot_id与computer，可以Mock一个合理值即可。不会进行具体校验，因为不涉及SocketIO的传输。
-a2c> tc {"req_id":"test-stdio-001","tool_name":"Bash","params":{"command":"echo 'Hello from stdio mode!'"},"timeout":30, "robot_id": "friday", "computer": "mock"}
+a2c> tc {"req_id":"test-sse-001","tool_name":"Bash","params":{"command":"echo", "args":  "Hello from Stdio mode!"},"timeout":30, "robot_id": "friday", "computer": "mock"}
 ```
 
 **预期输出**:
@@ -124,31 +131,29 @@ a2c> tc {"req_id":"test-stdio-001","tool_name":"Bash","params":{"command":"echo 
   "content": [
     {
       "type": "text",
-      "text": "Hello from stdio mode!\n"
+      "text": "Hello from Stdio mode!"
     }
   ],
   "isError": false,
-  "meta": {
-    "a2c_tool_meta": {
-      "server_name": "python-ide-stdio",
-      "tool_name": "execute_bash_command"
-    }
-  }
+  "meta": null
 }
 ```
 
 #### 6. 更多测试命令
 
-**测试 1: 列出目录**
+**测试 2: 列出文件**
 
 ```bash
-a2c> tc {"req_id":"test-stdio-002","tool_name":"python-ide-stdio__execute_bash_command","params":{"command":"ls -la /tmp"},"timeout":30}
+a2c> tc {"req_id":"test-sse-003","tool_name":"Bash","params":{"command":"ls", "args": ["-l", "."]},"timeout":30, "robot_id": "friday", "computer": "mock"}
 ```
 
-**测试 2: 获取当前路径**
+#### 8. 停止客户端和服务器
 
 ```bash
-a2c> tc {"req_id":"test-stdio-003","tool_name":"python-ide-stdio__execute_bash_command","params":{"command":"pwd"},"timeout":30}
+# 在 CLI 中停止客户端
+a2c> stop python-ide-sse
+
+# 在服务器终端按 Ctrl+C 停止服务器
 ```
 
 #### 7. 停止客户端
@@ -269,7 +274,7 @@ a2c> tc {"req_id":"test-sse-001","tool_name":"Bash","params":{"command":"echo", 
   "content": [
     {
       "type": "text",
-      "text": "Hello from SSE mode!\n"
+      "text": "Hello from SSE mode!"
     }
   ],
   "isError": false,
@@ -409,7 +414,7 @@ a2c> tc {"req_id":"test-sse-001","tool_name":"Bash","params":{"command":"echo", 
   "content": [
     {
       "type": "text",
-      "text": "Hello from Streamable mode!\n"
+      "text": "Hello from Streamable mode!"
     }
   ],
   "isError": false,

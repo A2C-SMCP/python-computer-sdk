@@ -142,6 +142,12 @@ class MCPServerManager:
                     await self._arestart_server(config.name)
                 else:
                     raise RuntimeError(f"Server {config.name} is active. Stop it before updating config")
+            else:
+                # 配置存在但客户端未激活，更新配置并根据 auto_connect 决定是否启动
+                # Config exists but client is not active, update config and start if auto_connect is enabled
+                self._servers_config[config.name] = config
+                if self._auto_connect:
+                    await self._astart_client(config.name)
         else:
             self._servers_config[config.name] = config
             if self._auto_connect:
